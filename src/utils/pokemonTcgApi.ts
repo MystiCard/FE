@@ -17,15 +17,142 @@ interface ApiResponse<T> {
     data: T;
 }
 
+// Hardcoded fallback data
+const FALLBACK_SETS: PokemonSet[] = [
+    {
+        id: 'sv1',
+        name: 'Scarlet & Violet',
+        series: 'Scarlet & Violet',
+        printedTotal: 198,
+        total: 252,
+        releaseDate: '2023/03/31',
+        images: {
+            symbol: 'https://images.pokemontcg.io/sv1/symbol.png',
+            logo: 'https://images.pokemontcg.io/sv1/logo.png',
+        },
+    } as PokemonSet,
+    {
+        id: 'sv2',
+        name: 'Paldea Evolved',
+        series: 'Scarlet & Violet',
+        printedTotal: 193,
+        total: 261,
+        releaseDate: '2023/06/09',
+        images: {
+            symbol: 'https://images.pokemontcg.io/sv2/symbol.png',
+            logo: 'https://images.pokemontcg.io/sv2/logo.png',
+        },
+    } as PokemonSet,
+    {
+        id: 'sv3',
+        name: 'Obsidian Flames',
+        series: 'Scarlet & Violet',
+        printedTotal: 197,
+        total: 230,
+        releaseDate: '2023/08/11',
+        images: {
+            symbol: 'https://images.pokemontcg.io/sv3/symbol.png',
+            logo: 'https://images.pokemontcg.io/sv3/logo.png',
+        },
+    } as PokemonSet,
+    {
+        id: 'sv4',
+        name: 'Paradox Rift',
+        series: 'Scarlet & Violet',
+        printedTotal: 182,
+        total: 266,
+        releaseDate: '2023/11/03',
+        images: {
+            symbol: 'https://images.pokemontcg.io/sv4/symbol.png',
+            logo: 'https://images.pokemontcg.io/sv4/logo.png',
+        },
+    } as PokemonSet,
+    {
+        id: 'swsh12',
+        name: 'Silver Tempest',
+        series: 'Sword & Shield',
+        printedTotal: 195,
+        total: 245,
+        releaseDate: '2022/11/11',
+        images: {
+            symbol: 'https://images.pokemontcg.io/swsh12/symbol.png',
+            logo: 'https://images.pokemontcg.io/swsh12/logo.png',
+        },
+    } as PokemonSet,
+    {
+        id: 'swsh11',
+        name: 'Lost Origin',
+        series: 'Sword & Shield',
+        printedTotal: 196,
+        total: 247,
+        releaseDate: '2022/09/09',
+        images: {
+            symbol: 'https://images.pokemontcg.io/swsh11/symbol.png',
+            logo: 'https://images.pokemontcg.io/swsh11/logo.png',
+        },
+    } as PokemonSet,
+    {
+        id: 'swsh10',
+        name: 'Astral Radiance',
+        series: 'Sword & Shield',
+        printedTotal: 189,
+        total: 216,
+        releaseDate: '2022/05/27',
+        images: {
+            symbol: 'https://images.pokemontcg.io/swsh10/symbol.png',
+            logo: 'https://images.pokemontcg.io/swsh10/logo.png',
+        },
+    } as PokemonSet,
+    {
+        id: 'swsh9',
+        name: 'Brilliant Stars',
+        series: 'Sword & Shield',
+        printedTotal: 172,
+        total: 216,
+        releaseDate: '2022/02/25',
+        images: {
+            symbol: 'https://images.pokemontcg.io/swsh9/symbol.png',
+            logo: 'https://images.pokemontcg.io/swsh9/logo.png',
+        },
+    } as PokemonSet,
+    {
+        id: 'swsh8',
+        name: 'Fusion Strike',
+        series: 'Sword & Shield',
+        printedTotal: 264,
+        total: 284,
+        releaseDate: '2021/11/12',
+        images: {
+            symbol: 'https://images.pokemontcg.io/swsh8/symbol.png',
+            logo: 'https://images.pokemontcg.io/swsh8/logo.png',
+        },
+    } as PokemonSet,
+    {
+        id: 'swsh7',
+        name: 'Evolving Skies',
+        series: 'Sword & Shield',
+        printedTotal: 203,
+        total: 237,
+        releaseDate: '2021/08/27',
+        images: {
+            symbol: 'https://images.pokemontcg.io/swsh7/symbol.png',
+            logo: 'https://images.pokemontcg.io/swsh7/logo.png',
+        },
+    } as PokemonSet,
+];
+
 // Fetch all sets
 export async function fetchSets(): Promise<PokemonSet[]> {
     try {
         const response = await fetch(`${BASE_URL}/sets?orderBy=-releaseDate&pageSize=250`);
+        if (!response.ok) {
+            throw new Error('API request failed');
+        }
         const json: ApiResponse<PokemonSet[]> = await response.json();
         return json.data;
     } catch (error) {
-        console.error('Error fetching sets:', error);
-        return [];
+        console.error('Error fetching sets, using fallback data:', error);
+        return FALLBACK_SETS;
     }
 }
 
@@ -33,10 +160,13 @@ export async function fetchSets(): Promise<PokemonSet[]> {
 export async function fetchCardsBySet(setId: string): Promise<PokemonCard[]> {
     try {
         const response = await fetch(`${BASE_URL}/cards?q=set.id:${setId}&pageSize=250`);
+        if (!response.ok) {
+            throw new Error('API request failed');
+        }
         const json: ApiResponse<PokemonCard[]> = await response.json();
         return json.data;
     } catch (error) {
-        console.error('Error fetching cards:', error);
+        console.error('Error fetching cards, returning empty array:', error);
         return [];
     }
 }
@@ -45,6 +175,9 @@ export async function fetchCardsBySet(setId: string): Promise<PokemonCard[]> {
 export async function fetchCardById(cardId: string): Promise<PokemonCard | null> {
     try {
         const response = await fetch(`${BASE_URL}/cards/${cardId}`);
+        if (!response.ok) {
+            throw new Error('API request failed');
+        }
         const json: ApiResponse<PokemonCard> = await response.json();
         return json.data;
     } catch (error) {
@@ -57,6 +190,9 @@ export async function fetchCardById(cardId: string): Promise<PokemonCard | null>
 export async function searchCards(query: string): Promise<PokemonCard[]> {
     try {
         const response = await fetch(`${BASE_URL}/cards?q=name:${query}*&pageSize=20`);
+        if (!response.ok) {
+            throw new Error('API request failed');
+        }
         const json: ApiResponse<PokemonCard[]> = await response.json();
         return json.data;
     } catch (error) {
@@ -79,6 +215,9 @@ export async function getRandomCards(count: number = 10): Promise<PokemonCard[]>
         const randomPage = Math.floor(Math.random() * 10) + 1;
 
         const response = await fetch(`${BASE_URL}/cards?q=${randomQuery}&page=${randomPage}&pageSize=${count}`);
+        if (!response.ok) {
+            throw new Error('API request failed');
+        }
         const json: ApiResponse<PokemonCard[]> = await response.json();
         return json.data;
     } catch (error) {
