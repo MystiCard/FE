@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Star, Heart } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
 import { useWishlist } from '@/hooks/useWishlist';
+import { Link } from 'react-router-dom';
 
 const products = [
     {
@@ -38,6 +39,38 @@ const products = [
         rarity: 'Alternate Art',
         image: 'https://images.unsplash.com/photo-1611068813580-c0c3c4a0d8a8?w=400&q=80',
     },
+    {
+        id: 5,
+        name: 'Gengar VMAX',
+        set: 'Fusion Strike',
+        price: 129.99,
+        rarity: 'Secret Rare',
+        image: 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80',
+    },
+    {
+        id: 6,
+        name: 'Mew VMAX',
+        set: 'Fusion Strike',
+        price: 189.99,
+        rarity: 'Rainbow Rare',
+        image: 'https://images.unsplash.com/photo-1611068813580-c0c3c4a0d8a8?w=400&q=80',
+    },
+    {
+        id: 7,
+        name: 'Umbreon VMAX',
+        set: 'Evolving Skies',
+        price: 349.99,
+        rarity: 'Alternate Art',
+        image: 'https://images.unsplash.com/photo-1542779283-429940ce8336?w=400&q=80',
+    },
+    {
+        id: 8,
+        name: 'Giratina VSTAR',
+        set: 'Lost Origin',
+        price: 249.99,
+        rarity: 'Secret Rare',
+        image: 'https://images.unsplash.com/photo-1613771404721-1f92d799e49f?w=400&q=80',
+    },
 ];
 
 export const NewArrivals: React.FC = () => {
@@ -51,9 +84,11 @@ export const NewArrivals: React.FC = () => {
                     <h2 className="text-4xl font-bold mb-2 font-serif">New Arrivals</h2>
                     <p className="text-muted-foreground">Fresh cards just added to our collection</p>
                 </div>
-                <Button variant="outline" className="glass-card hover:bg-white/20">
-                    View All
-                </Button>
+                <Link to="/products">
+                    <Button variant="outline" className="glass-card hover:bg-white/20">
+                        View All
+                    </Button>
+                </Link>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
