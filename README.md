@@ -1,6 +1,6 @@
 # MystiCard - Frontend
 
-A modern, premium Pokemon trading card game platform built with React, TypeScript, and Vite.
+A modern, premium Pokemon trading card marketplace platform built with React, TypeScript, and Vite. MystiCard provides a comprehensive solution for Pokemon card collectors and traders to manage their collections, buy/sell cards, and explore the Pokemon TCG universe.
 
 ## Features
 
