@@ -1,16 +1,21 @@
-# SWD_Myscard v2.0
+# MystiCard - Frontend
 
-A modern, premium trading card game platform built with React, TypeScript, and Vite.
+A modern, premium Pokemon trading card game platform built with React, TypeScript, and Vite.
 
-## 🎨 Features
+## Features
 
+- **Pokemon Card Trading**: Browse, buy, and sell Pokemon cards
+- **Portfolio Management**: Track your card collection and value
+- **Mystery Boxes**: Purchase mystery boxes with random cards
+- **Marketplace**: User-to-user trading marketplace
+- **Admin Dashboard**: Product and user management
+- **Authentication**: Google OAuth integration
 - **Modern UI/UX**: Glassmorphism effects, smooth animations, and premium design
 - **Responsive Design**: Works seamlessly on desktop, tablet, and mobile
 - **Type-Safe**: Built with TypeScript for better development experience
 - **Fast Performance**: Powered by Vite for lightning-fast builds
-- **Component Library**: 80+ reusable components built with Radix UI
 
-## 🚀 Tech Stack
+## Tech Stack
 
 - **Frontend**: React 18.3.1
 - **Language**: TypeScript
@@ -21,7 +26,7 @@ A modern, premium trading card game platform built with React, TypeScript, and V
 - **Routing**: React Router DOM v7
 - **Charts**: Recharts
 
-## 📦 Installation
+## Installation
 
 ```bash
 # Install dependencies
@@ -37,39 +42,54 @@ npm run build
 npm run preview
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
-SWD_Myscard_v2/
+MystiCard-FE/
 ├── src/
 │   ├── components/
 │   │   ├── ui/           # Radix UI components
 │   │   ├── layout/       # Header, Sidebar, Footer
 │   │   ├── home/         # Home page components
-│   │   ├── shop/         # Shop components
-│   │   ├── user/         # User components
-│   │   ├── portfolio/    # Portfolio components
-│   │   ├── admin/        # Admin components
-│   │   └── shared/       # Shared components
+│   │   ├── shop/         # Shop & marketplace components
+│   │   ├── user/         # Login, Register, Profile
+│   │   ├── portfolio/    # Portfolio & card management
+│   │   ├── admin/        # Admin dashboard
+│   │   ├── about/        # About page
+│   │   └── shared/       # Shared components (Cart, Wishlist, etc)
 │   ├── pages/            # Page components
-│   ├── layouts/          # Layout components
-│   ├── hooks/            # Custom React hooks
-│   ├── utils/            # Utility functions
+│   ├── layouts/          # MainLayout, AdminLayout
+│   ├── contexts/         # AuthContext
+│   ├── hooks/            # useCart, useWishlist
+│   ├── utils/            # API utilities, helpers
 │   ├── styles/           # Global styles
-│   ├── types/            # TypeScript types
-│   ├── App.tsx           # Main app component
+│   ├── types/            # TypeScript type definitions
+│   ├── lib/              # Utility functions
+│   ├── App.tsx           # Main app component with routing
 │   └── main.tsx          # Entry point
-├── public/               # Static assets
+├── public/               # Static assets (logo, images)
 ├── index.html            # HTML template
 ├── package.json          # Dependencies
 ├── tsconfig.json         # TypeScript config
 ├── vite.config.ts        # Vite config
-└── tailwind.config.js    # Tailwind config
+├── tailwind.config.js    # Tailwind config
+└── postcss.config.js     # PostCSS config
 ```
 
-## 🎯 Key Features
+## Key Features
+
+### Pages
+
+- **Home**: Hero section, features showcase, new arrivals
+- **Shop**: Products, Booster Boxes, Mystery Boxes
+- **Marketplace**: User-to-user trading platform
+- **Portfolio**: Card collection management
+- **Comparison**: Compare card values
+- **Profile**: User profile and settings
+- **Admin**: Product and user management dashboard
 
 ### Design System
+
 - Multi-layer gradient backgrounds
 - Glassmorphism effects (frosted glass UI)
 - Custom animations (fadeIn, slideUp, float, glow)
@@ -78,44 +98,50 @@ SWD_Myscard_v2/
 - Staggered entrance animations
 
 ### Components
-- **Layout**: Header with dropdown menus, Sidebar, Footer
-- **Home**: Hero Section, Features, New Arrivals
-- **UI Library**: Button, Card, Dialog, Form, Input, and more
+
+- **Layout**: Header with dropdown menus, Sidebar, Footer, Mobile Menu
+- **Shop**: Products, Marketplace, Mystery Box, Booster Boxes, Create Listing
+- **Shared**: Cart Drawer, Wishlist Drawer, Floating Widgets, Card Comparison
+- **Portfolio**: Portfolio view, Set Detail, Card Detail Modal
+- **Admin**: Dashboard, Product Management, User Management
+- **UI Library**: Button, Card, Dialog, Input, Dropdown, Toast, Tooltip, Progress, and more
 
 ### Animations
+
 - Smooth transitions (300-500ms)
 - Hover lift effects
 - Floating decorative elements
 - Staggered reveals
 
-## 🎨 Design Highlights
+## Design Highlights
 
-- **Color Palette**: 
+- **Color Palette**:
   - Primary: Blue (#3D7DCA)
   - Accent: Gold (#FFCB05)
-- **Typography**: 
+- **Typography**:
   - Serif: Cormorant Garamond
   - Sans: Open Sans
 - **Effects**: Glassmorphism, gradients, shadows, blur
 
-## 📝 Development
+## Development
 
 The project uses:
+
 - **ESLint** for code linting
 - **TypeScript** for type checking
 - **Vite** for fast development and building
 - **Tailwind CSS** for styling
 
-## 🔧 Configuration
+## Configuration
 
 - Path alias `@/` points to `src/` directory
 - Custom Tailwind theme with extended colors and animations
 - Optimized build with code splitting
 
-## 📄 License
+## License
 
-Copyright © 2026 MyScard. All rights reserved.
+Copyright © 2025 MystiCard. All rights reserved.
 
-## 🤝 Contributing
+## Contributing
 
 This is a private project. For questions or support, contact the development team.
