@@ -17,6 +17,8 @@ import { ComparisonPage } from '@/pages/ComparisonPage';
 import { AboutPage } from '@/pages/AboutPage';
 import { AdminProductsPage } from '@/pages/AdminProductsPage';
 import { AdminUsersPage } from '@/pages/AdminUsersPage';
+import { CartPage } from '@/pages/CartPage';
+import { CheckoutPage } from '@/pages/CheckoutPage';
 import { CreateListing } from '@/components/shop/CreateListing';
 
 // Placeholder pages
@@ -94,6 +96,8 @@ function App() {
                     <Route path="/" element={<MainLayout />}>
                         <Route index element={<HomePage />} />
                         <Route path="shop" element={<ShopPage />} />
+                        <Route path="cart" element={<CartPage />} />
+                        <Route path="checkout" element={<CheckoutPage />} />
                         <Route path="products" element={<ProductsPage />} />
                         <Route path="booster-boxes" element={<BoosterBoxesPage />} />
                         <Route path="special-items" element={<ProductsPage />} />
