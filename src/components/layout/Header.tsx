@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { useCart } from '@/hooks/useCart';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
-import { CartDrawer } from '@/components/shared/CartDrawer';
 import { WishlistDrawer } from '@/components/shared/WishlistDrawer';
 import { MobileMenu } from '@/components/shared/MobileMenu';
 
@@ -14,7 +13,6 @@ export const Header: React.FC = () => {
     const [isShopOpen, setIsShopOpen] = React.useState(false);
     const [isPortfolioOpen, setIsPortfolioOpen] = React.useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
-    const [isCartOpen, setIsCartOpen] = React.useState(false);
     const [isWishlistOpen, setIsWishlistOpen] = React.useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
     const { itemCount } = useCart();
@@ -158,7 +156,7 @@ export const Header: React.FC = () => {
                             variant="ghost"
                             size="icon"
                             className="hover-lift relative"
-                            onClick={() => setIsCartOpen(true)}
+                            onClick={() => navigate('/cart')}
                         >
                             <ShoppingCart className="h-5 w-5" />
                             {itemCount > 0 && (
@@ -170,7 +168,7 @@ export const Header: React.FC = () => {
                         <Button variant="ghost" size="icon" className="hover-lift">
                             <Bell className="h-5 w-5" />
                         </Button>
-                        
+
                         {/* User Menu */}
                         {isAuthenticated && user ? (
                             <div
@@ -247,7 +245,6 @@ export const Header: React.FC = () => {
                 </div>
             </div>
 
-            <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
             <WishlistDrawer isOpen={isWishlistOpen} onClose={() => setIsWishlistOpen(false)} />
             <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
         </header>
