@@ -199,6 +199,68 @@ export const apiRequest = async <T>(
     return response.json();
 };
 
+// User API
+export interface UserProfile {
+    userId: string;
+    email: string;
+    gender?: string;
+    name: string;
+    avatarUrl?: string;
+    address?: string;
+    phone?: string;
+    walletResponse?: {
+        balance: number;
+    };
+}
+
+export interface RegisterRequest {
+    email: string;
+    password: string;
+    gender: 'MALE' | 'FEMALE';
+    address: string;
+    name: string;
+    phone: string;
+}
+
+export const userApi = {
+    getMyProfile: async (): Promise<UserProfile> => {
+        const response = await apiRequest<ApiResponse<UserProfile>>('/users/my-infor', {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    register: async (data: RegisterRequest, avatar?: File): Promise<UserProfile> => {
+        const formData = new FormData();
+        
+        // Append all fields as JSON string in a part called "request"
+        const requestBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+        formData.append('request', requestBlob);
+        
+        // Append avatar if provided
+        if (avatar) {
+            formData.append('avatar', avatar);
+        }
+
+        const token = tokenManager.getAccessToken();
+        const response = await fetch(`${API_BASE_URL}/users/create`, {
+            method: 'POST',
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ message: 'Registration failed' }));
+            throw new Error(error.message || 'Registration failed');
+        }
+
+        const result: ApiResponse<UserProfile> = await response.json();
+        return result.data;
+    },
+};
+
 // Token management
 export const tokenManager = {
     setTokens: (accessToken: string, refreshToken: string) => {
