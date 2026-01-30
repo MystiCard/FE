@@ -2,18 +2,29 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Mail, Lock, User } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authApi } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const Login: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { login } = useAuth();
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
     const [rememberMe, setRememberMe] = React.useState(false);
     const [isLoading, setIsLoading] = React.useState(false);
     const [error, setError] = React.useState('');
+    const [successMessage, setSuccessMessage] = React.useState('');
+
+    React.useEffect(() => {
+        // Check for success message from registration
+        if (location.state?.message) {
+            setSuccessMessage(location.state.message);
+            // Clear the message from location state
+            window.history.replaceState({}, document.title);
+        }
+    }, [location]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -57,6 +68,13 @@ export const Login: React.FC = () => {
 
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
+                        {/* Success Message */}
+                        {successMessage && (
+                            <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
+                                {successMessage}
+                            </div>
+                        )}
+
                         {/* Error Message */}
                         {error && (
                             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
