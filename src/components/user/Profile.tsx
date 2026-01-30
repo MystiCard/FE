@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -6,26 +6,76 @@ import {
     Settings, Image as ImageIcon, LifeBuoy, CreditCard,
     Briefcase, Activity
 } from 'lucide-react';
+import { userApi, UserProfile } from '@/utils/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const Profile: React.FC = () => {
-    // Mock Data based on screenshot
-    const user = {
-        name: "Truong Minh Khanh",
-        username: "@kaylee",
-        email: "truongminhkhanh@fpt.edu.vn",
-        joinDate: "January 2024",
-        avatar: "https://ui-avatars.com/api/?name=Truong+Minh+Khanh&background=3D7DCA&color=fff",
-        cover: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200&q=80" // Soft gradient placeholder
-    };
+    const { isAuthenticated } = useAuth();
+    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    // Fetch user profile
+    useEffect(() => {
+        const fetchProfile = async () => {
+            if (!isAuthenticated) {
+                setIsLoading(false);
+                return;
+            }
+
+            try {
+                const data = await userApi.getMyProfile();
+                setProfile(data);
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to load profile');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchProfile();
+    }, [isAuthenticated]);
 
     const stats = {
         totalCards: 156,
         totalSets: 23,
         totalBadges: 8,
-        totalValue: 48500000
+        totalValue: profile?.walletResponse?.balance || 48500000
     };
 
     const [activeTab, setActiveTab] = useState<'stats' | 'badges' | 'support'>('stats');
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                    <div className="text-xl">Loading profile...</div>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-red-400 text-xl mb-4">{error}</div>
+                    <Button onClick={() => window.location.reload()}>Retry</Button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!profile) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-xl">Please login to view profile</div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen pb-12">
@@ -48,8 +98,13 @@ export const Profile: React.FC = () => {
                 <div className="px-4 -mt-16 relative flex flex-col md:flex-row items-end md:items-center gap-6">
                     <div className="relative">
                         <div className="w-32 h-32 rounded-full border-4 border-[#0B0112] bg-[#1a0a2e] flex items-center justify-center overflow-hidden">
-                            <span className="text-3xl font-bold text-primary-400">TM</span>
-                            {/* In real app: <img src={user.avatar} className="w-full h-full object-cover" /> */}
+                            {profile.avatarUrl ? (
+                                <img src={profile.avatarUrl} alt={profile.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <span className="text-3xl font-bold text-primary-400">
+                                    {profile.name?.charAt(0).toUpperCase() || 'U'}
+                                </span>
+                            )}
                         </div>
                         <div className="absolute bottom-2 right-2 w-6 h-6 bg-blue-500 rounded-full border-2 border-[#0B0112] flex items-center justify-center">
                             <Edit className="w-3 h-3 text-white" />
@@ -58,12 +113,18 @@ export const Profile: React.FC = () => {
 
                     <div className="flex-1 mb-2">
                         <div className="flex items-center gap-2">
-                            <h1 className="text-2xl font-bold text-white">{user.name}</h1>
+                            <h1 className="text-2xl font-bold text-white">{profile.name}</h1>
                             <Edit className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-white" />
                             <Award className="w-4 h-4 text-yellow-500" />
                         </div>
-                        <p className="text-primary-400 font-medium">{user.username}</p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <p className="text-primary-400 font-medium">@{profile.email?.split('@')[0]}</p>
+                        <p className="text-sm text-muted-foreground">{profile.email}</p>
+                        {profile.phone && (
+                            <p className="text-sm text-muted-foreground">📱 {profile.phone}</p>
+                        )}
+                        {profile.address && (
+                            <p className="text-sm text-muted-foreground">📍 {profile.address}</p>
+                        )}
                     </div>
 
                     <div className="flex gap-2 mb-4">
