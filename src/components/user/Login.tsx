@@ -1,9 +1,9 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Mail, Lock, User } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { authApi } from '@/utils/api';
+import { authApi, isAdmin, tokenManager } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const Login: React.FC = () => {
@@ -41,8 +41,13 @@ export const Login: React.FC = () => {
             // Save tokens and update auth context
             login(response.accessToken, response.refreshToken);
 
-            // Redirect to home or dashboard
-            navigate('/');
+            // Check if user is admin and redirect accordingly
+            const userInfo = tokenManager.getUserInfo();
+            if (isAdmin(userInfo)) {
+                navigate('/admin');
+            } else {
+                navigate('/');
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.');
         } finally {

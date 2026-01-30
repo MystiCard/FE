@@ -28,7 +28,27 @@ export interface UserInfo {
     picture?: string;
     avatarUrl?: string;
     roles?: string[];
+    scope?: string; // Spring Security sometimes uses 'scope' for roles
 }
+
+// Helper function to check if user is admin
+export const isAdmin = (user: UserInfo | null): boolean => {
+    if (!user) return false;
+    
+    // Check in roles array
+    if (user.roles && Array.isArray(user.roles)) {
+        return user.roles.some(role => 
+            role === 'ROLE_ADMIN' || role === 'ADMIN'
+        );
+    }
+    
+    // Check in scope string (Spring Security format)
+    if (user.scope && typeof user.scope === 'string') {
+        return user.scope.includes('ROLE_ADMIN') || user.scope.includes('ADMIN');
+    }
+    
+    return false;
+};
 
 // Decode JWT token to get user info
 const decodeToken = (token: string): UserInfo | null => {

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { isAdmin, tokenManager } from '@/utils/api';
 
 export const GoogleCallbackPage: React.FC = () => {
     const navigate = useNavigate();
@@ -24,13 +25,18 @@ export const GoogleCallbackPage: React.FC = () => {
             // Save tokens and update auth context
             login(accessToken, refreshToken);
             
-            // Redirect to home
-            navigate('/');
+            // Check if user is admin and redirect accordingly
+            const userInfo = tokenManager.getUserInfo();
+            if (isAdmin(userInfo)) {
+                navigate('/admin');
+            } else {
+                navigate('/');
+            }
         } else {
             setError('Invalid response from server.');
             setTimeout(() => navigate('/login'), 3000);
         }
-    }, [searchParams, navigate]);
+    }, [searchParams, navigate, login]);
 
     return (
         <div className="min-h-screen flex items-center justify-center">
