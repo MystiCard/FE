@@ -6,14 +6,20 @@ import {
     Settings, Image as ImageIcon, LifeBuoy, CreditCard,
     Briefcase, Activity
 } from 'lucide-react';
-import { userApi, UserProfile } from '@/utils/api';
+import { userApi, UserProfile, transactionApi } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export const Profile: React.FC = () => {
     const { isAuthenticated } = useAuth();
+    const navigate = useNavigate();
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
+    const [showDepositModal, setShowDepositModal] = useState(false);
+    const [depositAmount, setDepositAmount] = useState('');
+    const [selectedProvider, setSelectedProvider] = useState<'MOMO' | 'VNPAY'>('MOMO');
+    const [isProcessing, setIsProcessing] = useState(false);
 
     // Fetch user profile
     useEffect(() => {
@@ -35,6 +41,42 @@ export const Profile: React.FC = () => {
 
         fetchProfile();
     }, [isAuthenticated]);
+
+    const handleTopUp = () => {
+        setShowDepositModal(true);
+    };
+
+    const handleDeposit = async () => {
+        if (!depositAmount || Number(depositAmount) <= 0) {
+            alert('Vui lòng nhập số tiền hợp lệ');
+            return;
+        }
+
+        if (!profile?.userId) {
+            alert('Không tìm thấy thông tin người dùng');
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const paymentUrl = await transactionApi.deposit({
+                userId: profile.userId,
+                amount: Number(depositAmount),
+                provider: selectedProvider,
+            });
+            
+            // Redirect to payment gateway
+            window.location.href = paymentUrl;
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Nạp tiền thất bại');
+            setIsProcessing(false);
+        }
+    };
+
+    const handleViewTransactions = () => {
+        // TODO: Navigate to transaction history page or open modal
+        alert('Tính năng xem lịch sử giao dịch đang được phát triển');
+    };
 
     const stats = {
         totalCards: 156,
@@ -193,7 +235,61 @@ export const Profile: React.FC = () => {
                     ))}
                 </div>
 
-                {/* 5. Main Collection Summary */}
+                {/* 5. Wallet Section */}
+                <div>
+                    <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-green-400">
+                        <CreditCard className="w-5 h-5" />
+                        Ví của tôi
+                    </h3>
+                    <Card className="glass-card p-6 relative overflow-hidden">
+                        {/* Background decoration */}
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl"></div>
+                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
+                        
+                        <div className="relative z-10">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <p className="text-sm text-muted-foreground mb-1">Số dư khả dụng</p>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-3xl md:text-4xl font-bold text-green-400">
+                                            {(profile?.walletResponse?.balance || 0).toLocaleString('vi-VN')}
+                                        </span>
+                                        <span className="text-xl text-muted-foreground">đ</span>
+                                    </div>
+                                </div>
+                                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
+                                    <CreditCard className="w-8 h-8 text-green-400" />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <Button 
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={handleTopUp}
+                                >
+                                    <CreditCard className="w-4 h-4 mr-2" />
+                                    Nạp tiền
+                                </Button>
+                                <Button 
+                                    variant="outline" 
+                                    className="border-green-500/30 hover:bg-green-500/10"
+                                    onClick={handleViewTransactions}
+                                >
+                                    <Activity className="w-4 h-4 mr-2" />
+                                    Lịch sử
+                                </Button>
+                            </div>
+
+                            <div className="mt-4 pt-4 border-t border-white/10">
+                                <p className="text-xs text-muted-foreground text-center">
+                                    Sử dụng ví để mua thẻ, mở hộp bí ẩn và giao dịch trên marketplace
+                                </p>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+
+                {/* 6. Main Collection Summary */}
                 <div>
                     <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-yellow-400">
                         <Briefcase className="w-5 h-5" />
@@ -227,7 +323,7 @@ export const Profile: React.FC = () => {
                     </div>
                 </div>
 
-                {/* 6. Performance Chart Placeholder */}
+                {/* 7. Performance Chart Placeholder */}
                 <div>
                     <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-blue-400">
                         <Activity className="w-5 h-5" />
@@ -266,13 +362,96 @@ export const Profile: React.FC = () => {
                         </div>
                     </Card>
                 </div>
-
-                <div className="pt-4">
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700 h-10">
-                        View Transaction Logs
-                    </Button>
-                </div>
             </div>
+
+            {/* Deposit Modal */}
+            {showDepositModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-[#1a0a2e] rounded-lg p-6 max-w-md w-full border border-white/10">
+                        <h3 className="text-xl font-bold mb-4 text-white">Nạp tiền vào ví</h3>
+                        
+                        <div className="space-y-4">
+                            {/* Amount Input */}
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                                    Số tiền (VND)
+                                </label>
+                                <input
+                                    type="number"
+                                    value={depositAmount}
+                                    onChange={(e) => setDepositAmount(e.target.value)}
+                                    placeholder="Nhập số tiền"
+                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                                    min="10000"
+                                    step="10000"
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Số tiền tối thiểu: 10,000 đ
+                                </p>
+                            </div>
+
+                            {/* Provider Selection */}
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                                    Phương thức thanh toán
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedProvider('MOMO')}
+                                        className={`p-4 rounded-lg border-2 transition-all ${
+                                            selectedProvider === 'MOMO'
+                                                ? 'border-pink-500 bg-pink-500/10'
+                                                : 'border-white/10 bg-white/5 hover:border-white/20'
+                                        }`}
+                                    >
+                                        <div className="text-center">
+                                            <div className="text-2xl mb-1">💳</div>
+                                            <div className="text-sm font-medium text-white">MoMo</div>
+                                        </div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedProvider('VNPAY')}
+                                        className={`p-4 rounded-lg border-2 transition-all ${
+                                            selectedProvider === 'VNPAY'
+                                                ? 'border-blue-500 bg-blue-500/10'
+                                                : 'border-white/10 bg-white/5 hover:border-white/20'
+                                        }`}
+                                    >
+                                        <div className="text-center">
+                                            <div className="text-2xl mb-1">🏦</div>
+                                            <div className="text-sm font-medium text-white">VNPay</div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() => {
+                                        setShowDepositModal(false);
+                                        setDepositAmount('');
+                                    }}
+                                    disabled={isProcessing}
+                                >
+                                    Hủy
+                                </Button>
+                                <Button
+                                    className="flex-1 bg-green-600 hover:bg-green-700"
+                                    onClick={handleDeposit}
+                                    disabled={isProcessing}
+                                >
+                                    {isProcessing ? 'Đang xử lý...' : 'Nạp tiền'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
