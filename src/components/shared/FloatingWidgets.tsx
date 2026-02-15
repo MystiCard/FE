@@ -11,16 +11,16 @@ export const FloatingWidgets: React.FC = () => {
             <div className="fixed bottom-8 right-8 flex flex-col gap-4 z-40">
                 {/* Help Button */}
                 <button
-                    className="glass-card-strong p-4 rounded-full hover-lift shadow-lg group"
+                    className="glass-card-strong p-4 rounded-full shadow-lg group"
                     title="Help Center"
                 >
-                    <HelpCircle className="h-6 w-6 group-hover:text-primary-400 transition-colors" />
+                    <HelpCircle className="h-6 w-6 group-hover:text-primary-400 " />
                 </button>
 
                 {/* Chat Button */}
                 <button
                     onClick={() => setIsChatOpen(!isChatOpen)}
-                    className="glass-card-strong p-4 rounded-full hover-lift shadow-lg bg-gradient-to-br from-primary-500 to-accent-500 group"
+                    className="glass-card-strong p-4 rounded-full shadow-lg bg-gradient-to-br from-primary-500 to-accent-500 group"
                     title="Chat with us"
                 >
                     <MessageSquare className="h-6 w-6 text-white" />
@@ -29,7 +29,7 @@ export const FloatingWidgets: React.FC = () => {
 
             {/* Chat Widget */}
             {isChatOpen && (
-                <div className="fixed bottom-32 right-8 w-96 h-[500px] glass-card-strong rounded-2xl shadow-2xl z-50 flex flex-col animate-scale-in">
+                <div className="fixed bottom-32 right-8 w-96 h-[500px] glass-card-strong rounded-2xl shadow-2xl z-50 flex flex-col ">
                     {/* Chat Header */}
                     <div className="p-4 border-b border-white/10">
                         <div className="flex items-center justify-between">
@@ -44,7 +44,7 @@ export const FloatingWidgets: React.FC = () => {
                             </div>
                             <button
                                 onClick={() => setIsChatOpen(false)}
-                                className="text-muted-foreground hover:text-foreground transition-colors"
+                                className="text-muted-foreground hover:text-foreground "
                             >
                                 ✕
                             </button>

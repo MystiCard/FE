@@ -62,7 +62,7 @@ export const Login: React.FC = () => {
 
     return (
         <div className="min-h-[80vh] flex items-center justify-center py-12">
-            <Card className="w-full max-w-md animate-scale-in">
+            <Card className="w-full max-w-md ">
                 <CardHeader className="text-center">
                     <div className="mx-auto w-40 h-40 flex items-center justify-center mb-6">
                         <img src="/logo/logo.png" alt="MyScard Logo" className="w-full h-full object-contain filter drop-shadow-xl" />
@@ -100,7 +100,7 @@ export const Login: React.FC = () => {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="you@example.com"
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all"
+                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 "
                                     required
                                 />
                             </div>
@@ -119,7 +119,7 @@ export const Login: React.FC = () => {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all"
+                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 "
                                     required
                                 />
                             </div>
@@ -136,7 +136,7 @@ export const Login: React.FC = () => {
                                 />
                                 <span className="text-sm">Remember me</span>
                             </label>
-                            <Link to="/forgot-password" className="text-sm text-primary-400 hover:text-primary-300 transition-colors">
+                            <Link to="/forgot-password" className="text-sm text-primary-400 hover:text-primary-300 ">
                                 Forgot password?
                             </Link>
                         </div>
@@ -190,7 +190,7 @@ export const Login: React.FC = () => {
                         {/* Sign Up Link */}
                         <p className="text-center text-sm text-muted-foreground mt-6">
                             Don't have an account?{' '}
-                            <Link to="/register" className="text-primary-400 hover:text-primary-300 font-medium transition-colors">
+                            <Link to="/register" className="text-primary-400 hover:text-primary-300 font-medium ">
                                 Sign up
                             </Link>
                         </p>

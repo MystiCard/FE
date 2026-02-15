@@ -14,57 +14,27 @@
     color: #FFFFFF;
   }
 
-  /* Multi-layer gradient background */
-  body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: -2;
-    background:
-      radial-gradient(circle at 20% 50%, rgba(123, 63, 228, 0.15) 0%, transparent 50%),
-      radial-gradient(circle at 80% 80%, rgba(245, 197, 66, 0.15) 0%, transparent 50%),
-      radial-gradient(circle at 40% 90%, rgba(123, 63, 228, 0.1) 0%, transparent 50%),
-      linear-gradient(135deg, #162B7A 0%, #0E1A4E 50%, #162B7A 100%);
-  }
-
-  /* Subtle grid pattern overlay */
-  body::after {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: -1;
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-    background-size: 50px 50px;
-    pointer-events: none;
+  /* Dropdown option nền tối giống theme (tránh nền trắng khi mở select) */
+  select option {
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
   }
 }
 
 @layer components {
 
-  /* Glassmorphism utilities */
+  /* Card styles */
   .glass-card {
     background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .glass-card-strong {
     background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.2);
   }
 
-  /* Premium card styles */
+  /* Card styles */
   .pokemon-card {
     position: relative;
     overflow: hidden;
@@ -75,68 +45,23 @@
       0 2px 4px -1px rgba(0, 0, 0, 0.2),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .pokemon-card:hover {
-    transform: translateY(-4px);
-    box-shadow:
-      0 20px 25px -5px rgba(0, 0, 0, 0.4),
-      0 10px 10px -5px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
-    border-color: rgba(245, 197, 66, 0.5);
-  }
-
-  /* Premium header */
+  /* Header */
   .pokemon-header {
     background: linear-gradient(135deg,
         rgba(22, 43, 122, 0.9) 0%,
         rgba(123, 63, 228, 0.15) 50%,
         rgba(245, 197, 66, 0.1) 100%);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
     box-shadow:
       0 4px 6px -1px rgba(0, 0, 0, 0.2),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
   }
 
-  /* Premium buttons */
+  /* Buttons */
   .btn-premium {
     position: relative;
     overflow: hidden;
-    transition: all 0.3s ease;
-  }
-
-  .btn-premium::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.3);
-    transform: translate(-50%, -50%);
-    transition: width 0.6s, height 0.6s;
-  }
-
-  .btn-premium:hover::before {
-    width: 300px;
-    height: 300px;
-  }
-
-  .btn-premium:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-  }
-
-  /* Hover lift effect */
-  .hover-lift {
-    transition: transform 0.3s ease;
-  }
-
-  .hover-lift:hover {
-    transform: translateY(-4px);
   }
 
   /* Gradient text */
@@ -180,27 +105,6 @@
     background: linear-gradient(135deg, #F7D03F 0%, #9F5FEF 100%);
   }
 
-  /* Staggered animations */
-  .stagger-1 {
-    animation-delay: 0.1s;
-  }
-
-  .stagger-2 {
-    animation-delay: 0.2s;
-  }
-
-  .stagger-3 {
-    animation-delay: 0.3s;
-  }
-
-  .stagger-4 {
-    animation-delay: 0.4s;
-  }
-
-  .stagger-5 {
-    animation-delay: 0.5s;
-  }
-
   /* Custom scrollbar for news sidebar */
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -218,5 +122,15 @@
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(135deg, #F7D03F 0%, #9F5FEF 100%);
+  }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
   }
 }

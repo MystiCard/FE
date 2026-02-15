@@ -66,7 +66,7 @@ export const AdminDashboard: React.FC = () => {
                     return (
                         <Card
                             key={index}
-                            className="glass-card-strong hover-lift animate-slide-up"
+                            className="glass-card-strong "
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
                             <CardHeader className="pb-3">
@@ -120,7 +120,7 @@ export const AdminDashboard: React.FC = () => {
                                     {recentOrders.map((order, index) => (
                                         <tr
                                             key={order.id}
-                                            className="border-b border-white/5 hover:bg-white/5 transition-colors animate-slide-up"
+                                            className="border-b border-white/5 hover:bg-white/5 "
                                             style={{ animationDelay: `${index * 0.05}s` }}
                                         >
                                             <td className="p-3 font-medium">{order.id}</td>
@@ -150,7 +150,7 @@ export const AdminDashboard: React.FC = () => {
                         <CardTitle>Quick Actions</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 transition-colors text-left">
+                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 text-left">
                             <div className="flex items-center gap-3">
                                 <Package className="h-5 w-5 text-primary-400" />
                                 <div>
@@ -160,7 +160,7 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                         </button>
 
-                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 transition-colors text-left">
+                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 text-left">
                             <div className="flex items-center gap-3">
                                 <Users className="h-5 w-5 text-primary-400" />
                                 <div>
@@ -170,7 +170,7 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                         </button>
 
-                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 transition-colors text-left">
+                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 text-left">
                             <div className="flex items-center gap-3">
                                 <TrendingUp className="h-5 w-5 text-primary-400" />
                                 <div>
@@ -180,7 +180,7 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                         </button>
 
-                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 transition-colors text-left">
+                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 text-left">
                             <div className="flex items-center gap-3">
                                 <AlertCircle className="h-5 w-5 text-amber-400" />
                                 <div>

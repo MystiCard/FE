@@ -15,11 +15,17 @@ import { GoogleCallbackPage } from '@/pages/GoogleCallbackPage';
 import { AdminPage } from '@/pages/AdminPage';
 import { ComparisonPage } from '@/pages/ComparisonPage';
 import { AboutPage } from '@/pages/AboutPage';
-import { AdminProductsPage } from '@/pages/AdminProductsPage';
+import { AdminCardsPage } from '@/pages/AdminCardsPage';
+import { AdminCategoriesPage } from '@/pages/AdminCategoriesPage';
 import { AdminUsersPage } from '@/pages/AdminUsersPage';
+import { AdminBlindBoxesPage } from '@/pages/AdminBlindBoxesPage';
+import { AdminRateConfigPage } from '@/pages/AdminRateConfigPage';
 import { CartPage } from '@/pages/CartPage';
 import { CheckoutPage } from '@/pages/CheckoutPage';
-import { CreateListing } from '@/components/shop/CreateListing';
+import { PostListingPage } from '@/pages/PostListingPage';
+import { TrendsPage } from '@/pages/TrendsPage';
+import { WalletPage } from '@/pages/WalletPage';
+import { PaymentCallbackPage } from '@/pages/PaymentCallbackPage';
 
 // Placeholder pages
 const ShopPage = () => {
@@ -48,7 +54,7 @@ const ShopPage = () => {
     ];
 
     return (
-        <div className="py-12 animate-fade-in">
+        <div className="py-12 ">
             <div className="text-center mb-12">
                 <h1 className="text-4xl font-bold font-serif mb-4 gradient-text">Shop Categories</h1>
                 <p className="text-muted-foreground text-lg">Choose a category to start browsing</p>
@@ -59,17 +65,17 @@ const ShopPage = () => {
                     <a
                         key={idx}
                         href={cat.href}
-                        className="group relative overflow-hidden rounded-2xl glass-card border border-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105 hover:shadow-2xl"
+                        className="group relative overflow-hidden rounded-2xl glass-card border border-white/10 hover:border-white/20 hover:scale-105 hover:shadow-2xl"
                     >
-                        <div className={`absolute inset-0 bg-gradient-to-br ${cat.color} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
+                        <div className={`absolute inset-0 bg-gradient-to-br ${cat.color} opacity-0 group-hover:opacity-10 `} />
                         <div className="p-8 flex flex-col items-center text-center h-full">
-                            <div className="text-6xl mb-6 transform group-hover:scale-110 transition-transform duration-300">
+                            <div className="text-6xl mb-6 transform group-hover:scale-110 ">
                                 {cat.icon}
                             </div>
-                            <h3 className="text-2xl font-bold mb-2 group-hover:text-primary-400 transition-colors">
+                            <h3 className="text-2xl font-bold mb-2 group-hover:text-primary-400 ">
                                 {cat.title}
                             </h3>
-                            <p className="text-muted-foreground group-hover:text-gray-300 transition-colors">
+                            <p className="text-muted-foreground group-hover:text-gray-300 ">
                                 {cat.description}
                             </p>
                         </div>
@@ -80,12 +86,7 @@ const ShopPage = () => {
     );
 };
 
-const TrendsPage = () => (
-    <div className="text-center py-20">
-        <h1 className="text-4xl font-bold mb-4 font-serif">Market Trends</h1>
-        <p className="text-muted-foreground">Track card values and market analytics</p>
-    </div>
-);
+
 
 function App() {
     return (
@@ -105,8 +106,10 @@ function App() {
                         <Route path="marketplace" element={<MarketplacePage />} />
                         <Route path="portfolio" element={<PortfolioPage />} />
                         <Route path="trends" element={<TrendsPage />} />
-                        <Route path="post-listing" element={<CreateListing />} />
+                        <Route path="post-listing" element={<PostListingPage />} />
                         <Route path="profile" element={<ProfilePage />} />
+                        <Route path="wallet" element={<WalletPage />} />
+                        <Route path="payment/callback" element={<PaymentCallbackPage />} />
                         <Route path="settings" element={<ProfilePage />} />
                         <Route path="compare" element={<ComparisonPage />} />
                         <Route path="about" element={<AboutPage />} />
@@ -120,7 +123,10 @@ function App() {
                     {/* Admin Routes */}
                     <Route path="/admin" element={<AdminLayout />}>
                         <Route index element={<AdminPage />} />
-                        <Route path="products" element={<AdminProductsPage />} />
+                        <Route path="categories" element={<AdminCategoriesPage />} />
+                        <Route path="cards" element={<AdminCardsPage />} />
+                        <Route path="blind-boxes" element={<AdminBlindBoxesPage />} />
+                        <Route path="rate-configs" element={<AdminRateConfigPage />} />
                         <Route path="users" element={<AdminUsersPage />} />
                     </Route>
                 </Routes>
@@ -128,5 +134,6 @@ function App() {
         </AuthProvider>
     );
 }
+
 
 export default App;

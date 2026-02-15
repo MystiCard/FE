@@ -128,7 +128,7 @@ export const CardComparison: React.FC = () => {
                     {selectedCards.map((card, index) => (
                         <Card
                             key={card.id}
-                            className="animate-slide-up"
+                            className=""
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
                             <CardHeader>
@@ -136,7 +136,7 @@ export const CardComparison: React.FC = () => {
                                     <CardTitle className="text-lg">{card.name}</CardTitle>
                                     <button
                                         onClick={() => removeCard(card.id)}
-                                        className="p-1 hover:bg-red-500/20 rounded-md transition-colors text-red-400"
+                                        className="p-1 hover:bg-red-500/20 rounded-md text-red-400"
                                     >
                                         <X className="h-4 w-4" />
                                     </button>
@@ -249,7 +249,7 @@ export const CardComparison: React.FC = () => {
                                 <CardTitle>Select a Card to Compare</CardTitle>
                                 <button
                                     onClick={() => setShowCardPicker(false)}
-                                    className="p-2 hover:bg-white/10 rounded-md transition-colors"
+                                    className="p-2 hover:bg-white/10 rounded-md "
                                 >
                                     <X className="h-5 w-5" />
                                 </button>
@@ -260,7 +260,7 @@ export const CardComparison: React.FC = () => {
                                 {availableCards.map((card) => (
                                     <Card
                                         key={card.id}
-                                        className="cursor-pointer hover-lift"
+                                        className="cursor-pointer "
                                         onClick={() => addCard(card)}
                                     >
                                         <CardContent className="p-4">
