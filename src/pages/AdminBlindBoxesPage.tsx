@@ -575,7 +575,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                                 {(boxProbabilities ?? []).map((prob, idx) => (
                                                     <div key={idx} className={`p-4 rounded-xl border ${getRarityColor(prob.rarity)} flex flex-col items-center text-center`}>
                                                         <span className="text-xs font-bold opacity-70 mb-1">{prob.rarity}</span>
-                                                        <span className="text-2xl font-black">{(prob.probability * 100).toFixed(1)}%</span>
+                                                        <span className="text-2xl font-black">{(Number(prob.probability ?? 0)).toFixed(1)}%</span>
                                                     </div>
                                                 ))}
                                             </div>
