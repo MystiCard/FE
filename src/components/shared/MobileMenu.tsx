@@ -24,12 +24,12 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
         <>
             {/* Overlay */}
             <div
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden animate-fade-in"
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden "
                 onClick={onClose}
             />
 
             {/* Menu */}
-            <div className="fixed left-0 top-0 h-full w-64 glass-card-strong border-r border-white/20 z-50 md:hidden animate-slide-down shadow-2xl">
+            <div className="fixed left-0 top-0 h-full w-64 glass-card-strong border-r border-white/20 z-50 md:hidden shadow-2xl">
                 {/* Header */}
                 <div className="p-6 border-b border-white/10">
                     <div className="flex items-center justify-between">
@@ -45,7 +45,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                         </div>
                         <button
                             onClick={onClose}
-                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                            className="p-2 hover:bg-white/10 rounded-lg "
                         >
                             <X className="h-5 w-5" />
                         </button>
@@ -61,7 +61,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                                 key={item.path}
                                 to={item.path}
                                 onClick={onClose}
-                                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 transition-colors"
+                                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 "
                             >
                                 <Icon className="h-5 w-5" />
                                 <span className="font-medium">{item.label}</span>
@@ -74,13 +74,13 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                 <div className="px-4 py-2">
                     <div className="text-xs font-semibold text-muted-foreground mb-2 px-4">SHOP</div>
                     <div className="space-y-1">
-                        <Link to="/products" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
+                        <Link to="/products" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
                             All Products
                         </Link>
-                        <Link to="/booster-boxes" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
+                        <Link to="/booster-boxes" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
                             Booster Boxes
                         </Link>
-                        <Link to="/mystery-box" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
+                        <Link to="/mystery-box" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
                             Mystery Box
                         </Link>
                     </div>
@@ -90,10 +90,10 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                 <div className="px-4 py-2">
                     <div className="text-xs font-semibold text-muted-foreground mb-2 px-4">PORTFOLIO</div>
                     <div className="space-y-1">
-                        <Link to="/portfolio" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
+                        <Link to="/portfolio" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
                             My Collection
                         </Link>
-                        <Link to="/trends" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
+                        <Link to="/trends" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
                             Market Trends
                         </Link>
                     </div>
@@ -102,7 +102,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                 {/* Bottom Actions */}
                 <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
                     <Link to="/login" onClick={onClose}>
-                        <button className="w-full glass-card px-4 py-3 rounded-lg hover:bg-white/10 transition-colors font-medium">
+                        <button className="w-full glass-card px-4 py-3 rounded-lg hover:bg-white/10 font-medium">
                             Sign In
                         </button>
                     </Link>

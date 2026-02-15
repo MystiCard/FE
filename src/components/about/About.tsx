@@ -96,21 +96,21 @@ export const About: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-r from-primary-900/80 via-secondary-800/60 to-accent-900/80 z-10" />
 
                 {/* Floating Elements */}
-                <div className="absolute top-20 left-20 w-32 h-32 bg-secondary-500/20 rounded-full blur-3xl animate-float" />
-                <div className="absolute bottom-20 right-20 w-40 h-40 bg-accent-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
+                <div className="absolute top-20 left-20 w-32 h-32 bg-secondary-500/20 rounded-full blur-3xl " />
+                <div className="absolute bottom-20 right-20 w-40 h-40 bg-accent-500/20 rounded-full blur-3xl " style={{ animationDelay: '1s' }} />
 
                 {/* Content */}
                 <div className="relative z-20 text-center px-4 max-w-4xl mx-auto">
-                    <div className="inline-flex items-center space-x-2 glass-card-strong px-4 py-2 rounded-full mb-6 animate-scale-in">
+                    <div className="inline-flex items-center space-x-2 glass-card-strong px-4 py-2 rounded-full mb-6 ">
                         <Sparkles className="h-4 w-4 text-accent-400" />
                         <span className="text-sm font-medium">About MysticCard</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-6xl font-bold mb-6 animate-slide-up font-serif">
+                    <h1 className="text-5xl md:text-6xl font-bold mb-6 font-serif">
                         Your Trusted <span className="gradient-text">Card Trading</span> Platform
                     </h1>
 
-                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto animate-slide-up stagger-1">
+                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto ">
                         Connecting collectors worldwide with rare and valuable trading cards since 2020
                     </p>
                 </div>
@@ -124,7 +124,7 @@ export const About: React.FC = () => {
                         return (
                             <Card
                                 key={index}
-                                className="glass-card-strong text-center hover-lift animate-slide-up"
+                                className="glass-card-strong text-center "
                                 style={{ animationDelay: `${index * 0.1}s` }}
                             >
                                 <CardContent className="p-6">
@@ -147,7 +147,7 @@ export const About: React.FC = () => {
             {/* Our Story */}
             <section className="mb-16">
                 <div className="grid md:grid-cols-2 gap-12 items-center">
-                    <div className="animate-slide-up">
+                    <div className="">
                         <h2 className="text-4xl font-bold mb-6 font-serif">Our Story</h2>
                         <div className="space-y-4 text-muted-foreground">
                             <p>
@@ -172,7 +172,7 @@ export const About: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="relative animate-slide-up stagger-1">
+                    <div className="relative ">
                         <div className="aspect-square rounded-2xl overflow-hidden glass-card-strong">
                             <img
                                 src="https://images.unsplash.com/photo-1511882150382-421056c481d6?w=800&q=80"
@@ -202,11 +202,11 @@ export const About: React.FC = () => {
                         return (
                             <Card
                                 key={index}
-                                className="group hover-lift animate-slide-up overflow-hidden"
+                                className="group overflow-hidden"
                                 style={{ animationDelay: `${index * 0.1}s` }}
                             >
                                 {/* Glow Effect */}
-                                <div className={`absolute inset-0 bg-gradient-to-br ${value.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
+                                <div className={`absolute inset-0 bg-gradient-to-br ${value.color} opacity-0 group-hover:opacity-10 `} />
 
                                 <CardContent className="p-6 relative">
                                     <div className={`w-14 h-14 mb-4 rounded-xl bg-gradient-to-br ${value.color} flex items-center justify-center`}>
@@ -234,16 +234,16 @@ export const About: React.FC = () => {
                     {team.map((member, index) => (
                         <Card
                             key={index}
-                            className="group hover-lift animate-slide-up text-center overflow-hidden"
+                            className="group text-center overflow-hidden"
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
                             <div className="relative aspect-square overflow-hidden">
                                 <img
                                     src={member.image}
                                     alt={member.name}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    className="w-full h-full object-cover group-hover:scale-110"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 " />
                             </div>
                             <CardContent className="p-6">
                                 <h3 className="font-bold text-lg mb-1">{member.name}</h3>

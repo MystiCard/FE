@@ -43,7 +43,7 @@ export const CreateListing: React.FC = () => {
     if (isSuccess) {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
-                <Card className="w-full max-w-md animate-scale-in text-center p-8">
+                <Card className="w-full max-w-md text-center p-8">
                     <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                         <CheckCircle className="w-10 h-10 text-green-500" />
                     </div>
@@ -64,14 +64,14 @@ export const CreateListing: React.FC = () => {
                 <p className="text-muted-foreground">Fill in the details below to list your card for sale</p>
             </div>
 
-            <Card className="animate-fade-in">
+            <Card className="">
                 <CardHeader>
                     <CardTitle>Item Details</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {/* Image Upload Placeholder */}
-                        <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-primary-500/50 transition-colors cursor-pointer bg-white/5">
+                        <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-primary-500/50 cursor-pointer bg-white/5">
                             <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <Upload className="w-6 h-6 text-muted-foreground" />
                             </div>

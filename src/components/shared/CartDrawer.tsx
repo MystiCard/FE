@@ -57,12 +57,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
         <>
             {/* Overlay */}
             <div
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-fade-in"
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 "
                 onClick={onClose}
             />
 
             {/* Drawer */}
-            <div className="fixed right-0 top-0 h-full w-full max-w-md glass-card-strong border-l border-white/20 z-50 flex flex-col animate-slide-down shadow-2xl">
+            <div className="fixed right-0 top-0 h-full w-full max-w-md glass-card-strong border-l border-white/20 z-50 flex flex-col shadow-2xl">
                 {/* Header */}
                 <div className="p-6 border-b border-white/10">
                     <div className="flex items-center justify-between mb-4">
@@ -77,7 +77,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                         </div>
                         <button
                             onClick={onClose}
-                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                            className="p-2 hover:bg-white/10 rounded-lg "
                         >
                             <X className="h-5 w-5" />
                         </button>
@@ -113,7 +113,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                             return (
                                 <div
                                     key={item.id}
-                                    className={`glass-card p-4 rounded-lg transition-all ${isSelected ? 'ring-2 ring-primary-500/50 bg-primary-500/5' : ''
+                                    className={`glass-card p-4 rounded-lg ${isSelected ? 'ring-2 ring-primary-500/50 bg-primary-500/5' : ''
                                         }`}
                                 >
                                     <div className="flex gap-3">
@@ -153,7 +153,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                                                 <div className="flex items-center gap-2">
                                                     <button
                                                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                                        className="w-7 h-7 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+                                                        className="w-7 h-7 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center "
                                                     >
                                                         <Minus className="h-3 w-3" />
                                                     </button>
@@ -162,7 +162,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                                                     </span>
                                                     <button
                                                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                        className="w-7 h-7 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+                                                        className="w-7 h-7 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center "
                                                     >
                                                         <Plus className="h-3 w-3" />
                                                     </button>
@@ -170,7 +170,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
 
                                                 <button
                                                     onClick={() => removeItem(item.id)}
-                                                    className="p-2 hover:bg-red-500/20 rounded-md transition-colors text-red-400"
+                                                    className="p-2 hover:bg-red-500/20 rounded-md text-red-400"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>
@@ -241,7 +241,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                                     </div>
                                     <button
                                         onClick={handleRemoveVoucher}
-                                        className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                                        className="text-xs text-red-400 hover:text-red-300 "
                                     >
                                         Xóa
                                     </button>

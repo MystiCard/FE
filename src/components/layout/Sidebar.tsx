@@ -4,10 +4,10 @@ import { Home, ShoppingBag, TrendingUp, User, Settings } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
     return (
-        <aside className="glass-card-strong fixed left-0 top-16 h-[calc(100vh-4rem)] w-20 border-r border-white/10 animate-slide-down hidden lg:block">
+        <aside className="glass-card-strong fixed left-0 top-16 h-[calc(100vh-4rem)] w-20 border-r border-white/10 hidden lg:block">
             <div className="flex flex-col items-center py-8 space-y-6">
                 {/* Logo */}
-                <Link to="/" className="hover-lift">
+                <Link to="/" className="">
                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center shadow-lg">
                         <span className="text-2xl font-bold text-white">M</span>
                     </div>
@@ -19,34 +19,34 @@ export const Sidebar: React.FC = () => {
                 <nav className="flex flex-col items-center space-y-4">
                     <Link
                         to="/"
-                        className="hover-lift p-3 rounded-lg hover:bg-white/10 transition-all group"
+                        className="p-3 rounded-lg hover:bg-white/10 group"
                         title="Home"
                     >
-                        <Home className="h-6 w-6 group-hover:text-primary-400 transition-colors" />
+                        <Home className="h-6 w-6 group-hover:text-primary-400 " />
                     </Link>
 
                     <Link
                         to="/shop"
-                        className="hover-lift p-3 rounded-lg hover:bg-white/10 transition-all group"
+                        className="p-3 rounded-lg hover:bg-white/10 group"
                         title="Shop"
                     >
-                        <ShoppingBag className="h-6 w-6 group-hover:text-primary-400 transition-colors" />
+                        <ShoppingBag className="h-6 w-6 group-hover:text-primary-400 " />
                     </Link>
 
                     <Link
                         to="/trends"
-                        className="hover-lift p-3 rounded-lg hover:bg-white/10 transition-all group"
+                        className="p-3 rounded-lg hover:bg-white/10 group"
                         title="Trends"
                     >
-                        <TrendingUp className="h-6 w-6 group-hover:text-primary-400 transition-colors" />
+                        <TrendingUp className="h-6 w-6 group-hover:text-primary-400 " />
                     </Link>
 
                     <Link
                         to="/profile"
-                        className="hover-lift p-3 rounded-lg hover:bg-white/10 transition-all group"
+                        className="p-3 rounded-lg hover:bg-white/10 group"
                         title="Profile"
                     >
-                        <User className="h-6 w-6 group-hover:text-primary-400 transition-colors" />
+                        <User className="h-6 w-6 group-hover:text-primary-400 " />
                     </Link>
                 </nav>
 
@@ -54,10 +54,10 @@ export const Sidebar: React.FC = () => {
                 <div className="flex-1" />
                 <Link
                     to="/settings"
-                    className="hover-lift p-3 rounded-lg hover:bg-white/10 transition-all group"
+                    className="p-3 rounded-lg hover:bg-white/10 group"
                     title="Settings"
                 >
-                    <Settings className="h-6 w-6 group-hover:text-primary-400 transition-colors" />
+                    <Settings className="h-6 w-6 group-hover:text-primary-400 " />
                 </Link>
             </div>
         </aside>

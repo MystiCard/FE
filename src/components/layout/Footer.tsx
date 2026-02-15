@@ -26,10 +26,10 @@ export const Footer: React.FC = () => {
                     <div>
                         <h4 className="font-semibold mb-4">Quick Links</h4>
                         <ul className="space-y-2 text-sm">
-                            <li><Link to="/about" className="text-muted-foreground hover:text-primary-400 transition-colors">About Us</Link></li>
-                            <li><Link to="/products" className="text-muted-foreground hover:text-primary-400 transition-colors">Products</Link></li>
-                            <li><Link to="/marketplace" className="text-muted-foreground hover:text-primary-400 transition-colors">Marketplace</Link></li>
-                            <li><Link to="/blog" className="text-muted-foreground hover:text-primary-400 transition-colors">Blog</Link></li>
+                            <li><Link to="/about" className="text-muted-foreground hover:text-primary-400 ">About Us</Link></li>
+                            <li><Link to="/products" className="text-muted-foreground hover:text-primary-400 ">Products</Link></li>
+                            <li><Link to="/marketplace" className="text-muted-foreground hover:text-primary-400 ">Marketplace</Link></li>
+                            <li><Link to="/blog" className="text-muted-foreground hover:text-primary-400 ">Blog</Link></li>
                         </ul>
                     </div>
 
@@ -37,10 +37,10 @@ export const Footer: React.FC = () => {
                     <div>
                         <h4 className="font-semibold mb-4">Support</h4>
                         <ul className="space-y-2 text-sm">
-                            <li><Link to="/help" className="text-muted-foreground hover:text-primary-400 transition-colors">Help Center</Link></li>
-                            <li><Link to="/contact" className="text-muted-foreground hover:text-primary-400 transition-colors">Contact Us</Link></li>
-                            <li><Link to="/shipping" className="text-muted-foreground hover:text-primary-400 transition-colors">Shipping Info</Link></li>
-                            <li><Link to="/returns" className="text-muted-foreground hover:text-primary-400 transition-colors">Returns</Link></li>
+                            <li><Link to="/help" className="text-muted-foreground hover:text-primary-400 ">Help Center</Link></li>
+                            <li><Link to="/contact" className="text-muted-foreground hover:text-primary-400 ">Contact Us</Link></li>
+                            <li><Link to="/shipping" className="text-muted-foreground hover:text-primary-400 ">Shipping Info</Link></li>
+                            <li><Link to="/returns" className="text-muted-foreground hover:text-primary-400 ">Returns</Link></li>
                         </ul>
                     </div>
 
@@ -48,21 +48,21 @@ export const Footer: React.FC = () => {
                     <div>
                         <h4 className="font-semibold mb-4">Connect With Us</h4>
                         <div className="flex space-x-4">
-                            <a href="#" className="hover-lift p-2 rounded-lg hover:bg-white/10 transition-all">
+                            <a href="#" className="p-2 rounded-lg hover:bg-white/10 ">
                                 <Facebook className="h-5 w-5" />
                             </a>
-                            <a href="#" className="hover-lift p-2 rounded-lg hover:bg-white/10 transition-all">
+                            <a href="#" className="p-2 rounded-lg hover:bg-white/10 ">
                                 <Twitter className="h-5 w-5" />
                             </a>
-                            <a href="#" className="hover-lift p-2 rounded-lg hover:bg-white/10 transition-all">
+                            <a href="#" className="p-2 rounded-lg hover:bg-white/10 ">
                                 <Instagram className="h-5 w-5" />
                             </a>
-                            <a href="#" className="hover-lift p-2 rounded-lg hover:bg-white/10 transition-all">
+                            <a href="#" className="p-2 rounded-lg hover:bg-white/10 ">
                                 <Youtube className="h-5 w-5" />
                             </a>
                         </div>
                         <div className="mt-4">
-                            <a href="mailto:support@myscard.com" className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-primary-400 transition-colors">
+                            <a href="mailto:support@myscard.com" className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-primary-400 ">
                                 <Mail className="h-4 w-4" />
                                 <span>support@myscard.com</span>
                             </a>

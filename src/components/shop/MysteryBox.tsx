@@ -315,7 +315,7 @@ export function MysteryBox() {
                             style={{ fontFamily: "'Cormorant Garamond', serif" }}
                         >
                             Moonlight Lillie Mystery Pack
-                            <Sparkles className="w-6 h-6 text-[#FFCB05] animate-pulse" />
+                            <Sparkles className="w-6 h-6 text-[#FFCB05]" />
                         </h3>
                         <p
                             className="text-gray-700"
@@ -333,7 +333,7 @@ export function MysteryBox() {
                     {boxTypes.map((box) => (
                         <div
                             key={box.id}
-                            className="bg-gradient-to-b from-[#1a0a2e] to-[#0B0112] rounded-2xl shadow-[0_0_20px_rgba(160,32,240,0.2)] overflow-hidden border-2 border-[#D4AF37]/30 hover:border-[#A020F0] hover:shadow-[0_0_30px_rgba(212,175,55,0.4)] transition-all group"
+                            className="bg-gradient-to-b from-[#1a0a2e] to-[#0B0112] rounded-2xl shadow-[0_0_20px_rgba(160,32,240,0.2)] overflow-hidden border-2 border-[#D4AF37]/30 hover:border-[#A020F0] hover:shadow-[0_0_30px_rgba(212,175,55,0.4)] group"
                         >
                             <div className={`bg-gradient-to-br ${box.color} p-8 relative overflow-hidden`}>
                                 <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjEiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-30"></div>
@@ -342,7 +342,7 @@ export function MysteryBox() {
                                         <img
                                             src={box.image}
                                             alt={box.name}
-                                            className="w-48 h-48 object-contain drop-shadow-[0_0_30px_rgba(212,175,55,0.5)] group-hover:scale-110 transition-transform duration-300"
+                                            className="w-48 h-48 object-contain drop-shadow-[0_0_30px_rgba(212,175,55,0.5)] group-hover:scale-110 "
                                         />
                                     </div>
                                     <div className="flex-1 text-white">
@@ -351,7 +351,7 @@ export function MysteryBox() {
                                             style={{ fontFamily: "'Cormorant Garamond', serif" }}
                                         >
                                             {box.name}
-                                            <Star className="w-7 h-7 text-[#D4AF37] animate-pulse" />
+                                            <Star className="w-7 h-7 text-[#D4AF37]" />
                                         </h4>
                                         <p
                                             className="text-[#E0E0E0]/90 mb-4 text-lg"
@@ -388,7 +388,7 @@ export function MysteryBox() {
                                         </div>
                                         <button
                                             onClick={() => openBox(box)}
-                                            className="w-full md:w-auto bg-gradient-to-r from-[#D4AF37] to-[#FFD700] text-[#0B0112] px-8 py-3 rounded-full font-bold text-lg hover:from-[#FFD700] hover:to-[#D4AF37] transition-all shadow-[0_0_20px_rgba(212,175,55,0.4)] hover:shadow-[0_0_30px_rgba(212,175,55,0.6)] hover:scale-105 flex items-center gap-2 justify-center"
+                                            className="w-full md:w-auto bg-gradient-to-r from-[#D4AF37] to-[#FFD700] text-[#0B0112] px-8 py-3 rounded-full font-bold text-lg hover:from-[#FFD700] hover:to-[#D4AF37] shadow-[0_0_20px_rgba(212,175,55,0.4)] hover:shadow-[0_0_30px_rgba(212,175,55,0.6)] flex items-center gap-2 justify-center"
                                             style={{ fontFamily: "'Open Sans', sans-serif" }}
                                         >
                                             <Gift className="w-6 h-6" />
@@ -409,7 +409,7 @@ export function MysteryBox() {
                         {[...Array(30)].map((_, i) => (
                             <div
                                 key={i}
-                                className="absolute w-1 h-1 bg-[#D4AF37] rounded-full animate-pulse"
+                                className="absolute w-1 h-1 bg-[#D4AF37] rounded-full"
                                 style={{
                                     top: `${Math.random() * 100}%`,
                                     left: `${Math.random() * 100}%`,
@@ -423,7 +423,7 @@ export function MysteryBox() {
                     <div className="relative z-10">
                         <div className="text-center mb-8">
                             <h4
-                                className="text-3xl font-bold text-[#D4AF37] mb-3 flex items-center gap-3 justify-center animate-pulse"
+                                className="text-3xl font-bold text-[#D4AF37] mb-3 flex items-center gap-3 justify-center"
                                 style={{ fontFamily: "'Cormorant Garamond', serif" }}
                             >
                                 <Sparkles className="w-8 h-8 text-[#A020F0]" />
@@ -438,7 +438,7 @@ export function MysteryBox() {
                             </p>
                             {tearProgress > 0 && tearProgress < 80 && (
                                 <p
-                                    className="text-[#D4AF37] font-semibold mt-2 animate-bounce"
+                                    className="text-[#D4AF37] font-semibold mt-2"
                                     style={{ fontFamily: "'Open Sans', sans-serif" }}
                                 >
                                     Tiếp tục kéo... {Math.round(tearProgress)}%
@@ -459,7 +459,7 @@ export function MysteryBox() {
                                 onTouchEnd={handleDragEnd}
                                 style={{
                                     transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) rotate(${dragOffset.x * 0.15}deg) scale(${1 + tearProgress / 300})`,
-                                    transition: dragStart ? 'none' : 'transform 0.3s ease-out'
+                                    transition: dragStart ? 'none' : 'transform 0.3s '
                                 }}
                             >
                                 {tearProgress > 20 && (
@@ -483,7 +483,7 @@ export function MysteryBox() {
                                         className="w-full h-full object-cover"
                                     />
 
-                                    <div className="absolute inset-0 bg-white/10 rounded-full blur-xl animate-pulse"></div>
+                                    <div className="absolute inset-0 bg-white/10 rounded-full blur-xl"></div>
 
                                     {tearProgress > 30 && (
                                         <>
@@ -509,7 +509,7 @@ export function MysteryBox() {
                                             {[...Array(8)].map((_, i) => (
                                                 <Sparkles
                                                     key={i}
-                                                    className="absolute w-6 h-6 text-[#D4AF37] animate-ping"
+                                                    className="absolute w-6 h-6 text-[#D4AF37]"
                                                     style={{
                                                         top: `${10 + (i % 4) * 25}%`,
                                                         left: `${10 + Math.floor(i / 4) * 70}%`,
@@ -525,10 +525,10 @@ export function MysteryBox() {
                                     <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 w-56">
                                         <div className="h-4 bg-[#0B0112] rounded-full overflow-hidden border-2 border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.3)]">
                                             <div
-                                                className="h-full bg-gradient-to-r from-[#D4AF37] via-[#FFD700] to-[#D4AF37] transition-all duration-150 relative"
+                                                className="h-full bg-gradient-to-r from-[#D4AF37] via-[#FFD700] to-[#D4AF37] relative"
                                                 style={{ width: `${tearProgress}%` }}
                                             >
-                                                <div className="h-full bg-white/40 animate-pulse"></div>
+                                                <div className="h-full bg-white/40"></div>
                                             </div>
                                         </div>
                                     </div>
@@ -556,7 +556,7 @@ export function MysteryBox() {
                             </div>
                             <button
                                 onClick={resetBox}
-                                className="px-6 py-2 bg-[#1a0a2e] hover:bg-[#0B0112] text-[#E0E0E0] border border-[#D4AF37]/30 rounded-lg transition-colors"
+                                className="px-6 py-2 bg-[#1a0a2e] hover:bg-[#0B0112] text-[#E0E0E0] border border-[#D4AF37]/30 rounded-lg "
                                 style={{ fontFamily: "'Open Sans', sans-serif" }}
                             >
                                 Hủy
@@ -574,7 +574,7 @@ export function MysteryBox() {
                             {/* Main Bag Body */}
                             <div className="absolute inset-0 flex items-center justify-center">
                                 <div
-                                    className={`absolute w-80 h-96 bg-gradient-to-br ${selectedBox?.color} rounded-3xl border-4 border-[#D4AF37]/30 shadow-[0_0_30px_rgba(160,32,240,0.5)] transition-all duration-500 overflow-hidden`}
+                                    className={`absolute w-80 h-96 bg-gradient-to-br ${selectedBox?.color} rounded-3xl border-4 border-[#D4AF37]/30 shadow-[0_0_30px_rgba(160,32,240,0.5)] overflow-hidden`}
                                     style={{
                                         opacity: Math.max(0, 1 - (tearProgress / 70)),
                                     }}
@@ -590,7 +590,7 @@ export function MysteryBox() {
 
                                 {/* Opening Top Flap - Left */}
                                 <div
-                                    className={`absolute w-40 h-20 bg-gradient-to-br ${selectedBox?.color} border-4 border-[#D4AF37]/30 shadow-[0_0_30px_rgba(160,32,240,0.5)] transition-all duration-700 overflow-hidden`}
+                                    className={`absolute w-40 h-20 bg-gradient-to-br ${selectedBox?.color} border-4 border-[#D4AF37]/30 shadow-[0_0_30px_rgba(160,32,240,0.5)] overflow-hidden`}
                                     style={{
                                         top: '0',
                                         left: '50%',
@@ -613,7 +613,7 @@ export function MysteryBox() {
 
                                 {/* Opening Top Flap - Right */}
                                 <div
-                                    className={`absolute w-40 h-20 bg-gradient-to-br ${selectedBox?.color} border-4 border-[#D4AF37]/30 shadow-[0_0_30px_rgba(160,32,240,0.5)] transition-all duration-700 overflow-hidden`}
+                                    className={`absolute w-40 h-20 bg-gradient-to-br ${selectedBox?.color} border-4 border-[#D4AF37]/30 shadow-[0_0_30px_rgba(160,32,240,0.5)] overflow-hidden`}
                                     style={{
                                         top: '0',
                                         right: '50%',
@@ -684,7 +684,7 @@ export function MysteryBox() {
                                     return (
                                         <Sparkles
                                             key={i}
-                                            className="absolute w-6 h-6 text-[#D4AF37] transition-all duration-500"
+                                            className="absolute w-6 h-6 text-[#D4AF37] "
                                             style={{
                                                 top: '10%',
                                                 left: '50%',
@@ -720,7 +720,7 @@ export function MysteryBox() {
                                                     ? `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) rotate(${Math.random() * 360}deg)`
                                                     : 'translate(-50%, -50%) scale(0)',
                                                 opacity: tearProgress > 30 ? Math.max(0, 1 - (tearProgress / 60)) : 0,
-                                                transition: `all ${0.4 + Math.random() * 0.3}s ease-out`,
+                                                transition: `all ${0.4 + Math.random() * 0.3}s `,
                                                 boxShadow: tearProgress > 30 ? `0 0 10px currentColor` : 'none'
                                             }}
                                         />
@@ -744,7 +744,7 @@ export function MysteryBox() {
                         </div>
 
                         <h4
-                            className="text-2xl font-bold text-[#D4AF37] animate-pulse"
+                            className="text-2xl font-bold text-[#D4AF37]"
                             style={{ fontFamily: "'Cormorant Garamond', serif" }}
                         >
                             Đang mở túi...
@@ -774,7 +774,7 @@ export function MysteryBox() {
                                     key={index}
                                     className="absolute top-1/2 left-1/2 w-32 h-44 bg-gradient-to-br from-[#A020F0] to-[#D4AF37] rounded-lg shadow-[0_0_30px_rgba(160,32,240,0.5)] border-4 border-[#D4AF37] flex items-center justify-center text-5xl"
                                     style={{
-                                        animation: 'cardFly 5s ease-in-out forwards',
+                                        animation: 'cardFly 5s forwards',
                                         animationDelay: `${index * 0.05}s`,
                                         transform: 'translate(-50%, -50%)',
                                         zIndex: openedCards.length - index,
@@ -819,9 +819,9 @@ export function MysteryBox() {
                             className="text-3xl font-bold text-[#D4AF37] mb-3 flex items-center gap-3 justify-center"
                             style={{ fontFamily: "'Cormorant Garamond', serif" }}
                         >
-                            <Sparkles className="w-8 h-8 text-[#A020F0] animate-spin" />
+                            <Sparkles className="w-8 h-8 text-[#A020F0] " />
                             Vuốt để lật thẻ!
-                            <Sparkles className="w-8 h-8 text-[#A020F0] animate-spin" />
+                            <Sparkles className="w-8 h-8 text-[#A020F0] " />
                         </h4>
                         <p
                             className="text-[#E0E0E0]/80"
@@ -848,7 +848,7 @@ export function MysteryBox() {
                                     transform: isFlipping
                                         ? `translate(${cardDragOffset.x * 3}px, ${cardDragOffset.y * 3}px) rotate(${cardDragOffset.x}deg) scale(0.5)`
                                         : `translate(${cardDragOffset.x}px, ${cardDragOffset.y}px) rotate(${cardDragOffset.x * 0.2}deg)`,
-                                    transition: isFlipping ? 'all 0.6s ease-out' : cardDragStart ? 'none' : 'transform 0.3s ease-out',
+                                    transition: isFlipping ? 'all 0.6s ' : cardDragStart ? 'none' : 'transform 0.3s ',
                                     opacity: isFlipping ? 0 : 1
                                 }}
                             >
@@ -867,7 +867,7 @@ export function MysteryBox() {
                                     {[...Array(5)].map((_, i) => (
                                         <Sparkles
                                             key={i}
-                                            className="absolute w-6 h-6 text-[#D4AF37] animate-pulse"
+                                            className="absolute w-6 h-6 text-[#D4AF37]"
                                             style={{
                                                 top: `${20 + i * 15}%`,
                                                 left: `${10 + (i % 2) * 70}%`,
@@ -903,7 +903,7 @@ export function MysteryBox() {
                         </p>
                         <button
                             onClick={() => flipCard(currentCardIndex)}
-                            className="px-6 py-2 bg-gradient-to-r from-[#D4AF37] to-[#FFD700] hover:from-[#FFD700] hover:to-[#D4AF37] text-[#0B0112] rounded-lg font-bold transition-all shadow-[0_0_15px_rgba(212,175,55,0.3)]"
+                            className="px-6 py-2 bg-gradient-to-r from-[#D4AF37] to-[#FFD700] hover:from-[#FFD700] hover:to-[#D4AF37] text-[#0B0112] rounded-lg font-bold shadow-[0_0_15px_rgba(212,175,55,0.3)]"
                             style={{ fontFamily: "'Open Sans', sans-serif" }}
                         >
                             Hoặc click để lật
@@ -923,7 +923,7 @@ export function MysteryBox() {
                                 {openedCards.filter(card => card.flipped).map((card, index) => (
                                     <div
                                         key={index}
-                                        className="bg-gradient-to-b from-[#1a0a2e] to-[#0B0112] rounded-xl shadow-[0_0_20px_rgba(160,32,240,0.3)] overflow-hidden hover:scale-105 transition-transform border-2 border-[#D4AF37]/30 animate-slideInFromLeft"
+                                        className="bg-gradient-to-b from-[#1a0a2e] to-[#0B0112] rounded-xl shadow-[0_0_20px_rgba(160,32,240,0.3)] overflow-hidden border-2 border-[#D4AF37]/30"
                                         style={{ animationDelay: `${index * 0.1}s` }}
                                     >
                                         <div className="bg-gradient-to-br from-[#A020F0] to-[#D4AF37] p-6 text-center">
@@ -966,9 +966,9 @@ export function MysteryBox() {
                                 className="text-3xl font-bold mb-2 flex items-center gap-2 justify-center text-white"
                                 style={{ fontFamily: "'Cormorant Garamond', serif" }}
                             >
-                                <Star className="w-8 h-8 animate-spin" />
+                                <Star className="w-8 h-8 " />
                                 Kết Quả Mở Túi!
-                                <Star className="w-8 h-8 animate-spin" />
+                                <Star className="w-8 h-8 " />
                             </h3>
                             <p
                                 className="text-xl mb-4 text-white"
@@ -997,7 +997,7 @@ export function MysteryBox() {
                         {openedCards.map((card, index) => (
                             <div
                                 key={index}
-                                className="bg-gradient-to-b from-[#1a0a2e] to-[#0B0112] rounded-xl shadow-[0_0_20px_rgba(160,32,240,0.3)] overflow-hidden hover:scale-105 transition-transform border-2 border-[#D4AF37]/30"
+                                className="bg-gradient-to-b from-[#1a0a2e] to-[#0B0112] rounded-xl shadow-[0_0_20px_rgba(160,32,240,0.3)] overflow-hidden border-2 border-[#D4AF37]/30"
                             >
                                 <div className="bg-gradient-to-br from-[#A020F0] to-[#D4AF37] p-6 text-center">
                                     <div className="text-6xl mb-2">{card.image}</div>
@@ -1029,7 +1029,7 @@ export function MysteryBox() {
                     <div className="text-center">
                         <button
                             onClick={resetBox}
-                            className="px-8 py-3 bg-gradient-to-r from-[#A020F0] to-[#D4AF37] hover:from-[#D4AF37] hover:to-[#A020F0] text-white rounded-full font-bold text-lg shadow-[0_0_25px_rgba(160,32,240,0.4)] hover:shadow-[0_0_35px_rgba(212,175,55,0.5)] transition-all"
+                            className="px-8 py-3 bg-gradient-to-r from-[#A020F0] to-[#D4AF37] hover:from-[#D4AF37] hover:to-[#A020F0] text-white rounded-full font-bold text-lg shadow-[0_0_25px_rgba(160,32,240,0.4)] hover:shadow-[0_0_35px_rgba(212,175,55,0.5)] "
                             style={{ fontFamily: "'Open Sans', sans-serif" }}
                         >
                             Mở Túi Mới

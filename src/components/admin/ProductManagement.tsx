@@ -114,7 +114,7 @@ export const ProductManagement: React.FC = () => {
                                 {products.map((product, index) => (
                                     <tr
                                         key={product.id}
-                                        className="border-b border-white/5 hover:bg-white/5 transition-colors animate-slide-up"
+                                        className="border-b border-white/5 hover:bg-white/5 "
                                         style={{ animationDelay: `${index * 0.05}s` }}
                                     >
                                         <td className="p-3 font-medium">#{product.id}</td>
@@ -141,13 +141,13 @@ export const ProductManagement: React.FC = () => {
                                         </td>
                                         <td className="p-3">
                                             <div className="flex items-center justify-end gap-2">
-                                                <button className="p-2 hover:bg-white/10 rounded-md transition-colors">
+                                                <button className="p-2 hover:bg-white/10 rounded-md ">
                                                     <Eye className="h-4 w-4" />
                                                 </button>
-                                                <button className="p-2 hover:bg-white/10 rounded-md transition-colors">
+                                                <button className="p-2 hover:bg-white/10 rounded-md ">
                                                     <Edit className="h-4 w-4" />
                                                 </button>
-                                                <button className="p-2 hover:bg-red-500/20 rounded-md transition-colors text-red-400">
+                                                <button className="p-2 hover:bg-red-500/20 rounded-md text-red-400">
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>
                                             </div>

@@ -39,7 +39,7 @@ export const Features: React.FC = () => {
                     return (
                         <Card
                             key={index}
-                            className="hover-lift animate-slide-up"
+                            className=""
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
                             <CardHeader>

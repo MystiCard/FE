@@ -95,14 +95,14 @@ export const NewArrivals: React.FC = () => {
                 {products.map((product, index) => (
                     <Card
                         key={product.id}
-                        className="group hover-lift animate-slide-up overflow-hidden"
+                        className="group overflow-hidden"
                         style={{ animationDelay: `${index * 0.1}s` }}
                     >
                         <div className="relative aspect-[3/4] overflow-hidden">
                             <img
                                 src={product.image}
                                 alt={product.name}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                className="w-full h-full object-cover group-hover:scale-110"
                             />
                             <div className="absolute top-2 right-2">
                                 <div className="glass-card-strong px-2 py-1 rounded-full text-xs font-medium">
@@ -111,7 +111,7 @@ export const NewArrivals: React.FC = () => {
                             </div>
                             <button
                                 onClick={() => addToWishlist({ id: product.id, name: product.name, price: product.price, image: product.image, rarity: product.rarity })}
-                                className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20 transition-colors"
+                                className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20 "
                             >
                                 <Heart className={`h-4 w-4 ${isInWishlist(product.id) ? 'fill-red-500 text-red-500' : ''}`} />
                             </button>

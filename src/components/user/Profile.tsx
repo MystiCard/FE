@@ -6,10 +6,11 @@ import {
     Settings, Image as ImageIcon, LifeBuoy, CreditCard,
     Briefcase, Activity, Heart, Trash2, Package
 } from 'lucide-react';
-import { userApi, UserProfile, transactionApi, cardApi, listSellerApi, ListingItem, UpdateProfileRequest } from '@/utils/api';
+import { userApi, UserProfile, transactionApi, cardApi, listSellerApi, ListingItem, UpdateProfileRequest, WishlistItem, Card as CardType } from '@/utils/api';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { AddressSelect } from '@/components/shared/AddressSelect';
 import { useWishlist } from '@/hooks/useWishlist';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
@@ -17,16 +18,19 @@ const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b
 export const Profile: React.FC = () => {
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
-    const { items: wishlistItems, removeItem: removeWishlistItem, itemCount: wishlistCount } = useWishlist();
+    const { removeItem: removeFromWishlistLocal } = useWishlist();
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [showDepositModal, setShowDepositModal] = useState(false);
     const [depositAmount, setDepositAmount] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
-    const [stats, setStats] = useState({ listingsCount: 0, transactionsCount: 0 });
+    const [stats, setStats] = useState({ listingsCount: 0, wishlistCount: 0, transactionsCount: 0 });
     const [listings, setListings] = useState<ListingItem[]>([]);
     const [listingsLoading, setListingsLoading] = useState(false);
+    const [wishlistRows, setWishlistRows] = useState<{ item: WishlistItem; card: CardType | null }[]>([]);
+    const [wishlistTotal, setWishlistTotal] = useState(0);
+    const [wishlistLoading, setWishlistLoading] = useState(false);
     const [showEditProfileModal, setShowEditProfileModal] = useState(false);
     const [editForm, setEditForm] = useState<UpdateProfileRequest>({ name: '', email: '' });
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -72,20 +76,22 @@ export const Profile: React.FC = () => {
         }
     };
 
-    // Fetch stats (listings, transactions) - wishlist count từ useWishlist (localStorage)
+    // Fetch stats (listings, wishlist, transactions) - wishlist từ API backend
     const fetchStats = async () => {
         if (!isAuthenticated) return;
         try {
-            const [listingsRes, transactionsRes] = await Promise.all([
+            const [listingsRes, wishlistRes, transactionsRes] = await Promise.all([
                 listSellerApi.getMyListings(0, 1),
+                cardApi.getUserWishlist(0, 1),
                 transactionApi.getMyTransactions(undefined, 0, 1),
             ]);
             setStats({
                 listingsCount: listingsRes.totalElements ?? 0,
+                wishlistCount: wishlistRes.totalElements ?? 0,
                 transactionsCount: transactionsRes.totalElements ?? 0,
             });
         } catch {
-            setStats({ listingsCount: 0, transactionsCount: 0 });
+            setStats({ listingsCount: 0, wishlistCount: 0, transactionsCount: 0 });
         }
     };
 
@@ -96,6 +102,46 @@ export const Profile: React.FC = () => {
     useEffect(() => {
         if (profile?.userId) fetchStats();
     }, [profile?.userId]);
+
+    const fetchWishlist = async () => {
+        if (!isAuthenticated) return;
+        setWishlistLoading(true);
+        try {
+            const res = await cardApi.getUserWishlist(0, 8);
+            setWishlistTotal(res.totalElements ?? 0);
+            const rows = await Promise.all(
+                (res.content ?? []).map(async (item) => {
+                    try {
+                        const card = await cardApi.getCardById(item.cardId);
+                        return { item, card };
+                    } catch {
+                        return { item, card: null as CardType | null };
+                    }
+                })
+            );
+            setWishlistRows(rows);
+        } catch {
+            setWishlistRows([]);
+            setWishlistTotal(0);
+        } finally {
+            setWishlistLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (profile?.userId) fetchWishlist();
+    }, [profile?.userId]);
+
+    const handleRemoveFromWishlist = async (wishListId: string, cardId: string) => {
+        try {
+            await cardApi.removeFromWishlist(wishListId);
+            removeFromWishlistLocal(cardId);
+            fetchStats();
+            fetchWishlist();
+        } catch {
+            alert('Không thể xóa khỏi wishlist');
+        }
+    };
 
     // Fetch my listings for "Đang bán" section
     const fetchListings = async () => {
@@ -337,7 +383,7 @@ export const Profile: React.FC = () => {
                     <Card className="bg-transparent border-none shadow-none">
                         <CardContent className="p-4 text-center">
                             <div className="text-xs font-bold text-[#E1F5FE] uppercase tracking-wider mb-1">Wishlist</div>
-                            <div className="text-2xl font-bold text-blue-400">{wishlistCount}</div>
+                            <div className="text-2xl font-bold text-blue-400">{stats.wishlistCount}</div>
                         </CardContent>
                     </Card>
                     <Card className="bg-transparent border-none shadow-none">
@@ -449,7 +495,7 @@ export const Profile: React.FC = () => {
                         </Card>
                         <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/portfolio')}>
                             <CardContent className="p-4 text-center">
-                                <div className="text-2xl font-bold text-blue-400">{wishlistCount}</div>
+                                <div className="text-2xl font-bold text-blue-400">{stats.wishlistCount}</div>
                                 <div className="text-xs text-muted-foreground">Wishlist</div>
                             </CardContent>
                         </Card>
@@ -533,16 +579,20 @@ export const Profile: React.FC = () => {
                     )}
                 </div>
 
-                {/* Wishlist Section - cùng nguồn với icon tim trên header (localStorage) */}
+                {/* Wishlist Section - từ API backend */}
                 <div>
                     <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-pink-400">
                         <Heart className="w-5 h-5" />
                         Wishlist của tôi
-                        {wishlistCount > 0 && (
-                            <span className="text-sm font-normal text-muted-foreground">({wishlistCount} thẻ)</span>
+                        {wishlistTotal > 0 && (
+                            <span className="text-sm font-normal text-muted-foreground">({wishlistTotal} thẻ)</span>
                         )}
                     </h3>
-                    {wishlistItems.length === 0 ? (
+                    {wishlistLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                            <div className="rounded-full h-10 w-10 border-2 border-pink-500/30 border-t-pink-500 animate-spin" />
+                        </div>
+                    ) : wishlistRows.length === 0 ? (
                         <Card className="glass-card p-8 text-center">
                             <div className="w-16 h-16 rounded-full bg-pink-500/10 flex items-center justify-center mx-auto mb-4">
                                 <Heart className="w-8 h-8 text-pink-400" />
@@ -556,16 +606,16 @@ export const Profile: React.FC = () => {
                     ) : (
                         <>
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                                {wishlistItems.map((item) => (
+                                {wishlistRows.map(({ item, card }) => (
                                     <Card
-                                        key={String(item.id)}
+                                        key={item.wishListId}
                                         className="relative overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors group"
                                     >
-                                        <Link to="/portfolio" className="block">
+                                        <Link to={card ? `/portfolio?card=${card.cardId}` : '/portfolio'} className="block">
                                             <div className="relative aspect-[2.5/3.5] rounded-t-lg overflow-hidden bg-white/5">
                                                 <img
-                                                    src={item.image || PLACEHOLDER_IMG}
-                                                    alt={item.name}
+                                                    src={card?.imageUrl || PLACEHOLDER_IMG}
+                                                    alt={card?.name || 'Thẻ'}
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
                                                         e.currentTarget.src = PLACEHOLDER_IMG;
@@ -573,15 +623,12 @@ export const Profile: React.FC = () => {
                                                 />
                                             </div>
                                             <CardContent className="p-3">
-                                                <h4 className="font-semibold text-sm line-clamp-2">{item.name}</h4>
-                                                {item.rarity && (
-                                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                                        {item.rarity.replace(/_/g, ' ')}
+                                                <h4 className="font-semibold text-sm line-clamp-2">{card?.name || 'Thẻ'}</h4>
+                                                {item.expectPrice != null && (
+                                                    <p className="text-xs text-pink-400 mt-1">
+                                                        Mong muốn: {Number(item.expectPrice).toLocaleString('vi-VN')} đ
                                                     </p>
                                                 )}
-                                                <p className="text-sm font-bold text-pink-400 mt-1">
-                                                    {Number(item.price || 0).toLocaleString('vi-VN')} đ
-                                                </p>
                                             </CardContent>
                                         </Link>
                                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -591,7 +638,7 @@ export const Profile: React.FC = () => {
                                                 className="h-8 w-8 rounded-full bg-black/50 hover:bg-red-500/20 text-red-400"
                                                 onClick={(e) => {
                                                     e.preventDefault();
-                                                    removeWishlistItem(item.id);
+                                                    handleRemoveFromWishlist(item.wishListId, item.cardId);
                                                 }}
                                                 aria-label="Xóa khỏi wishlist"
                                             >
@@ -601,7 +648,7 @@ export const Profile: React.FC = () => {
                                     </Card>
                                 ))}
                             </div>
-                            {wishlistCount > 8 && (
+                            {wishlistTotal > 8 && (
                                 <div className="mt-4 text-center">
                                     <Button variant="outline" size="sm" onClick={() => navigate('/portfolio')}>
                                         Xem tất cả wishlist
@@ -714,12 +761,10 @@ export const Profile: React.FC = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-muted-foreground mb-1">Địa chỉ</label>
-                                <input
-                                    type="text"
-                                    value={editForm.address ?? ''}
-                                    onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))}
-                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                                    placeholder="Địa chỉ"
+                                <AddressSelect
+                                    value={editForm.address}
+                                    onChange={(address) => setEditForm((f) => ({ ...f, address }))}
+                                    showDetailInput={true}
                                 />
                             </div>
                             <div>
@@ -747,6 +792,7 @@ export const Profile: React.FC = () => {
                             </div>
                             <div className="flex gap-3 pt-2">
                                 <Button
+                                    type="button"
                                     variant="outline"
                                     className="flex-1"
                                     onClick={() => setShowEditProfileModal(false)}
@@ -755,8 +801,13 @@ export const Profile: React.FC = () => {
                                     Hủy
                                 </Button>
                                 <Button
+                                    type="button"
                                     className="flex-1 bg-primary-600 hover:bg-primary-700"
-                                    onClick={handleSaveProfile}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleSaveProfile();
+                                    }}
                                     disabled={isSavingProfile}
                                 >
                                     {isSavingProfile ? 'Đang lưu...' : 'Lưu'}
