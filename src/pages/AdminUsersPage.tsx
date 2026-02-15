@@ -64,7 +64,7 @@ export const AdminUsersPage: React.FC = () => {
 
     const stats = [
         {
-            title: 'Total Users',
+            title: 'Tổng người dùng',
             value: usersList.length.toString(),
             icon: UsersIcon,
             color: 'from-primary-500 to-primary-300',
@@ -112,8 +112,8 @@ export const AdminUsersPage: React.FC = () => {
 
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold font-serif gradient-text">User Management</h1>
-                <p className="text-muted-foreground mt-1">Manage users and permissions</p>
+                <h1 className="text-3xl font-bold font-serif gradient-text">Quản lý người dùng</h1>
+                <p className="text-muted-foreground mt-1">Quản lý người dùng và quyền</p>
             </div>
 
             {/* Stats Cards */}
@@ -145,7 +145,7 @@ export const AdminUsersPage: React.FC = () => {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <input
                                 type="text"
-                                placeholder="Search users..."
+                                placeholder="Tìm người dùng..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
@@ -156,18 +156,18 @@ export const AdminUsersPage: React.FC = () => {
                             onChange={(e) => setRoleFilter(e.target.value)}
                             className="glass-card px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                         >
-                            <option value="">All Roles</option>
-                            <option value="CUSTOMER">Customer</option>
-                            <option value="ADMIN">Admin</option>
+                            <option value="">Tất cả vai trò</option>
+                            <option value="CUSTOMER">Khách hàng</option>
+                            <option value="ADMIN">Quản trị</option>
                         </select>
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
                             className="glass-card px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                         >
-                            <option value="">All Status</option>
-                            <option value="ACTIVE">Active</option>
-                            <option value="BANNED">Banned</option>
+                            <option value="">Tất cả trạng thái</option>
+                            <option value="ACTIVE">Hoạt động</option>
+                            <option value="BANNED">Đã khóa</option>
                         </select>
                     </div>
                 </CardContent>
@@ -176,29 +176,29 @@ export const AdminUsersPage: React.FC = () => {
             {/* Users Table */}
             <Card className="glass-card-strong">
                 <CardHeader>
-                    <CardTitle>Users ({filteredUsers.length})</CardTitle>
+                    <CardTitle>Người dùng ({filteredUsers.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
                         <div className="text-center py-12">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-                            <div className="text-muted-foreground">Loading users...</div>
+                            <div className="text-muted-foreground">Đang tải người dùng...</div>
                         </div>
                     ) : filteredUsers.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
-                            No users found.
+                            Không tìm thấy người dùng.
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b border-white/10">
-                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">User</th>
-                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Role</th>
-                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Phone</th>
-                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Wallet Balance</th>
-                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Status</th>
-                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Actions</th>
+                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Người dùng</th>
+                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Vai trò</th>
+                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Số điện thoại</th>
+                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Số dư ví</th>
+                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Trạng thái</th>
+                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -228,10 +228,10 @@ export const AdminUsersPage: React.FC = () => {
                                                     'bg-primary-500/20 text-primary-400'
                                                     }`}>
                                                     {user.role === 'ADMIN' && <Shield className="h-3 w-3" />}
-                                                    {user.role || 'CUSTOMER'}
+                                                    {user.role === 'ADMIN' ? 'Quản trị' : 'Khách hàng'}
                                                 </span>
                                             </td>
-                                            <td className="p-4 text-sm">{user.phone || 'N/A'}</td>
+                                            <td className="p-4 text-sm">{user.phone || '—'}</td>
                                             <td className="p-4 text-right font-semibold text-accent-400">
                                                 {user.walletResponse?.balance?.toLocaleString('vi-VN') || '0'} đ
                                             </td>
@@ -240,7 +240,7 @@ export const AdminUsersPage: React.FC = () => {
                                                     user.status === 'BANNED' ? 'bg-red-500/20 text-red-400' :
                                                         'bg-amber-500/20 text-amber-400'
                                                     }`}>
-                                                    {user.status || 'ACTIVE'}
+                                                    {user.status === 'ACTIVE' ? 'Hoạt động' : user.status === 'BANNED' ? 'Đã khóa' : 'Khác'}
                                                 </span>
                                             </td>
                                             <td className="p-4">
@@ -251,7 +251,7 @@ export const AdminUsersPage: React.FC = () => {
                                                             className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 rounded-md text-green-400 text-xs font-medium transition-colors flex items-center gap-1"
                                                         >
                                                             <CheckCircle className="h-3 w-3" />
-                                                            Unban
+                                                            Bỏ khóa
                                                         </button>
                                                     ) : (
                                                         <button
@@ -259,7 +259,7 @@ export const AdminUsersPage: React.FC = () => {
                                                             className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded-md text-red-400 text-xs font-medium transition-colors flex items-center gap-1"
                                                         >
                                                             <Ban className="h-3 w-3" />
-                                                            Ban
+                                                            Khóa
                                                         </button>
                                                     )}
                                                 </div>

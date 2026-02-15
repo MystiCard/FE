@@ -115,7 +115,7 @@ export const Register: React.FC = () => {
                             </label>
                             <div className="flex items-center gap-4">
                                 {avatarPreview ? (
-                                    <img src={avatarPreview} alt="Avatar preview" className="w-16 h-16 rounded-full object-cover" />
+                                    <img src={avatarPreview} alt="Xem trước avatar" className="w-16 h-16 rounded-full object-cover" />
                                 ) : (
                                     <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
                                         <User className="h-8 w-8 text-muted-foreground" />

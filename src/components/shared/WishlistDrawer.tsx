@@ -52,6 +52,7 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
             await cardApi.removeFromWishlist(wishListId);
             removeFromWishlistLocal(cardId);
             setRows((prev) => prev.filter((r) => r.item.wishListId !== wishListId));
+            window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
         } catch {
             alert('Không thể xóa khỏi wishlist');
         }
@@ -76,7 +77,7 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
             <div
                 className="fixed right-0 top-0 h-full w-full max-w-md glass-card-strong border-l border-white/20 z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300"
                 role="dialog"
-                aria-label="Wishlist"
+                aria-label="Danh sách yêu thích"
             >
                 <div className="p-6 border-b border-white/10 shrink-0">
                     <div className="flex items-center justify-between">
@@ -85,7 +86,7 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
                                 <Heart className="h-6 w-6 text-white fill-white" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-bold gradient-text">Wishlist</h2>
+                                <h2 className="text-xl font-bold gradient-text">Danh sách yêu thích</h2>
                                 <p className="text-sm text-muted-foreground">
                                     {itemCount} {itemCount === 1 ? 'mục' : 'mục'}
                                 </p>
@@ -106,7 +107,7 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-16">
                             <Loader2 className="h-8 w-8 text-primary-400 animate-spin mb-4" />
-                            <p className="text-sm text-muted-foreground">Đang tải wishlist...</p>
+                            <p className="text-sm text-muted-foreground">Đang tải danh sách yêu thích...</p>
                         </div>
                     ) : rows.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 px-4">
@@ -115,7 +116,7 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
                             </div>
                             <p className="text-muted-foreground font-medium">Chưa có mục nào</p>
                             <p className="text-sm text-muted-foreground mt-1 text-center">
-                                Thêm thẻ từ My Collection hoặc Shop vào wishlist
+                                Thêm thẻ từ Bộ sưu tập hoặc Cửa hàng vào danh sách yêu thích
                             </p>
                             <Button variant="outline" className="mt-6" onClick={onClose}>
                                 Đóng
@@ -157,7 +158,7 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
                                                     onClick={onClose}
                                                     className="text-xs text-primary-400 hover:underline"
                                                 >
-                                                    Xem trong My Collection
+                                                    Xem trong Bộ sưu tập
                                                 </Link>
                                                 <button
                                                     type="button"

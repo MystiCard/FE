@@ -810,17 +810,31 @@ export const blindBoxApi = {
     },
 
     getBlindBoxCards: async (id: string): Promise<Card[]> => {
-        const response = await apiRequest<ApiResponse<Card[]>>(`/blind-boxes/${id}/cards`, {
+        const response = await apiRequest<any>(`/blind-boxes/${id}/cards`, {
             method: 'GET',
         });
-        return response.data;
+        const raw = response?.data ?? response;
+        const list = Array.isArray(raw) ? raw : [];
+        // Backend BlindBoxCardResponse has cardName, cardId, rarity (no imageUrl/name) - map to Card-like shape
+        return list.map((c: any) => ({
+            cardId: c.cardId ?? c.blindBoxCardId,
+            name: c.cardName ?? c.name ?? '—',
+            imageUrl: c.imageUrl,
+            rarity: c.rarity ?? 'COMMON',
+            basePrice: c.basePrice ?? 0,
+            minPrice: c.minPrice ?? 0,
+            maxPrice: c.maxPrice ?? 0,
+        }));
     },
 
     getBlindBoxProbabilities: async (id: string): Promise<BlindBoxProbability[]> => {
-        const response = await apiRequest<ApiResponse<BlindBoxProbability[]>>(`/blind-boxes/${id}/probabilities`, {
+        const response = await apiRequest<any>(`/blind-boxes/${id}/probabilities`, {
             method: 'GET',
         });
-        return response.data;
+        // Backend may return { data: { probabilities: [...] } } or legacy unwrapped { probabilities: [...] }
+        const data = response?.data ?? response;
+        const list = Array.isArray(data) ? data : (data?.probabilities ?? []);
+        return Array.isArray(list) ? list : [];
     }
 };
 

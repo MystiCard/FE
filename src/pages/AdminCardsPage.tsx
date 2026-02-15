@@ -96,32 +96,32 @@ export const AdminCardsPage: React.FC = () => {
 
     const stats = [
         {
-            title: 'Total Cards',
+            title: 'Tổng thẻ',
             value: cards.length.toString(),
             icon: Package,
             color: 'from-primary-500 to-primary-300',
-            change: `${cards.length} items`
+            change: `${cards.length} thẻ`
         },
         {
-            title: 'Total Value',
+            title: 'Tổng giá trị',
             value: `$${cards.reduce((sum, card) => sum + (card.basePrice || 0), 0).toFixed(2)}`,
             icon: DollarSign,
             color: 'from-accent-500 to-accent-300',
-            change: 'Inventory'
+            change: 'Kho'
         },
         {
-            title: 'Average Price',
+            title: 'Giá trung bình',
             value: cards.length > 0 ? `$${(cards.reduce((sum, card) => sum + (card.basePrice || 0), 0) / cards.length).toFixed(2)}` : '$0',
             icon: TrendingUp,
             color: 'from-secondary-500 to-secondary-300',
-            change: 'Per card'
+            change: 'Mỗi thẻ'
         },
         {
-            title: 'Categories',
+            title: 'Danh mục',
             value: new Set(cards.map(c => c.categoryName).filter(Boolean)).size.toString(),
             icon: AlertCircle,
             color: 'from-red-500 to-orange-500',
-            change: 'Unique'
+            change: 'Loại'
         },
     ];
 
@@ -291,8 +291,8 @@ export const AdminCardsPage: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold font-serif gradient-text">Card Management</h1>
-                    <p className="text-muted-foreground mt-1">Manage your card inventory</p>
+                    <h1 className="text-3xl font-bold font-serif gradient-text">Quản lý thẻ</h1>
+                    <p className="text-muted-foreground mt-1">Quản lý kho thẻ</p>
                 </div>
                 <div className="flex gap-3">
                     <Button
@@ -320,7 +320,7 @@ export const AdminCardsPage: React.FC = () => {
                         }}
                     >
                         <Plus className="h-4 w-4" />
-                        Add New Card
+                        Thêm thẻ mới
                     </Button>
                 </div>
             </div>
@@ -354,7 +354,7 @@ export const AdminCardsPage: React.FC = () => {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <input
                                 type="text"
-                                placeholder="Search products..."
+                                placeholder="Tìm sản phẩm..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
@@ -398,22 +398,22 @@ export const AdminCardsPage: React.FC = () => {
                     {isLoading ? (
                         <div className="text-center py-12">
                             <div className="rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-                            <div className="text-muted-foreground">Loading cards...</div>
+                            <div className="text-muted-foreground">Đang tải thẻ...</div>
                         </div>
                     ) : getFilteredCards().length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
-                            No cards found. Add your first card to get started!
+                            Chưa có thẻ nào. Thêm thẻ đầu tiên để bắt đầu!
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b border-white/10">
-                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Card</th>
-                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Category</th>
-                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Rarity</th>
-                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Price</th>
-                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Actions</th>
+                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Thẻ</th>
+                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Danh mục</th>
+                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Độ hiếm</th>
+                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Giá</th>
+                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -499,7 +499,7 @@ export const AdminCardsPage: React.FC = () => {
                             <CardHeader className="border-b border-white/10">
                                 <div className="flex items-center justify-between">
                                     <CardTitle className="text-2xl gradient-text">
-                                        {editingCard ? 'Edit Card' : 'Add New Card'}
+                                        {editingCard ? 'Chỉnh sửa thẻ' : 'Thêm thẻ mới'}
                                     </CardTitle>
                                     <button
                                         onClick={() => {
@@ -516,23 +516,23 @@ export const AdminCardsPage: React.FC = () => {
                                 <div className="space-y-4">
                                     {/* Card Name */}
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Card Name *</label>
+                                        <label className="block text-sm font-medium mb-2">Tên thẻ *</label>
                                         <input
                                             type="text"
                                             value={newCard.name}
                                             onChange={(e) => setNewCard({ ...newCard, name: e.target.value })}
-                                            placeholder="Enter card name"
+                                            placeholder="Nhập tên thẻ"
                                             className="w-full px-4 py-2 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                                         />
                                     </div>
 
                                     {/* Description */}
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Description</label>
+                                        <label className="block text-sm font-medium mb-2">Mô tả</label>
                                         <textarea
                                             value={newCard.description}
                                             onChange={(e) => setNewCard({ ...newCard, description: e.target.value })}
-                                            placeholder="Enter card description"
+                                            placeholder="Nhập mô tả thẻ"
                                             rows={3}
                                             className="w-full px-4 py-2 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 resize-none"
                                         />
@@ -540,13 +540,13 @@ export const AdminCardsPage: React.FC = () => {
 
                                     {/* Category */}
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Category</label>
+                                        <label className="block text-sm font-medium mb-2">Danh mục</label>
                                         <select
                                             value={newCard.categoryId}
                                             onChange={(e) => setNewCard({ ...newCard, categoryId: e.target.value })}
                                             className="w-full px-4 py-2 bg-primary-900/50 backdrop-blur-sm border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer"
                                         >
-                                            <option value="">Select Category (Optional)</option>
+                                            <option value="">Chọn danh mục (tùy chọn)</option>
                                             {categories.map((category) => (
                                                 <option key={category.categoryId} value={category.categoryId}>
                                                     {category.categoryName}
@@ -557,24 +557,24 @@ export const AdminCardsPage: React.FC = () => {
 
                                     {/* Rarity */}
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Rarity</label>
+                                        <label className="block text-sm font-medium mb-2">Độ hiếm</label>
                                         <select
                                             value={newCard.rarity}
                                             onChange={(e) => setNewCard({ ...newCard, rarity: e.target.value as any })}
                                             className="w-full px-4 py-2 bg-primary-900/50 backdrop-blur-sm border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer"
                                         >
-                                            <option value="COMMON">Common</option>
-                                            <option value="UNCOMMON">Uncommon</option>
-                                            <option value="RARE">Rare</option>
-                                            <option value="ULTRA_RARE">Ultra Rare</option>
-                                            <option value="SUPER_RARE">Super Rare</option>
-                                            <option value="SECRET_RARE">Secret Rare</option>
+                                            <option value="COMMON">Thường</option>
+                                            <option value="UNCOMMON">Không hiếm</option>
+                                            <option value="RARE">Hiếm</option>
+                                            <option value="ULTRA_RARE">Cực hiếm</option>
+                                            <option value="SUPER_RARE">Siêu hiếm</option>
+                                            <option value="SECRET_RARE">Bí mật hiếm</option>
                                         </select>
                                     </div>
 
                                     {/* Price */}
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Price ($) *</label>
+                                        <label className="block text-sm font-medium mb-2">Giá ($) *</label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -587,7 +587,7 @@ export const AdminCardsPage: React.FC = () => {
 
                                     {/* Image URL */}
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Image URL</label>
+                                        <label className="block text-sm font-medium mb-2">URL ảnh</label>
                                         <input
                                             type="text"
                                             value={newCard.imageUrl}
@@ -604,7 +604,7 @@ export const AdminCardsPage: React.FC = () => {
                                             className="flex-1"
                                             onClick={editingCard ? handleEditCard : handleAddCard}
                                         >
-                                            {editingCard ? 'Update Card' : 'Add Card'}
+                                            {editingCard ? 'Cập nhật thẻ' : 'Thêm thẻ'}
                                         </Button>
                                         <Button
                                             variant="ghost"
@@ -614,7 +614,7 @@ export const AdminCardsPage: React.FC = () => {
                                                 setEditingCard(null);
                                             }}
                                         >
-                                            Cancel
+                                            Hủy
                                         </Button>
                                     </div>
                                 </div>
@@ -751,7 +751,7 @@ export const AdminCardsPage: React.FC = () => {
                                 <div className="flex items-center justify-between">
                                     <CardTitle className="text-2xl gradient-text flex items-center gap-2">
                                         <FileSpreadsheet className="h-6 w-6" />
-                                        Import Cards
+                                        Nhập thẻ
                                     </CardTitle>
                                     <button
                                         onClick={() => {
@@ -768,17 +768,17 @@ export const AdminCardsPage: React.FC = () => {
                                 <div className="space-y-4">
                                     {/* Instructions */}
                                     <div className="p-4 bg-primary-500/10 border border-primary-500/20 rounded-lg">
-                                        <h4 className="font-semibold mb-2">Import Instructions:</h4>
+                                        <h4 className="font-semibold mb-2">Hướng dẫn nhập:</h4>
                                         <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                                            <li>Upload an Excel (.xlsx, .xls) or CSV file</li>
-                                            <li>File should contain columns: name, description, price, rarity, imageUrl, categoryId</li>
-                                            <li>Existing cards with same name will be updated</li>
+                                            <li>Tải lên file Excel (.xlsx, .xls) hoặc CSV</li>
+                                            <li>File cần có cột: name, description, price, rarity, imageUrl, categoryId</li>
+                                            <li>Thẻ trùng tên sẽ được cập nhật</li>
                                         </ul>
                                     </div>
 
                                     {/* File Upload */}
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Select File</label>
+                                        <label className="block text-sm font-medium mb-2">Chọn file</label>
                                         <div className="relative">
                                             <input
                                                 type="file"
@@ -790,7 +790,7 @@ export const AdminCardsPage: React.FC = () => {
                                         {importFile && (
                                             <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
                                                 <FileSpreadsheet className="h-3 w-3" />
-                                                Selected: {importFile.name}
+                                                Đã chọn: {importFile.name}
                                             </p>
                                         )}
                                     </div>
@@ -803,7 +803,7 @@ export const AdminCardsPage: React.FC = () => {
                                             onClick={handleImportCards}
                                             disabled={!importFile || isImporting}
                                         >
-                                            {isImporting ? 'Importing...' : 'Import Cards'}
+                                            {isImporting ? 'Đang nhập...' : 'Nhập thẻ'}
                                         </Button>
                                         <Button
                                             variant="ghost"
@@ -814,7 +814,7 @@ export const AdminCardsPage: React.FC = () => {
                                             }}
                                             disabled={isImporting}
                                         >
-                                            Cancel
+                                            Hủy
                                         </Button>
                                     </div>
                                 </div>

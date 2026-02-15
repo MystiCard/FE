@@ -59,7 +59,7 @@ const newsData: NewsItem[] = [
 
 export const NewsSidebar: React.FC = () => {
     return (
-        <aside className="fixed left-20 top-16 h-[calc(100vh-4rem)] w-80 border-r border-white/10 hidden xl:block overflow-hidden">
+        <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-80 border-r border-white/10 hidden xl:block overflow-hidden">
             <div className="h-full flex flex-col glass-card-strong">
                 {/* Header */}
                 <div className="p-6 border-b border-white/10">
@@ -67,9 +67,9 @@ export const NewsSidebar: React.FC = () => {
                         <div className="p-2 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500">
                             <Newspaper className="h-5 w-5 text-white" />
                         </div>
-                        <h2 className="text-xl font-bold gradient-text">Latest News</h2>
+                        <h2 className="text-xl font-bold gradient-text">Tin mới nhất</h2>
                     </div>
-                    <p className="text-sm text-muted-foreground">Stay updated with the latest</p>
+                    <p className="text-sm text-muted-foreground">Cập nhật tin tức mới</p>
                 </div>
 
                 {/* News List */}
@@ -132,8 +132,8 @@ export const NewsSidebar: React.FC = () => {
 
                 {/* Footer */}
                 <div className="p-4 border-t border-white/10">
-                    <button className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-primary-500 to-accent-500 hover:from-primary-600 hover:to-accent-600 font-semibold text-sm text-white shadow-lg hover:shadow-primary-500/50 ">
-                        View All News
+                    <button className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-primary-500 to-accent-500 hover:from-primary-600 hover:to-accent-600 font-semibold text-sm text-white shadow-lg hover:shadow-primary-500/50">
+                        Xem tất cả tin
                     </button>
                 </div>
             </div>

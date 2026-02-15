@@ -67,8 +67,8 @@ export const Login: React.FC = () => {
                     <div className="mx-auto w-40 h-40 flex items-center justify-center mb-6">
                         <img src="/logo/logo.png" alt="MyScard Logo" className="w-full h-full object-contain filter drop-shadow-xl" />
                     </div>
-                    <CardTitle className="text-3xl font-bold font-serif">Welcome Back</CardTitle>
-                    <p className="text-muted-foreground mt-2">Sign in to your account to continue</p>
+                    <CardTitle className="text-3xl font-bold font-serif">Chào bạn trở lại</CardTitle>
+                    <p className="text-muted-foreground mt-2">Đăng nhập vào tài khoản để tiếp tục</p>
                 </CardHeader>
 
                 <CardContent>
@@ -90,7 +90,7 @@ export const Login: React.FC = () => {
                         {/* Email */}
                         <div>
                             <label htmlFor="email" className="block text-sm font-medium mb-2">
-                                Email Address
+                                Email
                             </label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -109,7 +109,7 @@ export const Login: React.FC = () => {
                         {/* Password */}
                         <div>
                             <label htmlFor="password" className="block text-sm font-medium mb-2">
-                                Password
+                                Mật khẩu
                             </label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -134,10 +134,10 @@ export const Login: React.FC = () => {
                                     onChange={(e) => setRememberMe(e.target.checked)}
                                     className="w-4 h-4 rounded border-white/10 bg-white/5 text-primary-500 focus:ring-2 focus:ring-primary-500/50"
                                 />
-                                <span className="text-sm">Remember me</span>
+                                <span className="text-sm">Ghi nhớ đăng nhập</span>
                             </label>
-                            <Link to="/forgot-password" className="text-sm text-primary-400 hover:text-primary-300 ">
-                                Forgot password?
+                            <Link to="/forgot-password" className="text-sm text-primary-400 hover:text-primary-300">
+                                Quên mật khẩu?
                             </Link>
                         </div>
 
@@ -149,7 +149,7 @@ export const Login: React.FC = () => {
                             size="lg"
                             disabled={isLoading}
                         >
-                            {isLoading ? 'Signing in...' : 'Sign In'}
+                            {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
                         </Button>
 
                         {/* Divider */}
@@ -158,7 +158,7 @@ export const Login: React.FC = () => {
                                 <div className="w-full border-t border-white/10"></div>
                             </div>
                             <div className="relative flex justify-center text-sm">
-                                <span className="px-2 bg-card text-muted-foreground">Or continue with</span>
+                                <span className="px-2 bg-card text-muted-foreground">Hoặc tiếp tục với</span>
                             </div>
                         </div>
 
@@ -189,9 +189,9 @@ export const Login: React.FC = () => {
 
                         {/* Sign Up Link */}
                         <p className="text-center text-sm text-muted-foreground mt-6">
-                            Don't have an account?{' '}
-                            <Link to="/register" className="text-primary-400 hover:text-primary-300 font-medium ">
-                                Sign up
+                            Chưa có tài khoản?{' '}
+                            <Link to="/register" className="text-primary-400 hover:text-primary-300 font-medium">
+                                Đăng ký
                             </Link>
                         </p>
                     </form>

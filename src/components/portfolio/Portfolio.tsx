@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, BarChart3, MoreVertical } from 'lucide-react';
-import { categoryApi, Category, Card as CardType } from '@/utils/api';
+import { Loader2, BarChart3, MoreVertical, Heart } from 'lucide-react';
+import { categoryApi, Category, Card as CardType, cardApi } from '@/utils/api';
 import { getCategoryImage } from '@/utils/categoryImages';
 import { SetDetail } from './SetDetail';
 import { CardDetailModal } from './CardDetailModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { useWishlist } from '@/hooks/useWishlist';
 
 type ViewState = 'CATEGORIES' | 'CARDS';
+
+type CardStat = { count: number; totalValue: number; cardIds: string[] };
 
 function getSetAbbrev(name: string): string {
     const words = name.trim().split(/\s+/);
@@ -15,18 +19,41 @@ function getSetAbbrev(name: string): string {
 }
 
 export const Portfolio: React.FC = () => {
+    const { isAuthenticated } = useAuth();
+    const { items: wishlistItems } = useWishlist();
     const [view, setView] = useState<ViewState>('CATEGORIES');
     const [isLoading, setIsLoading] = useState(false);
     const [categories, setCategories] = useState<Category[]>([]);
-    const [cardStats, setCardStats] = useState<Record<string, { count: number; totalValue: number }>>({});
+    const [cardStats, setCardStats] = useState<Record<string, CardStat>>({});
     const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+    const [apiWishlistIds, setApiWishlistIds] = useState<Set<string>>(new Set());
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedCard, setSelectedCard] = useState<CardType | null>(null);
 
+    const wishlistCardIds = isAuthenticated
+        ? apiWishlistIds
+        : new Set(wishlistItems.map((i) => String(i.id)));
+
     useEffect(() => {
         loadCategories();
     }, []);
+
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        const load = async () => {
+            try {
+                const res = await cardApi.getUserWishlist(0, 500);
+                setApiWishlistIds(new Set((res.content ?? []).map((w) => w.cardId)));
+            } catch {
+                setApiWishlistIds(new Set());
+            }
+        };
+        load();
+        const onUpdated = () => load();
+        window.addEventListener('wishlist-api-updated', onUpdated);
+        return () => window.removeEventListener('wishlist-api-updated', onUpdated);
+    }, [isAuthenticated]);
 
     useEffect(() => {
         if (categories.length === 0) return;
@@ -36,9 +63,10 @@ export const Portfolio: React.FC = () => {
                     try {
                         const cards = await categoryApi.getCardsByCategoryId(c.categoryId);
                         const totalValue = cards.reduce((sum, card) => sum + (card.basePrice ?? 0), 0);
-                        return [c.categoryId, { count: cards.length, totalValue }] as const;
+                        const cardIds = cards.map((card) => card.cardId);
+                        return [c.categoryId, { count: cards.length, totalValue, cardIds }] as const;
                     } catch {
-                        return [c.categoryId, { count: 0, totalValue: 0 }] as const;
+                        return [c.categoryId, { count: 0, totalValue: 0, cardIds: [] as string[] }] as const;
                     }
                 })
             );
@@ -104,8 +132,9 @@ export const Portfolio: React.FC = () => {
                             {categories.map((category) => {
                                 const stats = cardStats[category.categoryId];
                                 const total = stats?.count ?? 0;
-                                const collected = 0;
-                                const pct = total > 0 ? Math.round((collected / total) * 100) : 0;
+                                const cardIds = stats?.cardIds ?? [];
+                                const inWishlist = cardIds.filter((id) => wishlistCardIds.has(id)).length;
+                                const pct = total > 0 ? Math.round((inWishlist / total) * 100) : 0;
                                 const value = stats?.totalValue ?? 0;
                                 const abbrev = getSetAbbrev(category.categoryName);
                                 return (
@@ -146,14 +175,15 @@ export const Portfolio: React.FC = () => {
                                             </div>
                                             <div className="px-4 pb-4 pt-0 flex flex-col gap-2">
                                                 <div className="flex items-center justify-between text-sm">
-                                                    <span className="text-muted-foreground">
-                                                        {collected}/{total}
+                                                    <span className="text-muted-foreground flex items-center gap-1.5">
+                                                        <Heart className="h-3.5 w-3.5 text-pink-400" />
+                                                        Wishlist: {inWishlist}/{total}
                                                     </span>
                                                     <span className="text-muted-foreground">{pct}%</span>
                                                 </div>
                                                 <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                                                     <div
-                                                        className="h-full rounded-full bg-primary-500 transition-all"
+                                                        className="h-full rounded-full bg-gradient-to-r from-pink-500 to-pink-400 transition-all"
                                                         style={{ width: `${pct}%` }}
                                                     />
                                                 </div>
