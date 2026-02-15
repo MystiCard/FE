@@ -107,19 +107,19 @@ export const CardComparison: React.FC = () => {
             <div className="mb-8">
                 <div className="flex items-center gap-3 mb-2">
                     <ArrowLeftRight className="h-8 w-8 text-primary-400" />
-                    <h1 className="text-4xl font-bold font-serif">Card Comparison</h1>
+                    <h1 className="text-4xl font-bold font-serif">So sánh thẻ</h1>
                 </div>
-                <p className="text-muted-foreground">Compare cards side by side</p>
+                <p className="text-muted-foreground">So sánh thẻ cạnh nhau</p>
             </div>
 
             {selectedCards.length === 0 ? (
                 <Card className="text-center py-12">
                     <CardContent>
                         <ArrowLeftRight className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                        <p className="text-muted-foreground mb-4">No cards selected for comparison</p>
+                        <p className="text-muted-foreground mb-4">Chưa chọn thẻ nào để so sánh</p>
                         <Button variant="premium" onClick={() => setShowCardPicker(true)}>
                             <Plus className="w-4 h-4 mr-2" />
-                            Add Card
+                            Thêm thẻ
                         </Button>
                     </CardContent>
                 </Card>
@@ -151,26 +151,26 @@ export const CardComparison: React.FC = () => {
 
                                 <div className="space-y-3">
                                     <div className="flex justify-between">
-                                        <span className="text-sm text-muted-foreground">Set</span>
+                                        <span className="text-sm text-muted-foreground">Bộ</span>
                                         <span className="font-medium">{card.set}</span>
                                     </div>
 
                                     <div className="flex justify-between">
-                                        <span className="text-sm text-muted-foreground">Rarity</span>
+                                        <span className="text-sm text-muted-foreground">Độ hiếm</span>
                                         <span className="px-2 py-1 rounded-full text-xs font-medium bg-primary-500/20 text-primary-400">
                                             {card.rarity}
                                         </span>
                                     </div>
 
                                     <div className="flex justify-between">
-                                        <span className="text-sm text-muted-foreground">Price</span>
+                                        <span className="text-sm text-muted-foreground">Giá</span>
                                         <span className="font-bold gradient-text">${card.price}</span>
                                     </div>
 
                                     {card.hp && (
                                         <>
                                             <div className="border-t border-white/10 pt-3">
-                                                <div className="text-sm font-semibold mb-2">Stats</div>
+                                                <div className="text-sm font-semibold mb-2">Chỉ số</div>
                                             </div>
 
                                             <div className="space-y-2">
@@ -189,7 +189,7 @@ export const CardComparison: React.FC = () => {
 
                                                 <div>
                                                     <div className="flex justify-between text-sm mb-1">
-                                                        <span className="text-muted-foreground">Attack</span>
+                                                        <span className="text-muted-foreground">Tấn công</span>
                                                         <span className="font-medium">{card.attack}</span>
                                                     </div>
                                                     <div className="h-2 bg-white/10 rounded-full overflow-hidden">
@@ -202,7 +202,7 @@ export const CardComparison: React.FC = () => {
 
                                                 <div>
                                                     <div className="flex justify-between text-sm mb-1">
-                                                        <span className="text-muted-foreground">Defense</span>
+                                                        <span className="text-muted-foreground">Phòng thủ</span>
                                                         <span className="font-medium">{card.defense}</span>
                                                     </div>
                                                     <div className="h-2 bg-white/10 rounded-full overflow-hidden">
@@ -218,7 +218,7 @@ export const CardComparison: React.FC = () => {
                                 </div>
 
                                 <Button variant="premium" className="w-full">
-                                    Add to Cart
+                                    Thêm vào giỏ
                                 </Button>
                             </CardContent>
                         </Card>
@@ -230,11 +230,11 @@ export const CardComparison: React.FC = () => {
                 <Card className="mt-6">
                     <CardContent className="p-6 text-center">
                         <p className="text-muted-foreground mb-4">
-                            Add more cards to compare (up to 4 cards)
+                            Thêm thẻ để so sánh (tối đa 4 thẻ)
                         </p>
                         <Button variant="outline" className="glass-card" onClick={() => setShowCardPicker(true)}>
                             <Plus className="w-4 h-4 mr-2" />
-                            Add Card
+                            Thêm thẻ
                         </Button>
                     </CardContent>
                 </Card>
@@ -246,7 +246,7 @@ export const CardComparison: React.FC = () => {
                     <Card className="w-full max-w-4xl max-h-[80vh] overflow-auto">
                         <CardHeader>
                             <div className="flex items-center justify-between">
-                                <CardTitle>Select a Card to Compare</CardTitle>
+                                <CardTitle>Chọn thẻ để so sánh</CardTitle>
                                 <button
                                     onClick={() => setShowCardPicker(false)}
                                     className="p-2 hover:bg-white/10 rounded-md "

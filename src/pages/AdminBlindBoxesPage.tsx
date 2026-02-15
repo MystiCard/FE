@@ -138,6 +138,17 @@ export const AdminBlindBoxesPage: React.FC = () => {
         });
     };
 
+    const toggleSelectAllFilteredCards = () => {
+        const filteredIds = filteredCards.map(c => c.cardId);
+        const allSelected = filteredIds.every(id => newBox.cardIds.includes(id));
+        setNewBox(prev => ({
+            ...prev,
+            cardIds: allSelected
+                ? prev.cardIds.filter(id => !filteredIds.includes(id))
+                : [...new Set([...prev.cardIds, ...filteredIds])]
+        }));
+    };
+
     // --- Handlers: Delete Box ---
     const handleDeleteBox = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -163,10 +174,12 @@ export const AdminBlindBoxesPage: React.FC = () => {
                 blindBoxApi.getBlindBoxCards(box.blindBoxId).catch(() => []),
                 blindBoxApi.getBlindBoxProbabilities(box.blindBoxId).catch(() => [])
             ]);
-            setBoxCards(cards);
-            setBoxProbabilities(probs);
+            setBoxCards(Array.isArray(cards) ? cards : []);
+            setBoxProbabilities(Array.isArray(probs) ? probs : []);
         } catch (err) {
             console.error('Failed to load box details:', err);
+            setBoxCards([]);
+            setBoxProbabilities([]);
         } finally {
             setIsLoadingDetails(false);
         }
@@ -196,6 +209,13 @@ export const AdminBlindBoxesPage: React.FC = () => {
     });
 
     // --- UI Helpers ---
+    const getBoxPrice = (box: BlindBox): number => {
+        const p = box?.price;
+        if (p == null) return 0;
+        const n = typeof p === 'string' ? parseFloat(p) : Number(p);
+        return Number.isFinite(n) ? n : 0;
+    };
+
     const getRarityColor = (rarity: string) => {
         switch (rarity) {
             case 'COMMON': return 'text-gray-400 bg-gray-500/10 border-gray-500/20';
@@ -215,7 +235,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                 <div>
                     <h1 className="text-3xl font-bold font-serif gradient-text flex items-center gap-2">
                         <ShoppingBag className="h-8 w-8 text-primary-400" />
-                        Blind Box Manager
+                        Quản lý hộp bí ẩn
                     </h1>
                     <p className="text-muted-foreground mt-1">Create and manage mystery blind boxes for your store.</p>
                 </div>
@@ -299,7 +319,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                         <span className="font-bold">{newBox.cardIds.length}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Est. Total Value:</span>
+                                        <span className="text-muted-foreground">Tổng giá trị ước tính:</span>
                                         <span className="font-bold text-accent-400">
                                             ${availableCards
                                                 .filter(c => newBox.cardIds.includes(c.cardId))
@@ -317,7 +337,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                 onClick={handleCreateBox}
                                 disabled={isSubmitting}
                             >
-                                {isSubmitting ? 'Creating...' : 'Create Blind Box'}
+                                {isSubmitting ? 'Đang tạo...' : 'Tạo hộp bí ẩn'}
                             </Button>
                         </div>
                     </Card>
@@ -329,7 +349,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                             <div className="relative flex-1 w-full">
                                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    placeholder="Search cards by name..."
+                                    placeholder="Tìm thẻ theo tên..."
                                     value={cardSearchQuery}
                                     onChange={(e) => setCardSearchQuery(e.target.value)}
                                     className="pl-9 glass-card bg-black/40 border-white/10"
@@ -360,6 +380,18 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                 <option value="SUPER_RARE">Super Rare</option>
                                 <option value="SECRET_RARE">Secret Rare</option>
                             </select>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={toggleSelectAllFilteredCards}
+                                disabled={filteredCards.length === 0}
+                                className="whitespace-nowrap border-primary-500/30 text-primary-300 hover:bg-primary-500/20 hover:text-primary-200"
+                            >
+                                {filteredCards.length > 0 && filteredCards.every(c => newBox.cardIds.includes(c.cardId))
+                                    ? 'Bỏ chọn tất cả'
+                                    : 'Chọn tất cả'}
+                            </Button>
                         </div>
 
                         {/* Card Grid */}
@@ -367,7 +399,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                             {filteredCards.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-60">
                                     <Search className="h-12 w-12 mb-2" />
-                                    <p>No cards found matching your criteria</p>
+                                    <p>Không tìm thấy thẻ phù hợp</p>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -421,7 +453,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                     <Package className="h-6 w-6" />
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-sm text-muted-foreground">Total Boxes</span>
+                                    <span className="text-sm text-muted-foreground">Tổng số hộp</span>
                                     <span className="text-2xl font-bold">{blindBoxes.length}</span>
                                 </div>
                             </CardContent>
@@ -434,7 +466,9 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                 <div className="flex flex-col">
                                     <span className="text-sm text-muted-foreground">Highest Price</span>
                                     <span className="text-2xl font-bold">
-                                        ${blindBoxes.length > 0 ? Math.max(...blindBoxes.map(b => b.price)).toFixed(2) : '0.00'}
+                                        ${blindBoxes.length > 0
+                                            ? Math.max(0, ...blindBoxes.map(b => getBoxPrice(b))).toFixed(2)
+                                            : '0.00'}
                                     </span>
                                 </div>
                             </CardContent>
@@ -445,7 +479,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                     <div className="relative max-w-md">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Search existing boxes..."
+                            placeholder="Tìm hộp..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-9 glass-card"
@@ -454,7 +488,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
 
                     {/* Grid of Boxes */}
                     {isLoading ? (
-                        <div className="text-center py-20 text-muted-foreground animate-pulse">Loading blind boxes...</div>
+                        <div className="text-center py-20 text-muted-foreground animate-pulse">Đang tải hộp bí ẩn...</div>
                     ) : filteredBoxes.length === 0 ? (
                         <div className="text-center py-20 glass-card rounded-xl border-dashed border-2 border-white/10">
                             <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -489,7 +523,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                             {box.description || 'No description provided.'}
                                         </p>
                                         <div className="flex items-center justify-between pt-4 border-t border-white/10 mt-auto">
-                                            <span className="text-2xl font-bold text-accent-400 font-mono">${box.price?.toFixed(2)}</span>
+                                            <span className="text-2xl font-bold text-accent-400 font-mono">${getBoxPrice(box).toFixed(2)}</span>
                                             {/* Could add a badge for number of cards if available in list view */}
                                         </div>
                                     </CardContent>
@@ -508,7 +542,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <CardTitle className="text-2xl font-serif">{viewingBox.name}</CardTitle>
-                                    <p className="text-accent-400 font-bold text-xl mt-1">${viewingBox.price?.toFixed(2)}</p>
+                                    <p className="text-accent-400 font-bold text-xl mt-1">${getBoxPrice(viewingBox).toFixed(2)}</p>
                                 </div>
                                 <Button variant="ghost" className="hover:bg-white/10" onClick={() => setViewingBox(null)}>
                                     <X className="h-6 w-6" />
@@ -527,21 +561,21 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                     <div>
                                         <h3 className="text-sm font-uppercase font-bold text-muted-foreground tracking-wider mb-2">DESCRIPTION</h3>
                                         <p className="text-gray-300 leading-relaxed bg-white/5 p-4 rounded-xl border border-white/5">
-                                            {viewingBox.description}
+                                            {viewingBox.description || 'No description provided.'}
                                         </p>
                                     </div>
 
                                     {/* Probabilities Section */}
-                                    {boxProbabilities.length > 0 && (
+                                    {(boxProbabilities?.length ?? 0) > 0 && (
                                         <div>
                                             <h3 className="text-sm font-uppercase font-bold text-muted-foreground tracking-wider mb-3 flex items-center gap-2">
                                                 <Percent className="h-4 w-4" /> RARITY PROBABILITIES
                                             </h3>
                                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                                {boxProbabilities.map((prob, idx) => (
+                                                {(boxProbabilities ?? []).map((prob, idx) => (
                                                     <div key={idx} className={`p-4 rounded-xl border ${getRarityColor(prob.rarity)} flex flex-col items-center text-center`}>
                                                         <span className="text-xs font-bold opacity-70 mb-1">{prob.rarity}</span>
-                                                        <span className="text-2xl font-black">{(prob.probability * 100).toFixed(1)}%</span>
+                                                        <span className="text-2xl font-black">{(Number(prob.probability ?? 0)).toFixed(1)}%</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -554,18 +588,18 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                             <Grid className="h-4 w-4" /> INCLUDED CARDS
                                         </h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                            {boxCards.map(card => (
-                                                <div key={card.cardId} className="group relative rounded-lg overflow-hidden border border-white/10 bg-black/40">
+                                            {(boxCards ?? []).map((card, idx) => (
+                                                <div key={card.cardId || `card-${idx}`} className="group relative rounded-lg overflow-hidden border border-white/10 bg-black/40">
                                                     <div className="aspect-[2/3]">
                                                         <img
-                                                            src={card.imageUrl || 'https://via.placeholder.com/150'}
-                                                            alt={card.name}
+                                                            src={card.imageUrl || 'https://via.placeholder.com/150?text=Card'}
+                                                            alt={card.name || ''}
                                                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                         />
                                                     </div>
                                                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2">
-                                                        <p className="text-xs font-bold text-white truncate">{card.name}</p>
-                                                        <p className="text-[10px] text-gray-400">{card.rarity}</p>
+                                                        <p className="text-xs font-bold text-white truncate">{card.name || '—'}</p>
+                                                        <p className="text-[10px] text-gray-400">{card.rarity || '—'}</p>
                                                     </div>
                                                 </div>
                                             ))}

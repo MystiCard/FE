@@ -70,7 +70,7 @@ export const Profile: React.FC = () => {
             const data = await userApi.getMyProfile();
             setProfile(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load profile');
+            setError(err instanceof Error ? err.message : 'Không tải được hồ sơ');
         } finally {
             setIsLoading(false);
         }
@@ -136,6 +136,7 @@ export const Profile: React.FC = () => {
         try {
             await cardApi.removeFromWishlist(wishListId);
             removeFromWishlistLocal(cardId);
+            window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
             fetchStats();
             fetchWishlist();
         } catch {
@@ -271,7 +272,7 @@ export const Profile: React.FC = () => {
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
                     <div className="rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-                    <div className="text-xl">Loading profile...</div>
+                    <div className="text-xl">Đang tải hồ sơ...</div>
                 </div>
             </div>
         );
@@ -292,7 +293,7 @@ export const Profile: React.FC = () => {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
-                    <div className="text-xl">Please login to view profile</div>
+                    <div className="text-xl">Vui lòng đăng nhập để xem hồ sơ</div>
                 </div>
             </div>
         );
@@ -403,7 +404,7 @@ export const Profile: React.FC = () => {
                 {/* 3. Action Bar */}
                 <div className="flex justify-between items-center text-sm border-b border-white/10 pb-4">
                     <button className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 ">
-                        <User className="w-4 h-4" /> View Social Profile
+                        <User className="w-4 h-4" /> Xem trang cá nhân
                     </button>
                     <button className="flex items-center gap-2 text-blue-400 hover:text-blue-300 ">
                         <Edit className="w-4 h-4" /> Edit Background

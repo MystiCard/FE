@@ -10,18 +10,19 @@ export const FloatingWidgets: React.FC = () => {
             {/* Floating Action Buttons */}
             <div className="fixed bottom-8 right-8 flex flex-col gap-4 z-40">
                 {/* Help Button */}
-                <button
+                <a
+                    href="/about"
                     className="glass-card-strong p-4 rounded-full shadow-lg group"
-                    title="Help Center"
+                    title="Trung tâm trợ giúp"
                 >
-                    <HelpCircle className="h-6 w-6 group-hover:text-primary-400 " />
-                </button>
+                    <HelpCircle className="h-6 w-6 group-hover:text-primary-400" />
+                </a>
 
                 {/* Chat Button */}
                 <button
                     onClick={() => setIsChatOpen(!isChatOpen)}
                     className="glass-card-strong p-4 rounded-full shadow-lg bg-gradient-to-br from-primary-500 to-accent-500 group"
-                    title="Chat with us"
+                    title="Chat với chúng tôi"
                 >
                     <MessageSquare className="h-6 w-6 text-white" />
                 </button>
@@ -38,8 +39,8 @@ export const FloatingWidgets: React.FC = () => {
                                     <MessageSquare className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold">MyScard Support</h3>
-                                    <p className="text-xs text-muted-foreground">We're here to help!</p>
+                                    <h3 className="font-semibold">Hỗ trợ MysticCard</h3>
+                                    <p className="text-xs text-muted-foreground">Chúng tôi sẵn sàng hỗ trợ bạn!</p>
                                 </div>
                             </div>
                             <button
@@ -56,7 +57,7 @@ export const FloatingWidgets: React.FC = () => {
                         <div className="flex gap-3">
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex-shrink-0" />
                             <div className="glass-card p-3 rounded-lg max-w-[80%]">
-                                <p className="text-sm">Hello! How can we help you today?</p>
+                                <p className="text-sm">Xin chào! Bạn cần hỗ trợ gì hôm nay?</p>
                             </div>
                         </div>
                     </div>
@@ -66,7 +67,7 @@ export const FloatingWidgets: React.FC = () => {
                         <div className="flex gap-2">
                             <input
                                 type="text"
-                                placeholder="Type your message..."
+                                placeholder="Nhập tin nhắn..."
                                 className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 text-sm"
                             />
                             <Button size="icon" variant="premium">

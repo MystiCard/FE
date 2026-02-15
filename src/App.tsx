@@ -26,27 +26,30 @@ import { PostListingPage } from '@/pages/PostListingPage';
 import { TrendsPage } from '@/pages/TrendsPage';
 import { WalletPage } from '@/pages/WalletPage';
 import { PaymentCallbackPage } from '@/pages/PaymentCallbackPage';
+import { TermsPage } from '@/pages/TermsPage';
+import { PrivacyPage } from '@/pages/PrivacyPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 
 // Placeholder pages
 const ShopPage = () => {
     const categories = [
         {
-            title: "All Products",
-            description: "Browse our complete collection of cards and sets",
+            title: "Tất cả sản phẩm",
+            description: "Xem toàn bộ thẻ và bộ sưu tập",
             href: "/products",
             icon: "🛍️",
             color: "from-blue-500 to-cyan-500"
         },
         {
-            title: "Booster Boxes",
-            description: "Sealed boxes for the ultimate unboxing experience",
+            title: "Hộp Booster",
+            description: "Hộp niêm phong cho trải nghiệm mở hộp đỉnh cao",
             href: "/booster-boxes",
             icon: "📦",
             color: "from-purple-500 to-pink-500"
         },
         {
-            title: "Mystery Box",
-            description: "Test your luck with our exclusive mystery packs",
+            title: "Hộp bí ẩn",
+            description: "Thử vận may với các gói bí ẩn độc quyền",
             href: "/mystery-box",
             icon: "✨",
             color: "from-amber-400 to-orange-500"
@@ -56,8 +59,8 @@ const ShopPage = () => {
     return (
         <div className="py-12 ">
             <div className="text-center mb-12">
-                <h1 className="text-4xl font-bold font-serif mb-4 gradient-text">Shop Categories</h1>
-                <p className="text-muted-foreground text-lg">Choose a category to start browsing</p>
+                <h1 className="text-4xl font-bold font-serif mb-4 gradient-text">Danh mục cửa hàng</h1>
+                <p className="text-muted-foreground text-lg">Chọn danh mục để bắt đầu xem</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto px-4">
@@ -113,11 +116,14 @@ function App() {
                         <Route path="settings" element={<ProfilePage />} />
                         <Route path="compare" element={<ComparisonPage />} />
                         <Route path="about" element={<AboutPage />} />
+                        <Route path="terms" element={<TermsPage />} />
+                        <Route path="privacy" element={<PrivacyPage />} />
                     </Route>
 
                     {/* Auth Routes (No Layout) */}
                     <Route path="login" element={<LoginPage />} />
                     <Route path="register" element={<RegisterPage />} />
+                    <Route path="forgot-password" element={<ForgotPasswordPage />} />
                     <Route path="auth/google/callback" element={<GoogleCallbackPage />} />
 
                     {/* Admin Routes */}

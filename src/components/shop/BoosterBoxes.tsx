@@ -48,8 +48,8 @@ export const BoosterBoxes: React.FC = () => {
         <div className="py-8">
             {/* Header */}
             <div className="mb-8">
-                <h1 className="text-4xl font-bold mb-2 font-serif">Booster Boxes</h1>
-                <p className="text-muted-foreground">Get the best value with our sealed booster boxes</p>
+                <h1 className="text-4xl font-bold mb-2 font-serif">Hộp Booster</h1>
+                <p className="text-muted-foreground">Giá trị tốt nhất với hộp booster niêm phong</p>
             </div>
 
             {/* Info Banner */}
@@ -59,9 +59,9 @@ export const BoosterBoxes: React.FC = () => {
                         <Package className="h-6 w-6 text-accent-500" />
                     </div>
                     <div>
-                        <h3 className="font-semibold text-lg mb-1">Why Buy Booster Boxes?</h3>
+                        <h3 className="font-semibold text-lg mb-1">Tại sao nên mua hộp Booster?</h3>
                         <p className="text-sm text-muted-foreground">
-                            Each booster box contains 36 packs with guaranteed rare cards. Perfect for collectors and players looking to expand their collection or build competitive decks.
+                            Mỗi hộp booster gồm 36 gói với thẻ hiếm đảm bảo. Phù hợp cho người sưu tầm và người chơi muốn mở rộng bộ sưu tập hoặc build deck cạnh tranh.
                         </p>
                     </div>
                 </div>
@@ -85,7 +85,7 @@ export const BoosterBoxes: React.FC = () => {
                                 {!box.inStock && (
                                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                                         <span className="glass-card-strong px-4 py-2 rounded-full font-semibold">
-                                            Out of Stock
+                                            Hết hàng
                                         </span>
                                     </div>
                                 )}
@@ -104,7 +104,7 @@ export const BoosterBoxes: React.FC = () => {
 
                                     <div className="flex items-center gap-2 mb-4">
                                         <Sparkles className="h-4 w-4 text-accent-500" />
-                                        <span className="text-sm">Guaranteed rare cards in every box</span>
+                                        <span className="text-sm">Đảm bảo có thẻ hiếm trong mỗi hộp</span>
                                     </div>
                                 </div>
 
@@ -119,7 +119,7 @@ export const BoosterBoxes: React.FC = () => {
                                         disabled={!box.inStock}
                                         onClick={() => box.inStock && addToCart({ id: box.id, name: box.name, price: box.price, image: box.image })}
                                     >
-                                        {box.inStock ? 'Add to Cart' : 'Notify When Available'}
+                                        {box.inStock ? 'Thêm vào giỏ' : 'Thông báo khi có hàng'}
                                     </Button>
                                 </div>
                             </CardContent>
@@ -132,18 +132,18 @@ export const BoosterBoxes: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
                 <div className="glass-card p-6 rounded-xl text-center">
                     <div className="text-4xl mb-2">📦</div>
-                    <h3 className="font-semibold mb-2">Sealed & Authentic</h3>
-                    <p className="text-sm text-muted-foreground">All boxes are factory sealed and 100% authentic</p>
+                    <h3 className="font-semibold mb-2">Niêm phong & Chính hãng</h3>
+                    <p className="text-sm text-muted-foreground">Tất cả hộp niêm phong nhà máy, 100% chính hãng</p>
                 </div>
                 <div className="glass-card p-6 rounded-xl text-center">
                     <div className="text-4xl mb-2">🚚</div>
-                    <h3 className="font-semibold mb-2">Free Shipping</h3>
-                    <p className="text-sm text-muted-foreground">Free shipping on all booster box orders</p>
+                    <h3 className="font-semibold mb-2">Miễn phí vận chuyển</h3>
+                    <p className="text-sm text-muted-foreground">Miễn phí ship cho mọi đơn hộp booster</p>
                 </div>
                 <div className="glass-card p-6 rounded-xl text-center">
                     <div className="text-4xl mb-2">💎</div>
-                    <h3 className="font-semibold mb-2">Best Value</h3>
-                    <p className="text-sm text-muted-foreground">Lowest prices guaranteed on sealed products</p>
+                    <h3 className="font-semibold mb-2">Giá tốt nhất</h3>
+                    <p className="text-sm text-muted-foreground">Cam kết giá thấp nhất cho sản phẩm niêm phong</p>
                 </div>
             </div>
         </div>

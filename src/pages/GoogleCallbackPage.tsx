@@ -44,7 +44,7 @@ export const GoogleCallbackPage: React.FC = () => {
                 {error ? (
                     <div>
                         <div className="text-red-400 text-xl mb-4">{error}</div>
-                        <div className="text-muted-foreground">Redirecting to login...</div>
+                        <div className="text-muted-foreground">Đang chuyển đến trang đăng nhập...</div>
                     </div>
                 ) : (
                     <div>

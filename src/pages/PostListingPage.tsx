@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Search, Package, Tag, Filter, X } from 'lucide-react';
+import { ArrowLeft, Search, Package, Tag, Filter, X, Heart } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { cardApi, categoryApi, listSellerApi, Card as CardType, Category } from '@/utils/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { useWishlist } from '@/hooks/useWishlist';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
 
@@ -26,8 +28,12 @@ const rarityClass: Record<string, string> = {
 
 export const PostListingPage: React.FC = () => {
     const navigate = useNavigate();
+    const { isAuthenticated } = useAuth();
+    const { items: wishlistItems } = useWishlist();
     const [cards, setCards] = useState<CardType[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
+    const [apiWishlistIds, setApiWishlistIds] = useState<Set<string>>(new Set());
+    const [wishlistIdsLoaded, setWishlistIdsLoaded] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -39,6 +45,28 @@ export const PostListingPage: React.FC = () => {
     const [description, setDescription] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+
+    const wishlistCardIds = isAuthenticated
+        ? apiWishlistIds
+        : new Set(wishlistItems.map((i) => String(i.id)));
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setWishlistIdsLoaded(true);
+            return;
+        }
+        const load = async () => {
+            try {
+                const res = await cardApi.getUserWishlist(0, 500);
+                setApiWishlistIds(new Set((res.content ?? []).map((w) => w.cardId)));
+            } catch {
+                setApiWishlistIds(new Set());
+            } finally {
+                setWishlistIdsLoaded(true);
+            }
+        };
+        load();
+    }, [isAuthenticated]);
 
     useEffect(() => {
         loadCards();
@@ -69,7 +97,8 @@ export const PostListingPage: React.FC = () => {
     const RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SUPER_RARE', 'SECRET_RARE'] as const;
 
     const filteredCards = useMemo(() => {
-        let list = [...cards];
+        // Chỉ được đăng bán thẻ đã có trong wishlist
+        let list = cards.filter((c) => wishlistCardIds.has(c.cardId));
 
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
@@ -101,7 +130,7 @@ export const PostListingPage: React.FC = () => {
         }
 
         return list;
-    }, [cards, searchQuery, filterCategory, filterRarity, sortBy, categories]);
+    }, [cards, wishlistCardIds, searchQuery, filterCategory, filterRarity, sortBy, categories]);
 
     const hasActiveFilters = searchQuery.trim() || filterCategory !== 'all' || filterRarity !== 'all';
     const clearFilters = () => {
@@ -155,8 +184,9 @@ export const PostListingPage: React.FC = () => {
                         Về Marketplace
                     </Link>
                     <h1 className="text-3xl font-bold font-serif gradient-text">Đăng bán thẻ</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Chọn thẻ và nhập giá, số lượng để đăng bán trên sàn
+                    <p className="text-muted-foreground mt-1 flex items-center gap-1.5">
+                        <Heart className="h-4 w-4 text-pink-400" />
+                        Chỉ được chọn thẻ đã có trong wishlist. Chọn thẻ và nhập giá, số lượng để đăng bán.
                     </p>
                 </div>
 
@@ -270,19 +300,30 @@ export const PostListingPage: React.FC = () => {
                         <Card className="glass-card-strong">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-base flex items-center gap-2">
-                                    <Package className="h-4 w-4" />
-                                    Chọn thẻ cần bán ({filteredCards.length})
+                                    <Heart className="h-4 w-4 text-pink-400" />
+                                    Chọn thẻ trong wishlist để bán ({filteredCards.length})
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                {isLoading ? (
+                                {(isLoading || (isAuthenticated && !wishlistIdsLoaded)) ? (
                                     <div className="flex flex-col items-center justify-center py-16">
                                         <div className="w-10 h-10 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mb-3" />
                                         <p className="text-sm text-muted-foreground">Đang tải thẻ...</p>
                                     </div>
                                 ) : filteredCards.length === 0 ? (
                                     <div className="text-center py-12 text-muted-foreground">
-                                        Không có thẻ nào trùng bộ lọc.
+                                        {wishlistCardIds.size === 0 ? (
+                                            <>
+                                                <Heart className="h-10 w-10 mx-auto mb-3 text-pink-400/50" />
+                                                <p className="font-medium">Chưa có thẻ nào trong wishlist</p>
+                                                <p className="text-sm mt-1">Thêm thẻ vào wishlist từ My Collection (Portfolio) trước khi đăng bán.</p>
+                                                <Button variant="outline" className="mt-4" onClick={() => navigate('/portfolio')}>
+                                                    Đến My Collection
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            'Không có thẻ nào trong wishlist trùng bộ lọc.'
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[420px] overflow-y-auto">

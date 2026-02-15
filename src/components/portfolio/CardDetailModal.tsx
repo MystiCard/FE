@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { DollarSign, Layers, Heart, Loader2 } from 'lucide-react';
 import { Card as CardType, Category, cardApi } from '@/utils/api';
 import { useWishlist } from '@/hooks/useWishlist';
+import { useAuth } from '@/contexts/AuthContext';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
 
@@ -16,49 +17,63 @@ interface CardDetailModalProps {
 }
 
 export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category, isOpen, onClose }) => {
-    const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal } = useWishlist();
+    const { isAuthenticated } = useAuth();
+    const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
     const [inWishlist, setInWishlist] = useState(false);
     const [wishlistLoading, setWishlistLoading] = useState(false);
 
     useEffect(() => {
         if (!card?.cardId || !isOpen) return;
+        if (!isAuthenticated) {
+            setInWishlist(isInWishlist(card.cardId));
+            return;
+        }
         const check = async () => {
             try {
                 const res = await cardApi.getUserWishlist(0, 100);
                 const found = (res.content ?? []).some((w) => w.cardId === card.cardId);
                 setInWishlist(found);
             } catch {
-                setInWishlist(false);
+                setInWishlist(isInWishlist(card.cardId));
             }
         };
         check();
-    }, [card?.cardId, isOpen]);
+    }, [card?.cardId, isOpen, isAuthenticated, isInWishlist]);
 
     if (!card) return null;
 
     const toggleWishlist = async () => {
         setWishlistLoading(true);
-        try {
-            if (inWishlist) {
-                await cardApi.removeFromWishlistByCardId(card.cardId);
-                removeFromWishlistLocal(card.cardId);
-                setInWishlist(false);
-            } else {
-                await cardApi.addToWishlist(card.cardId);
-                addToWishlistLocal({
-                    id: card.cardId,
-                    name: card.name,
-                    price: card.basePrice,
-                    image: card.imageUrl || PLACEHOLDER_IMG,
-                    rarity: card.rarity,
-                });
-                setInWishlist(true);
+        if (inWishlist) {
+            removeFromWishlistLocal(card.cardId);
+            setInWishlist(false);
+            if (isAuthenticated) {
+                try {
+                    await cardApi.removeFromWishlistByCardId(card.cardId);
+                    window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+                } catch {
+                    // Đã bỏ khỏi wishlist trên máy
+                }
             }
-        } catch {
-            alert('Không thể cập nhật wishlist');
-        } finally {
-            setWishlistLoading(false);
+        } else {
+            addToWishlistLocal({
+                id: card.cardId,
+                name: card.name,
+                price: card.basePrice,
+                image: card.imageUrl || PLACEHOLDER_IMG,
+                rarity: card.rarity,
+            });
+            setInWishlist(true);
+            if (isAuthenticated) {
+                try {
+                    await cardApi.addToWishlist(card.cardId);
+                    window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+                } catch {
+                    // Đã thêm vào wishlist trên máy
+                }
+            }
         }
+        setWishlistLoading(false);
     };
 
     const formatRarity = (rarity: string) =>
@@ -144,7 +159,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
                         disabled={wishlistLoading}
                     >
                         {wishlistLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className={`h-4 w-4 ${inWishlist ? 'fill-red-500 text-red-500' : ''}`} />}
-                        {inWishlist ? 'Bỏ khỏi Wishlist' : 'Thêm vào Wishlist'}
+                        {inWishlist ? 'Bỏ khỏi danh sách yêu thích' : 'Thêm vào danh sách yêu thích'}
                     </Button>
                     <Button variant="ghost" onClick={onClose}>
                         Đóng

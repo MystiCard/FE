@@ -14,7 +14,7 @@ import {
     Users,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { listSellerApi, ListingItem } from '@/utils/api';
+import { listSellerApi, ListingItem, categoryApi, Category } from '@/utils/api';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
 
@@ -80,7 +80,9 @@ export const Marketplace: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [priceRange, setPriceRange] = useState<[number, number]>([0, 5000]);
     const [sortBy, setSortBy] = useState<'price-asc' | 'price-desc' | 'name'>('price-asc');
+    const [filterCategory, setFilterCategory] = useState<string>('all');
     const [filterRarity, setFilterRarity] = useState<string>('all');
+    const [categories, setCategories] = useState<Category[]>([]);
     const [selectedProduct, setSelectedProduct] = useState<CardProduct | null>(null);
     const [selectedListing, setSelectedListing] = useState<ListingItem | null>(null);
     const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
@@ -88,6 +90,18 @@ export const Marketplace: React.FC = () => {
     useEffect(() => {
         loadListings(currentPage);
     }, [currentPage]);
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const data = await categoryApi.getAllCategories();
+                setCategories(data);
+            } catch {
+                setCategories([]);
+            }
+        };
+        load();
+    }, []);
 
     const loadListings = async (page: number) => {
         try {
@@ -116,12 +130,19 @@ export const Marketplace: React.FC = () => {
             );
         }
         list = list.filter(item => item.price >= priceRange[0] && item.price <= priceRange[1]);
+        if (filterCategory !== 'all') {
+            const cat = categories.find(c => c.categoryId === filterCategory);
+            if (cat?.categoryName) {
+                const name = cat.categoryName.toLowerCase();
+                list = list.filter(item => item.categoryName?.toLowerCase() === name);
+            }
+        }
         if (filterRarity !== 'all') list = list.filter(item => item.rarity === filterRarity);
         if (sortBy === 'price-asc') list.sort((a, b) => a.price - b.price);
         else if (sortBy === 'price-desc') list.sort((a, b) => b.price - a.price);
         else list.sort((a, b) => a.cardName.localeCompare(b.cardName));
         return list;
-    }, [listings, searchQuery, priceRange, sortBy, filterRarity]);
+    }, [listings, searchQuery, priceRange, sortBy, filterCategory, filterRarity, categories]);
 
     const products = useMemo(() => {
         const grouped = groupListingsByCard(filteredListings);
@@ -143,9 +164,9 @@ export const Marketplace: React.FC = () => {
             <div className="mb-8">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-bold font-serif gradient-text">Marketplace</h1>
+                        <h1 className="text-3xl md:text-4xl font-bold font-serif gradient-text">Sàn giao dịch</h1>
                         <p className="text-muted-foreground mt-1">
-                            Mua thẻ từ người bán — mỗi thẻ có nhiều offer, chọn giá tốt nhất
+                            Mua thẻ từ người bán — mỗi thẻ có nhiều lời chào giá, chọn giá tốt nhất
                         </p>
                     </div>
                     <Link to="/post-listing">
@@ -203,6 +224,21 @@ export const Marketplace: React.FC = () => {
                                 </div>
                             </div>
                             <div>
+                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Set</label>
+                                <select
+                                    value={filterCategory}
+                                    onChange={(e) => setFilterCategory(e.target.value)}
+                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
+                                >
+                                    <option value="all">Tất cả set</option>
+                                    {categories.map((c) => (
+                                        <option key={c.categoryId} value={c.categoryId}>
+                                            {c.categoryName}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
                                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Độ hiếm</label>
                                 <select
                                     value={filterRarity}
@@ -224,6 +260,7 @@ export const Marketplace: React.FC = () => {
                                 onClick={() => {
                                     setSearchQuery('');
                                     setPriceRange([0, 5000]);
+                                    setFilterCategory('all');
                                     setFilterRarity('all');
                                 }}
                             >
@@ -239,7 +276,7 @@ export const Marketplace: React.FC = () => {
                         <div className="text-sm text-muted-foreground">
                             <span className="font-medium text-white">{products.length}</span> thẻ
                             <span className="mx-1">·</span>
-                            <span className="font-medium text-white">{filteredListings.length}</span> offer
+                            <span className="font-medium text-white">{filteredListings.length}</span> lời chào giá
                         </div>
                         <select
                             value={sortBy}
@@ -264,7 +301,7 @@ export const Marketplace: React.FC = () => {
                                     <thead>
                                         <tr className="border-b border-white/10 text-left text-xs text-muted-foreground uppercase tracking-wider">
                                             <th className="p-4 font-medium">Sản phẩm</th>
-                                            <th className="p-4 font-medium text-center w-24">Số offer</th>
+                                            <th className="p-4 font-medium text-center w-24">Số đề nghị</th>
                                             <th className="p-4 font-medium text-right w-28">Từ</th>
                                             <th className="p-4 w-32" />
                                         </tr>
@@ -318,7 +355,7 @@ export const Marketplace: React.FC = () => {
                                                                     setSelectedProduct(product);
                                                                 }}
                                                             >
-                                                                Xem offer
+                                                                Xem đề nghị
                                                                 <ChevronDown className="h-4 w-4" />
                                                             </Button>
                                                         </td>
@@ -329,7 +366,7 @@ export const Marketplace: React.FC = () => {
                                                             <td colSpan={4} className="p-4">
                                                                 <div className="pl-16 pr-4">
                                                                     <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-                                                                        {product.offers.length} offer
+                                                                        {product.offers.length} đề nghị
                                                                     </div>
                                                                     <table className="w-full text-sm">
                                                                         <thead>
@@ -441,7 +478,7 @@ export const Marketplace: React.FC = () => {
                     {selectedListing && (
                         <>
                             <DialogHeader>
-                                <DialogTitle className="text-lg">Chi tiết offer</DialogTitle>
+                                <DialogTitle className="text-lg">Chi tiết đề nghị</DialogTitle>
                             </DialogHeader>
                             <div className="flex gap-4 mt-4">
                                 <img
@@ -528,7 +565,7 @@ function ListingOffersModal({
                             </DialogTitle>
                         </DialogHeader>
                         <div className="mt-4">
-                            <div className="text-xs font-medium text-muted-foreground mb-2 uppercase">Các offer</div>
+                            <div className="text-xs font-medium text-muted-foreground mb-2 uppercase">Các đề nghị</div>
                             <div className="space-y-2 max-h-80 overflow-y-auto">
                                 {product.offers.map((offer) => (
                                     <div

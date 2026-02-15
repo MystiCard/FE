@@ -94,7 +94,7 @@ export const AdminCategoriesPage: React.FC = () => {
 
     const stats = [
         {
-            title: 'Total Categories',
+            title: 'Tổng danh mục',
             value: categories.length.toString(),
             icon: Folder,
             color: 'from-blue-500 to-cyan-500',
@@ -233,8 +233,8 @@ export const AdminCategoriesPage: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold font-serif gradient-text">Category Management</h1>
-                    <p className="text-muted-foreground mt-1">Manage product categories</p>
+                    <h1 className="text-3xl font-bold font-serif gradient-text">Quản lý danh mục</h1>
+                    <p className="text-muted-foreground mt-1">Quản lý danh mục sản phẩm</p>
                 </div>
                 <div className="flex gap-3">
                     <Button
@@ -292,7 +292,7 @@ export const AdminCategoriesPage: React.FC = () => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <input
                             type="text"
-                            placeholder="Search categories..."
+                            placeholder="Tìm danh mục..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
@@ -310,11 +310,11 @@ export const AdminCategoriesPage: React.FC = () => {
                     {isLoading ? (
                         <div className="text-center py-12">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-                            <div className="text-muted-foreground">Loading categories...</div>
+                            <div className="text-muted-foreground">Đang tải danh mục...</div>
                         </div>
                     ) : filteredCategories.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
-                            No categories found. Add your first category to get started!
+                            Chưa có danh mục nào. Thêm danh mục đầu tiên để bắt đầu!
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

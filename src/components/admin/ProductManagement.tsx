@@ -52,15 +52,15 @@ export const ProductManagement: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-4xl font-bold mb-2 font-serif">Product Management</h1>
-                    <p className="text-muted-foreground">Manage your product inventory</p>
+                    <h1 className="text-4xl font-bold mb-2 font-serif">Quản lý sản phẩm</h1>
+                    <p className="text-muted-foreground">Quản lý kho sản phẩm</p>
                 </div>
                 <Button
                     variant="premium"
                     onClick={() => setIsAddingProduct(true)}
                 >
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Product
+                    Thêm sản phẩm
                 </Button>
             </div>
 
@@ -72,22 +72,22 @@ export const ProductManagement: React.FC = () => {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
                                 type="search"
-                                placeholder="Search products..."
+                                placeholder="Tìm sản phẩm..."
                                 className="pl-10"
                             />
                         </div>
                         <select className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50">
-                            <option value="all">All Status</option>
-                            <option value="active">Active</option>
-                            <option value="low">Low Stock</option>
-                            <option value="out">Out of Stock</option>
+                            <option value="all">Tất cả trạng thái</option>
+                            <option value="active">Đang bán</option>
+                            <option value="low">Sắp hết</option>
+                            <option value="out">Hết hàng</option>
                         </select>
                         <select className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50">
-                            <option value="all">All Rarities</option>
-                            <option value="common">Common</option>
-                            <option value="rare">Rare</option>
-                            <option value="ultra">Ultra Rare</option>
-                            <option value="secret">Secret Rare</option>
+                            <option value="all">Tất cả độ hiếm</option>
+                            <option value="common">Thường</option>
+                            <option value="rare">Hiếm</option>
+                            <option value="ultra">Cực hiếm</option>
+                            <option value="secret">Bí mật hiếm</option>
                         </select>
                     </div>
                 </CardContent>
@@ -101,13 +101,13 @@ export const ProductManagement: React.FC = () => {
                             <thead>
                                 <tr className="border-b border-white/10">
                                     <th className="text-left p-3 font-semibold">ID</th>
-                                    <th className="text-left p-3 font-semibold">Product Name</th>
-                                    <th className="text-left p-3 font-semibold">Set</th>
-                                    <th className="text-left p-3 font-semibold">Rarity</th>
-                                    <th className="text-right p-3 font-semibold">Price</th>
-                                    <th className="text-center p-3 font-semibold">Stock</th>
-                                    <th className="text-center p-3 font-semibold">Status</th>
-                                    <th className="text-right p-3 font-semibold">Actions</th>
+                                    <th className="text-left p-3 font-semibold">Tên sản phẩm</th>
+                                    <th className="text-left p-3 font-semibold">Bộ</th>
+                                    <th className="text-left p-3 font-semibold">Độ hiếm</th>
+                                    <th className="text-right p-3 font-semibold">Giá</th>
+                                    <th className="text-center p-3 font-semibold">Tồn kho</th>
+                                    <th className="text-center p-3 font-semibold">Trạng thái</th>
+                                    <th className="text-right p-3 font-semibold">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -136,7 +136,7 @@ export const ProductManagement: React.FC = () => {
                                                     product.status === 'Low Stock' ? 'bg-amber-500/20 text-amber-400' :
                                                         'bg-red-500/20 text-red-400'
                                                 }`}>
-                                                {product.status}
+                                                {product.status === 'Active' ? 'Đang bán' : product.status === 'Low Stock' ? 'Sắp hết' : 'Hết hàng'}
                                             </span>
                                         </td>
                                         <td className="p-3">
@@ -165,53 +165,53 @@ export const ProductManagement: React.FC = () => {
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                         <CardHeader>
-                            <CardTitle>Add New Product</CardTitle>
+                            <CardTitle>Thêm sản phẩm mới</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">Product Name</label>
-                                <Input placeholder="Enter product name" />
+                                <label className="block text-sm font-medium mb-2">Tên sản phẩm</label>
+                                <Input placeholder="Nhập tên sản phẩm" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Set</label>
-                                    <Input placeholder="Card set" />
+                                    <label className="block text-sm font-medium mb-2">Bộ</label>
+                                    <Input placeholder="Bộ thẻ" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Rarity</label>
+                                    <label className="block text-sm font-medium mb-2">Độ hiếm</label>
                                     <select className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg">
-                                        <option>Common</option>
-                                        <option>Uncommon</option>
-                                        <option>Rare</option>
-                                        <option>Ultra Rare</option>
-                                        <option>Secret Rare</option>
+                                        <option>Thường</option>
+                                        <option>Không hiếm</option>
+                                        <option>Hiếm</option>
+                                        <option>Cực hiếm</option>
+                                        <option>Bí mật hiếm</option>
                                     </select>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Price</label>
+                                    <label className="block text-sm font-medium mb-2">Giá</label>
                                     <Input type="number" placeholder="0.00" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Stock</label>
+                                    <label className="block text-sm font-medium mb-2">Tồn kho</label>
                                     <Input type="number" placeholder="0" />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Description</label>
-                                <Textarea placeholder="Product description" rows={4} />
+                                <label className="block text-sm font-medium mb-2">Mô tả</label>
+                                <Textarea placeholder="Mô tả sản phẩm" rows={4} />
                             </div>
                             <div className="flex gap-3 pt-4">
                                 <Button variant="premium" className="flex-1">
-                                    Add Product
+                                    Thêm sản phẩm
                                 </Button>
                                 <Button
                                     variant="outline"
                                     className="flex-1 glass-card"
                                     onClick={() => setIsAddingProduct(false)}
                                 >
-                                    Cancel
+                                    Hủy
                                 </Button>
                             </div>
                         </CardContent>

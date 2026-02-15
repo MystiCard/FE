@@ -81,12 +81,12 @@ export const NewArrivals: React.FC = () => {
         <section className="py-16">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h2 className="text-4xl font-bold mb-2 font-serif">New Arrivals</h2>
-                    <p className="text-muted-foreground">Fresh cards just added to our collection</p>
+                    <h2 className="text-4xl font-bold mb-2 font-serif">Sản phẩm mới</h2>
+                    <p className="text-muted-foreground">Thẻ mới vừa được thêm vào bộ sưu tập</p>
                 </div>
                 <Link to="/products">
                     <Button variant="outline" className="glass-card hover:bg-white/20">
-                        View All
+                        Xem tất cả
                     </Button>
                 </Link>
             </div>
@@ -128,13 +128,13 @@ export const NewArrivals: React.FC = () => {
                                     variant="premium"
                                     onClick={() => addToCart({ id: product.id, name: product.name, price: product.price, image: product.image, rarity: product.rarity })}
                                 >
-                                    Add to Cart
+                                    Thêm vào giỏ
                                 </Button>
                             </div>
 
                             <div className="flex items-center mt-3 text-xs text-muted-foreground">
                                 <Star className="h-3 w-3 fill-accent-500 text-accent-500 mr-1" />
-                                <span>4.9 (127 reviews)</span>
+                                <span>4.9 (127 đánh giá)</span>
                             </div>
                         </CardContent>
                     </Card>

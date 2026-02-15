@@ -142,8 +142,8 @@ export const AdminRateConfigPage: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold font-serif gradient-text">Rate Configurations</h1>
-                    <p className="text-muted-foreground mt-1">Manage card drop rates and probabilities</p>
+                    <h1 className="text-3xl font-bold font-serif gradient-text">Cấu hình tỷ lệ</h1>
+                    <p className="text-muted-foreground mt-1">Quản lý tỷ lệ rơi thẻ và xác suất</p>
                 </div>
                 <div className="flex gap-3">
                     <Button
@@ -152,7 +152,7 @@ export const AdminRateConfigPage: React.FC = () => {
                         onClick={() => setIsImportModalOpen(true)}
                     >
                         <Upload className="h-4 w-4" />
-                        Import
+                        Nhập
                     </Button>
                     <Button
                         variant="premium"
@@ -164,7 +164,7 @@ export const AdminRateConfigPage: React.FC = () => {
                         }}
                     >
                         <Plus className="h-4 w-4" />
-                        Add New Rate
+                        Thêm tỷ lệ
                     </Button>
                 </div>
             </div>
@@ -185,7 +185,7 @@ export const AdminRateConfigPage: React.FC = () => {
                                 <Settings className="h-6 w-6" />
                             </div>
                             <div>
-                                <p className="text-sm text-muted-foreground">Total Configs</p>
+                                <p className="text-sm text-muted-foreground">Tổng cấu hình</p>
                                 <p className="text-2xl font-bold">{rateConfigs.length}</p>
                             </div>
                         </div>
@@ -198,7 +198,7 @@ export const AdminRateConfigPage: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
                     type="text"
-                    placeholder="Search by rarity..."
+                    placeholder="Tìm theo độ hiếm..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
@@ -208,22 +208,22 @@ export const AdminRateConfigPage: React.FC = () => {
             {/* Table */}
             <Card className="glass-card-strong">
                 <CardHeader>
-                    <CardTitle>Configurations ({filteredConfigs.length})</CardTitle>
+                    <CardTitle>Cấu hình ({filteredConfigs.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <div className="text-center py-12">Loading...</div>
+                        <div className="text-center py-12">Đang tải...</div>
                     ) : filteredConfigs.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">No configurations found</div>
+                        <div className="text-center py-12 text-muted-foreground">Không tìm thấy cấu hình</div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b border-white/10">
-                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Rarity</th>
-                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Drop Rate</th>
-                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Variance %</th>
-                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Actions</th>
+                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Độ hiếm</th>
+                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Tỷ lệ rơi</th>
+                                        <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Độ lệch %</th>
+                                        <th className="text-right p-4 text-sm font-semibold text-muted-foreground">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -264,7 +264,7 @@ export const AdminRateConfigPage: React.FC = () => {
                         <CardHeader className="border-b border-white/10">
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-xl">
-                                    {editingConfig ? 'Edit Rate Config' : 'Add New Rate Config'}
+                                    {editingConfig ? 'Chỉnh sửa cấu hình tỷ lệ' : 'Thêm cấu hình tỷ lệ'}
                                 </CardTitle>
                                 <button
                                     onClick={() => {
@@ -279,7 +279,7 @@ export const AdminRateConfigPage: React.FC = () => {
                         </CardHeader>
                         <CardContent className="p-6 space-y-4">
                             <div>
-                                <label className="block text-sm font-medium mb-1">Rarity</label>
+                                <label className="block text-sm font-medium mb-1">Độ hiếm</label>
                                 <select
                                     value={newConfig.rarity}
                                     onChange={(e) => setNewConfig({ ...newConfig, rarity: e.target.value })}
@@ -291,7 +291,7 @@ export const AdminRateConfigPage: React.FC = () => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-1">Drop Rate</label>
+                                <label className="block text-sm font-medium mb-1">Tỷ lệ rơi</label>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -301,7 +301,7 @@ export const AdminRateConfigPage: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-1">Variance (%)</label>
+                                <label className="block text-sm font-medium mb-1">Độ lệch (%)</label>
                                 <input
                                     type="number"
                                     step="0.1"
@@ -319,14 +319,14 @@ export const AdminRateConfigPage: React.FC = () => {
                                         setEditingConfig(null);
                                     }}
                                 >
-                                    Cancel
+                                    Hủy
                                 </Button>
                                 <Button
                                     variant="premium"
                                     className="flex-1"
                                     onClick={editingConfig ? handleUpdateConfig : handleCreateConfig}
                                 >
-                                    {editingConfig ? 'Update' : 'Create'}
+                                    {editingConfig ? 'Cập nhật' : 'Tạo'}
                                 </Button>
                             </div>
                         </CardContent>
@@ -342,7 +342,7 @@ export const AdminRateConfigPage: React.FC = () => {
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-xl flex items-center gap-2">
                                     <FileSpreadsheet className="h-5 w-5" />
-                                    Import Rate Configs
+                                    Nhập cấu hình tỷ lệ
                                 </CardTitle>
                                 <button
                                     onClick={() => {
@@ -357,10 +357,10 @@ export const AdminRateConfigPage: React.FC = () => {
                         </CardHeader>
                         <CardContent className="p-6 space-y-4">
                             <div className="p-4 bg-primary-500/10 border border-primary-500/20 rounded-lg">
-                                <h4 className="font-semibold mb-2">Instructions:</h4>
+                                <h4 className="font-semibold mb-2">Hướng dẫn:</h4>
                                 <ul className="text-sm text-muted-foreground list-disc list-inside">
-                                    <li>Upload Excel (.xlsx, .xls) or CSV</li>
-                                    <li>Columns: rarity, rate, variance_percent</li>
+                                    <li>Tải lên file Excel (.xlsx, .xls) hoặc CSV</li>
+                                    <li>Cột: rarity, rate, variance_percent</li>
                                 </ul>
                             </div>
                             <input
@@ -379,7 +379,7 @@ export const AdminRateConfigPage: React.FC = () => {
                                     }}
                                     disabled={isImporting}
                                 >
-                                    Cancel
+                                    Hủy
                                 </Button>
                                 <Button
                                     variant="premium"
@@ -387,7 +387,7 @@ export const AdminRateConfigPage: React.FC = () => {
                                     onClick={handleImportConfigs}
                                     disabled={!importFile || isImporting}
                                 >
-                                    {isImporting ? 'Importing...' : 'Import'}
+                                    {isImporting ? 'Đang nhập...' : 'Nhập'}
                                 </Button>
                             </div>
                         </CardContent>

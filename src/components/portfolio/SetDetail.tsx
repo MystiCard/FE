@@ -5,6 +5,7 @@ import { Loader2, ArrowLeft, Heart } from 'lucide-react';
 import { categoryApi, Category, Card as CardType, cardApi } from '@/utils/api';
 import { getCategoryImage } from '@/utils/categoryImages';
 import { useWishlist } from '@/hooks/useWishlist';
+import { useAuth } from '@/contexts/AuthContext';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
 
@@ -15,12 +16,17 @@ interface SetDetailProps {
 }
 
 export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardClick }) => {
+    const { isAuthenticated } = useAuth();
     const [cards, setCards] = useState<CardType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [wishlistCardIds, setWishlistCardIds] = useState<Set<string>>(new Set());
-    const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal } = useWishlist();
+    const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
 
     useEffect(() => {
+        if (!isAuthenticated) {
+            setWishlistCardIds(new Set());
+            return;
+        }
         const load = async () => {
             try {
                 const res = await cardApi.getUserWishlist(0, 500);
@@ -31,7 +37,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
             }
         };
         load();
-    }, []);
+    }, [isAuthenticated]);
 
     useEffect(() => {
         const loadCards = async () => {
@@ -52,6 +58,12 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
         rarity ? rarity.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
 
     const logo = category.imageUrl || getCategoryImage(category.categoryName);
+
+    const inWishlistCount = cards.filter(
+        (c) => wishlistCardIds.has(c.cardId) || isInWishlist(c.cardId)
+    ).length;
+    const totalCards = cards.length;
+    const wishlistPercent = totalCards > 0 ? Math.round((inWishlistCount / totalCards) * 100) : 0;
 
     return (
         <div className="py-8 ">
@@ -75,6 +87,32 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
                     </div>
                 </div>
             </div>
+
+            {!isLoading && totalCards > 0 && (
+                <div className="mb-6 p-4 rounded-xl glass-card border border-white/10">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-2">
+                            <Heart className="h-5 w-5 text-pink-400" />
+                            <span className="text-sm font-medium text-muted-foreground">Wishlist set này</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-lg font-bold text-pink-400">
+                                {inWishlistCount} / {totalCards}
+                            </span>
+                            <span className="text-sm text-muted-foreground">thẻ</span>
+                            <span className="px-2 py-0.5 rounded-md bg-pink-500/20 text-pink-400 text-sm font-semibold">
+                                {wishlistPercent}%
+                            </span>
+                        </div>
+                    </div>
+                    <div className="mt-3 h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div
+                            className="h-full rounded-full bg-gradient-to-r from-pink-500 to-pink-400 transition-all duration-300"
+                            style={{ width: `${wishlistPercent}%` }}
+                        />
+                    </div>
+                </div>
+            )}
 
             {isLoading ? (
                 <div className="flex justify-center p-12">
@@ -104,34 +142,44 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
                                     type="button"
                                     onClick={async (e) => {
                                         e.stopPropagation();
-                                        const inList = wishlistCardIds.has(card.cardId);
-                                        try {
-                                            if (inList) {
-                                                await cardApi.removeFromWishlistByCardId(card.cardId);
-                                                removeFromWishlistLocal(card.cardId);
-                                                setWishlistCardIds((prev) => {
-                                                    const next = new Set(prev);
-                                                    next.delete(card.cardId);
-                                                    return next;
-                                                });
-                                            } else {
-                                                await cardApi.addToWishlist(card.cardId);
-                                                addToWishlistLocal({
-                                                    id: card.cardId,
-                                                    name: card.name,
-                                                    price: card.basePrice,
-                                                    image: card.imageUrl || PLACEHOLDER_IMG,
-                                                    rarity: card.rarity,
-                                                });
-                                                setWishlistCardIds((prev) => new Set(prev).add(card.cardId));
+                                        const inList = wishlistCardIds.has(card.cardId) || isInWishlist(card.cardId);
+                                        if (inList) {
+                                            removeFromWishlistLocal(card.cardId);
+                                            setWishlistCardIds((prev) => {
+                                                const next = new Set(prev);
+                                                next.delete(card.cardId);
+                                                return next;
+                                            });
+                                            if (isAuthenticated) {
+                                                try {
+                                                    await cardApi.removeFromWishlistByCardId(card.cardId);
+                                                    window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+                                                } catch {
+                                                    // Đã bỏ khỏi wishlist trên máy
+                                                }
                                             }
-                                        } catch {
-                                            alert('Không thể cập nhật wishlist');
+                                        } else {
+                                            addToWishlistLocal({
+                                                id: card.cardId,
+                                                name: card.name,
+                                                price: card.basePrice,
+                                                image: card.imageUrl || PLACEHOLDER_IMG,
+                                                rarity: card.rarity,
+                                            });
+                                            setWishlistCardIds((prev) => new Set(prev).add(card.cardId));
+                                            if (isAuthenticated) {
+                                                try {
+                                                    await cardApi.addToWishlist(card.cardId);
+                                                    window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+                                                } catch {
+                                                    // Đã thêm vào wishlist trên máy
+                                                }
+                                            }
                                         }
                                     }}
                                     className="absolute top-2 right-2 p-2 rounded-full glass-card-strong hover:bg-white/20 z-10"
                                 >
-                                    <Heart className={`h-4 w-4 ${wishlistCardIds.has(card.cardId) ? 'fill-red-500 text-red-500' : ''}`} />
+                                    <Heart className={`h-4 w-4 ${(wishlistCardIds.has(card.cardId) || isInWishlist(card.cardId)) ? 'fill-red-500 text-red-500' : ''}`} />
                                 </button>
                             </div>
                             <div className="p-3 text-center">
