@@ -36,7 +36,7 @@ export const CheckoutPage: React.FC = () => {
 
     if (orderSuccess) {
         return (
-            <div className="min-h-[60vh] flex items-center justify-center animate-fade-in">
+            <div className="min-h-[60vh] flex items-center justify-center ">
                 <div className="text-center max-w-md mx-auto px-4">
                     <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center">
                         <CheckCircle2 className="h-16 w-16 text-green-500" />
@@ -54,12 +54,12 @@ export const CheckoutPage: React.FC = () => {
     }
 
     return (
-        <div className="py-8 animate-fade-in">
+        <div className="py-8 ">
             {/* Header */}
             <div className="mb-6">
                 <button
                     onClick={() => navigate('/cart')}
-                    className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
+                    className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4"
                 >
                     <ArrowLeft className="h-4 w-4" />
                     <span className="text-sm">Quay lại giỏ hàng</span>
@@ -111,7 +111,7 @@ export const CheckoutPage: React.FC = () => {
                             <h3 className="text-xl font-semibold">Phương thức thanh toán</h3>
                         </div>
                         <div className="space-y-3">
-                            <label className="flex items-center gap-3 p-4 glass-card rounded-lg cursor-pointer hover:bg-white/5 transition-colors">
+                            <label className="flex items-center gap-3 p-4 glass-card rounded-lg cursor-pointer hover:bg-white/5 ">
                                 <input
                                     type="radio"
                                     name="payment"
@@ -123,7 +123,7 @@ export const CheckoutPage: React.FC = () => {
                                     <p className="text-sm text-muted-foreground">Thanh toán bằng tiền mặt khi nhận hàng</p>
                                 </div>
                             </label>
-                            <label className="flex items-center gap-3 p-4 glass-card rounded-lg cursor-pointer hover:bg-white/5 transition-colors">
+                            <label className="flex items-center gap-3 p-4 glass-card rounded-lg cursor-pointer hover:bg-white/5 ">
                                 <input
                                     type="radio"
                                     name="payment"
@@ -134,7 +134,7 @@ export const CheckoutPage: React.FC = () => {
                                     <p className="text-sm text-muted-foreground">Visa, Mastercard, JCB</p>
                                 </div>
                             </label>
-                            <label className="flex items-center gap-3 p-4 glass-card rounded-lg cursor-pointer hover:bg-white/5 transition-colors">
+                            <label className="flex items-center gap-3 p-4 glass-card rounded-lg cursor-pointer hover:bg-white/5 ">
                                 <input
                                     type="radio"
                                     name="payment"
@@ -155,7 +155,7 @@ export const CheckoutPage: React.FC = () => {
                             <h3 className="text-xl font-semibold">Phương thức vận chuyển</h3>
                         </div>
                         <div className="space-y-3">
-                            <label className="flex items-center justify-between p-4 glass-card rounded-lg cursor-pointer hover:bg-white/5 transition-colors">
+                            <label className="flex items-center justify-between p-4 glass-card rounded-lg cursor-pointer hover:bg-white/5 ">
                                 <div className="flex items-center gap-3">
                                     <input
                                         type="radio"
@@ -170,7 +170,7 @@ export const CheckoutPage: React.FC = () => {
                                 </div>
                                 <span className="font-medium">Miễn phí</span>
                             </label>
-                            <label className="flex items-center justify-between p-4 glass-card rounded-lg cursor-pointer hover:bg-white/5 transition-colors">
+                            <label className="flex items-center justify-between p-4 glass-card rounded-lg cursor-pointer hover:bg-white/5 ">
                                 <div className="flex items-center gap-3">
                                     <input
                                         type="radio"
