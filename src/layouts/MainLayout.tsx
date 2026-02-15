@@ -12,7 +12,7 @@ export const MainLayout: React.FC = () => {
             <Header />
             <Sidebar />
             <NewsSidebar />
-            <main className="lg:ml-20 xl:ml-[400px] pt-4 animate-fade-in">
+            <main className="lg:ml-20 xl:ml-[400px] pt-4 ">
                 <div className="w-full max-w-7xl mx-auto px-4">
                     <Outlet />
                 </div>
