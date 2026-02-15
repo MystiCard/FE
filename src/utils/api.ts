@@ -34,19 +34,19 @@ export interface UserInfo {
 // Helper function to check if user is admin
 export const isAdmin = (user: UserInfo | null): boolean => {
     if (!user) return false;
-    
+
     // Check in roles array
     if (user.roles && Array.isArray(user.roles)) {
-        return user.roles.some(role => 
+        return user.roles.some(role =>
             role === 'ROLE_ADMIN' || role === 'ADMIN'
         );
     }
-    
+
     // Check in scope string (Spring Security format)
     if (user.scope && typeof user.scope === 'string') {
         return user.scope.includes('ROLE_ADMIN') || user.scope.includes('ADMIN');
     }
-    
+
     return false;
 };
 
@@ -142,7 +142,7 @@ export const apiRequest = async <T>(
     options: RequestInit = {}
 ): Promise<T> => {
     const token = tokenManager.getAccessToken();
-    
+
     // Add authorization header if token exists
     const headers = {
         'Content-Type': 'application/json',
@@ -158,7 +158,7 @@ export const apiRequest = async <T>(
     // If 401 Unauthorized, try to refresh token
     if (response.status === 401 && !isRefreshing) {
         const refreshToken = tokenManager.getRefreshToken();
-        
+
         if (!refreshToken) {
             // No refresh token, redirect to login
             tokenManager.clearTokens();
@@ -172,7 +172,7 @@ export const apiRequest = async <T>(
             // Refresh the access token
             const newAccessToken = await authApi.refreshToken(refreshToken);
             tokenManager.setTokens(newAccessToken, refreshToken);
-            
+
             isRefreshing = false;
             onTokenRefreshed(newAccessToken);
 
@@ -228,6 +228,8 @@ export interface UserProfile {
     avatarUrl?: string;
     address?: string;
     phone?: string;
+    role?: string; // ADMIN, CUSTOMER, etc.
+    status?: string; // ACTIVE, BANNED, etc.
     walletResponse?: {
         balance: number;
     };
@@ -242,6 +244,15 @@ export interface RegisterRequest {
     phone: string;
 }
 
+export interface UpdateProfileRequest {
+    name: string;
+    email: string;
+    phone?: string;
+    address?: string;
+    gender?: 'MALE' | 'FEMALE';
+    password?: string; // optional, chỉ gửi khi đổi mật khẩu
+}
+
 export const userApi = {
     getMyProfile: async (): Promise<UserProfile> => {
         const response = await apiRequest<ApiResponse<UserProfile>>('/users/my-infor', {
@@ -252,11 +263,11 @@ export const userApi = {
 
     register: async (data: RegisterRequest, avatar?: File): Promise<UserProfile> => {
         const formData = new FormData();
-        
+
         // Append all fields as JSON string in a part called "request"
         const requestBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
         formData.append('request', requestBlob);
-        
+
         // Append avatar if provided
         if (avatar) {
             formData.append('avatar', avatar);
@@ -279,6 +290,292 @@ export const userApi = {
         const result: ApiResponse<UserProfile> = await response.json();
         return result.data;
     },
+
+    updateProfile: async (userId: string, data: UpdateProfileRequest, avatar?: File): Promise<UserProfile> => {
+        const formData = new FormData();
+        const requestBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+        formData.append('request', requestBlob);
+        if (avatar) {
+            formData.append('avatar', avatar);
+        }
+        const token = tokenManager.getAccessToken();
+        const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+            method: 'PUT',
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: formData,
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ message: 'Cập nhật thất bại' }));
+            throw new Error(error.message || 'Cập nhật thất bại');
+        }
+        const result: ApiResponse<UserProfile> = await response.json();
+        return result.data;
+    },
+
+    // Admin: Get all users
+    getAllUsers: async (page: number = 1, size: number = 100): Promise<UserProfile[]> => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            size: size.toString(),
+            active: 'true',
+        });
+
+        const response = await apiRequest<ApiResponse<PageResponse<UserProfile>>>(`/users?${params.toString()}`, {
+            method: 'GET',
+        });
+
+        // Extract content array from pagination response
+        return response.data.content || [];
+    },
+
+    // Admin: Update user status (ban/unban)
+    updateUserStatus: async (userId: string, status: 'ACTIVE' | 'BANNED'): Promise<UserProfile> => {
+        const response = await apiRequest<ApiResponse<UserProfile>>(`/users/${userId}/status`, {
+            method: 'PUT',
+            body: JSON.stringify({ status }),
+        });
+        return response.data;
+    },
+
+    // Admin: Update user role
+    updateUserRole: async (userId: string, role: string): Promise<UserProfile> => {
+        const response = await apiRequest<ApiResponse<UserProfile>>(`/users/${userId}/role`, {
+            method: 'PUT',
+            body: JSON.stringify({ role }),
+        });
+        return response.data;
+    },
+};
+
+// Card API
+export interface Card {
+    cardId: string;
+    name: string;
+    description?: string; // Not in User's snippet but maybe inherited? Keep optional just in case.
+    rarity: 'COMMON' | 'UNCOMMON' | 'RARE' | 'ULTRA_RARE' | 'SUPER_RARE' | 'SECRET_RARE';
+    imageUrl?: string;
+    // categoryId?: string; // Backend does NOT return this
+    categoryName?: string;
+    basePrice: number;
+    minPrice: number;
+    maxPrice: number;
+}
+
+export interface CardRequest {
+    name: string;
+    description?: string | null;
+    rarity: 'COMMON' | 'UNCOMMON' | 'RARE' | 'ULTRA_RARE' | 'SUPER_RARE' | 'SECRET_RARE';
+    imageUrl?: string | null;
+    categoryId?: string | null;
+    basePrice: number;
+}
+
+export interface WishlistItem {
+    wishListId: string;
+    userId: string;
+    cardId: string;
+    expectPrice?: number;
+}
+
+export const cardApi = {
+    getAllCards: async (): Promise<Card[]> => {
+        const response = await apiRequest<ApiResponse<Card[]>>('/card', {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    getCardById: async (id: string): Promise<Card> => {
+        const response = await apiRequest<ApiResponse<Card>>(`/card/${id}`, {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    createCard: async (data: CardRequest): Promise<Card> => {
+        const response = await apiRequest<ApiResponse<Card>>('/card', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        return response.data;
+    },
+
+    updateCard: async (id: string, data: CardRequest): Promise<Card> => {
+        const response = await apiRequest<ApiResponse<Card>>(`/card/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+        return response.data;
+    },
+
+    deleteCard: async (id: string): Promise<void> => {
+        await apiRequest<ApiResponse<void>>(`/card/${id}`, {
+            method: 'DELETE',
+        });
+    },
+
+    importCards: async (file: File): Promise<any> => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(`${API_BASE_URL}/card/import`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenManager.getAccessToken()}`,
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to import cards');
+        }
+
+        return await response.json();
+    },
+
+    getUserWishlist: async (page: number = 0, size: number = 10): Promise<PageResponse<WishlistItem>> => {
+        const response = await apiRequest<ApiResponse<PageResponse<WishlistItem>>>(
+            `/card/wishlist?page=${page}&size=${size}`,
+            { method: 'GET' }
+        );
+        return response.data;
+    },
+
+    removeFromWishlist: async (wishListId: string): Promise<void> => {
+        await apiRequest<ApiResponse<void>>(`/card/wishlist/${wishListId}`, {
+            method: 'DELETE',
+        });
+    },
+};
+
+// Category API
+export interface Category {
+    categoryId: string;
+    categoryName: string;
+    description?: string;
+    imageUrl?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface CategoryRequest {
+    categoryName: string;
+    description?: string;
+    imageUrl?: string;
+}
+
+export const categoryApi = {
+    getAllCategories: async (): Promise<Category[]> => {
+        const response = await apiRequest<ApiResponse<Category[]>>('/cate', {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    getCategoryById: async (id: string): Promise<Category> => {
+        const response = await apiRequest<ApiResponse<Category>>(`/cate/${id}`, {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    createCategory: async (data: CategoryRequest): Promise<Category> => {
+        const response = await apiRequest<ApiResponse<Category>>('/cate', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        return response.data;
+    },
+
+    updateCategory: async (id: string, data: CategoryRequest): Promise<Category> => {
+        const response = await apiRequest<ApiResponse<Category>>(`/cate/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+        return response.data;
+    },
+
+    deleteCategory: async (id: string): Promise<void> => {
+        await apiRequest<ApiResponse<void>>(`/cate/${id}`, {
+            method: 'DELETE',
+        });
+    },
+
+    getCardsByCategoryId: async (categoryId: string): Promise<Card[]> => {
+        const response = await apiRequest<ApiResponse<Card[]>>(`/cate/${categoryId}/cards`, {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    importCategories: async (file: File): Promise<any> => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(`${API_BASE_URL}/cate/import`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenManager.getAccessToken()}`,
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to import categories');
+        }
+
+        return await response.json();
+    },
+};
+
+// List Seller API (đăng bán thẻ)
+export interface ListSellerRequest {
+    price: number;
+    quantity: number;
+    description?: string;
+}
+
+export interface ListingItem {
+    listSellerId: string;
+    price: number;
+    quantity: number;
+    status: string;
+    sellerId: string;
+    sellerName?: string;
+    cardId: string;
+    cardName: string;
+    imageUrl?: string;
+    categoryName?: string;
+    rarity: string;
+    basePrice: number;
+}
+
+export const listSellerApi = {
+    createListing: async (cardId: string, data: ListSellerRequest): Promise<unknown> => {
+        const response = await apiRequest<ApiResponse<unknown>>(`/listseller/${cardId}`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        return response.data;
+    },
+
+    getListings: async (page: number = 0, size: number = 12): Promise<{ content: ListingItem[]; totalPages: number; totalElements: number; size: number; number: number }> => {
+        const response = await apiRequest<ApiResponse<{ content: ListingItem[]; totalPages: number; totalElements: number; size: number; number: number }>>(
+            `/listseller?page=${page}&size=${size}`,
+            { method: 'GET' }
+        );
+        return response.data;
+    },
+
+    getMyListings: async (page: number = 0, size: number = 10): Promise<PageResponse<unknown>> => {
+        const response = await apiRequest<ApiResponse<PageResponse<unknown>>>(
+            `/listseller/my-listings?page=${page}&size=${size}`,
+            { method: 'GET' }
+        );
+        return response.data;
+    },
 };
 
 // Token management
@@ -289,7 +586,7 @@ export const tokenManager = {
     },
 
     getAccessToken: () => localStorage.getItem('accessToken'),
-    
+
     getRefreshToken: () => localStorage.getItem('refreshToken'),
 
     clearTokens: () => {
@@ -305,3 +602,254 @@ export const tokenManager = {
         return decodeToken(token);
     },
 };
+
+// Transaction API
+export interface TransactionResponse {
+    transactionId: string;
+    amount: number;
+    transactionType: 'DEPOSIT' | 'WITHDRAW' | 'PAYMENT';
+    statusTransaction: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
+    createAt: string;
+    updateAt: string;
+}
+
+export interface DepositeRequest {
+    userId: string;
+    amount: number;
+    provider: 'MOMO' | 'VNPAY';
+}
+
+export interface WithdrawRequest {
+    userId: string;
+    amount: number;
+    bankId: string;
+}
+
+export interface PageResponse<T> {
+    content: T[];
+    totalPages: number;
+    totalElements: number;
+    size: number;
+    number: number;
+}
+
+export const transactionApi = {
+    // Deposit money to wallet
+    deposit: async (data: DepositeRequest): Promise<string> => {
+        try {
+            const response = await apiRequest<ApiResponse<string>>('/transactions/deposite', {
+                method: 'POST',
+                body: JSON.stringify(data),
+            });
+
+            console.log('Deposit API full response:', JSON.stringify(response, null, 2));
+
+            // Check if response is the data directly (not wrapped in ApiResponse)
+            if (typeof response === 'string' && response.startsWith('http')) {
+                console.log('Response is direct string URL');
+                return response;
+            }
+
+            if (!response) {
+                throw new Error('No response from server');
+            }
+
+            // Backend returns payment URL in 'message' field instead of 'data'
+            const paymentUrl = (response as any).message || response.data;
+
+            if (!paymentUrl) {
+                console.error('Response missing payment URL. Full response:', response);
+                throw new Error(`Invalid response from server: missing payment URL. Response: ${JSON.stringify(response)}`);
+            }
+
+            if (typeof paymentUrl !== 'string' || !paymentUrl.startsWith('http')) {
+                throw new Error(`Invalid payment URL received from server. Type: ${typeof paymentUrl}, Value: ${paymentUrl}`);
+            }
+
+            console.log('Payment URL extracted:', paymentUrl);
+            return paymentUrl;
+        } catch (error) {
+            console.error('Deposit API error:', error);
+            throw error;
+        }
+    },
+
+    // Request withdraw money from wallet
+    requestWithdraw: async (data: WithdrawRequest): Promise<TransactionResponse> => {
+        const response = await apiRequest<ApiResponse<TransactionResponse>>('/transactions/request-withdraw', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        return response.data;
+    },
+
+    // Get my transaction history
+    getMyTransactions: async (
+        statusPayment?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED',
+        page: number = 1,
+        size: number = 10
+    ): Promise<PageResponse<TransactionResponse>> => {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            size: size.toString(),
+        });
+        if (statusPayment) {
+            params.append('statusPayment', statusPayment);
+        }
+
+        const response = await apiRequest<ApiResponse<PageResponse<TransactionResponse>>>(
+            `/transactions/me?${params.toString()}`,
+            {
+                method: 'POST',
+            }
+        );
+        return response.data;
+    },
+
+    // Get transaction by ID
+    getById: async (id: string): Promise<TransactionResponse> => {
+        const response = await apiRequest<ApiResponse<TransactionResponse>>(`/transactions/${id}`, {
+            method: 'GET',
+        });
+        return response.data;
+    },
+};
+
+// Blind Box API
+export interface BlindBox {
+    blindBoxId: string;
+    name: string;
+    description?: string;
+    price: number;
+    imageUrl?: string; // Optional, based on common patterns, though not in doc request body
+    cardIds?: string[]; // IDs of cards in the box
+}
+
+export interface BlindBoxRequest {
+    name: string;
+    description: string;
+    price: number;
+    cardIds: string[];
+}
+
+export interface BlindBoxProbability {
+    rarity: string;
+    probability: number;
+}
+
+export const blindBoxApi = {
+    getAllBlindBoxes: async (): Promise<BlindBox[]> => {
+        const response = await apiRequest<ApiResponse<BlindBox[]>>('/blind-boxes', {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    getBlindBoxById: async (id: string): Promise<BlindBox> => {
+        const response = await apiRequest<ApiResponse<BlindBox>>(`/blind-boxes/${id}`, {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    createBlindBox: async (data: BlindBoxRequest): Promise<BlindBox> => {
+        const response = await apiRequest<ApiResponse<BlindBox>>('/blind-boxes', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        return response.data;
+    },
+
+    deleteBlindBox: async (id: string): Promise<void> => {
+        await apiRequest<ApiResponse<void>>(`/blind-boxes/${id}`, {
+            method: 'DELETE',
+        });
+    },
+
+    getBlindBoxCards: async (id: string): Promise<Card[]> => {
+        const response = await apiRequest<ApiResponse<Card[]>>(`/blind-boxes/${id}/cards`, {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    getBlindBoxProbabilities: async (id: string): Promise<BlindBoxProbability[]> => {
+        const response = await apiRequest<ApiResponse<BlindBoxProbability[]>>(`/blind-boxes/${id}/probabilities`, {
+            method: 'GET',
+        });
+        return response.data;
+    }
+};
+
+// Rate Config API
+export interface RateConfig {
+    id: string; // UUID from diagram/docs calling it 'id' or 'config_id'
+    rarity: string; // 'card_type' in diagram, 'rarity' in docs
+    rate: number; // 'drop_rate' in diagram
+    variancePercent?: number; // 'variance_percent' in diagram, optional in docs?
+}
+
+export interface RateConfigRequest {
+    rarity: string;
+    rate: number;
+    variancePercent?: number; // Optional if not in docs but in diagram
+}
+
+export const rateConfigApi = {
+    getAllRateConfigs: async (): Promise<RateConfig[]> => {
+        const response = await apiRequest<ApiResponse<RateConfig[]>>('/rate-config', {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    getRateConfigById: async (id: string): Promise<RateConfig> => {
+        const response = await apiRequest<ApiResponse<RateConfig>>(`/rate-config/${id}`, {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    createRateConfig: async (data: RateConfigRequest): Promise<RateConfig> => {
+        const response = await apiRequest<ApiResponse<RateConfig>>('/rate-config', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        return response.data;
+    },
+
+    updateRateConfig: async (id: string, data: RateConfigRequest): Promise<RateConfig> => {
+        const response = await apiRequest<ApiResponse<RateConfig>>(`/rate-config/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+        return response.data;
+    },
+
+    deleteRateConfig: async (id: string): Promise<void> => {
+        await apiRequest<ApiResponse<void>>(`/rate-config/${id}`, {
+            method: 'DELETE',
+        });
+    },
+
+    importRateConfigs: async (file: File): Promise<any> => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(`${API_BASE_URL}/rate-config/import`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenManager.getAccessToken()}`,
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to import rate configs');
+        }
+
+        return await response.json();
+    },
+};
+
+
