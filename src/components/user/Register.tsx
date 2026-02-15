@@ -1,9 +1,10 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Mail, Lock, User, Phone, MapPin, Upload } from 'lucide-react';
+import { Mail, Lock, User, Phone, Upload } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { userApi } from '@/utils/api';
+import { AddressSelect } from '@/components/shared/AddressSelect';
 
 export const Register: React.FC = () => {
     const navigate = useNavigate();
@@ -89,7 +90,7 @@ export const Register: React.FC = () => {
 
     return (
         <div className="min-h-[80vh] flex items-center justify-center py-12">
-            <Card className="w-full max-w-md animate-scale-in">
+            <Card className="w-full max-w-md ">
                 <CardHeader className="text-center">
                     <div className="mx-auto w-40 h-40 flex items-center justify-center mb-6">
                         <img src="/logo/logo.png" alt="MyScard Logo" className="w-full h-full object-contain filter drop-shadow-xl" />
@@ -121,7 +122,7 @@ export const Register: React.FC = () => {
                                     </div>
                                 )}
                                 <label className="cursor-pointer">
-                                    <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-2">
+                                    <div className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 flex items-center gap-2">
                                         <Upload className="h-4 w-4" />
                                         <span className="text-sm">Upload Image</span>
                                     </div>
@@ -149,7 +150,7 @@ export const Register: React.FC = () => {
                                     value={formData.name}
                                     onChange={handleChange}
                                     placeholder="John Doe"
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all"
+                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 "
                                     required
                                     minLength={5}
                                     maxLength={255}
@@ -171,7 +172,7 @@ export const Register: React.FC = () => {
                                     value={formData.email}
                                     onChange={handleChange}
                                     placeholder="you@example.com"
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all"
+                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 "
                                     required
                                 />
                             </div>
@@ -191,32 +192,23 @@ export const Register: React.FC = () => {
                                     value={formData.phone}
                                     onChange={handleChange}
                                     placeholder="0912345678 or +84912345678"
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all"
+                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 "
                                     required
                                 />
                             </div>
                         </div>
 
-                        {/* Address */}
+                        {/* Address - Tỉnh/Thành + Xã/Phường */}
                         <div>
-                            <label htmlFor="address" className="block text-sm font-medium mb-2">
-                                Address
+                            <label className="block text-sm font-medium mb-2">
+                                Địa chỉ
                             </label>
-                            <div className="relative">
-                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                                <input
-                                    id="address"
-                                    name="address"
-                                    type="text"
-                                    value={formData.address}
-                                    onChange={handleChange}
-                                    placeholder="123 Main St, City"
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all"
-                                    required
-                                    minLength={5}
-                                    maxLength={255}
-                                />
-                            </div>
+                            <AddressSelect
+                                value={formData.address}
+                                onChange={(address) => setFormData((prev) => ({ ...prev, address }))}
+                                showDetailInput={true}
+                                required
+                            />
                         </div>
 
                         {/* Gender */}
@@ -229,7 +221,7 @@ export const Register: React.FC = () => {
                                 name="gender"
                                 value={formData.gender}
                                 onChange={handleChange}
-                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all"
+                                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 "
                                 required
                             >
                                 <option value="MALE">Male</option>
@@ -251,7 +243,7 @@ export const Register: React.FC = () => {
                                     value={formData.password}
                                     onChange={handleChange}
                                     placeholder="••••••••"
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all"
+                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 "
                                     required
                                 />
                             </div>
@@ -274,7 +266,7 @@ export const Register: React.FC = () => {
                                     value={formData.confirmPassword}
                                     onChange={handleChange}
                                     placeholder="••••••••"
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all"
+                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 "
                                     required
                                 />
                             </div>
@@ -314,7 +306,7 @@ export const Register: React.FC = () => {
                         {/* Sign In Link */}
                         <p className="text-center text-sm text-muted-foreground mt-6">
                             Already have an account?{' '}
-                            <Link to="/login" className="text-primary-400 hover:text-primary-300 font-medium transition-colors">
+                            <Link to="/login" className="text-primary-400 hover:text-primary-300 font-medium ">
                                 Sign in
                             </Link>
                         </p>

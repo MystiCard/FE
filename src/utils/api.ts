@@ -292,20 +292,46 @@ export const userApi = {
     },
 
     updateProfile: async (userId: string, data: UpdateProfileRequest, avatar?: File): Promise<UserProfile> => {
-        const formData = new FormData();
-        const requestBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-        formData.append('request', requestBlob);
-        if (avatar) {
-            formData.append('avatar', avatar);
+        const buildBody = () => {
+            const formData = new FormData();
+            const payload = {
+                name: data.name,
+                email: data.email,
+                phone: data.phone ?? '',
+                address: data.address ?? '',
+                gender: data.gender ?? null,
+                password: data.password?.trim() || null,
+                districtId: (data as Record<string, string>).districtId ?? null,
+                wardId: (data as Record<string, string>).wardId ?? null,
+            };
+            formData.append('request', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+            if (avatar) formData.append('avatar', avatar);
+            return formData;
+        };
+
+        const doPut = (accessToken: string | null) =>
+            fetch(`${API_BASE_URL}/users/my-infor`, {
+                method: 'PUT',
+                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+                body: buildBody(),
+            });
+
+        let response = await doPut(tokenManager.getAccessToken());
+
+        if (response.status === 401) {
+            const refreshToken = tokenManager.getRefreshToken();
+            if (!refreshToken) {
+                throw new Error('Phiên đăng nhập hết hạn. Vui lòng tải lại trang hoặc đăng nhập lại.');
+            }
+            try {
+                const newAccessToken = await authApi.refreshToken(refreshToken);
+                tokenManager.setTokens(newAccessToken, refreshToken);
+                response = await doPut(newAccessToken);
+            } catch {
+                throw new Error('Phiên đăng nhập hết hạn. Vui lòng tải lại trang (F5) hoặc đăng nhập lại.');
+            }
         }
-        const token = tokenManager.getAccessToken();
-        const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-            method: 'PUT',
-            headers: {
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: formData,
-        });
+
         if (!response.ok) {
             const error = await response.json().catch(() => ({ message: 'Cập nhật thất bại' }));
             throw new Error(error.message || 'Cập nhật thất bại');
@@ -443,10 +469,26 @@ export const cardApi = {
         return response.data;
     },
 
+    addToWishlist: async (cardId: string, expectPrice?: number): Promise<void> => {
+        await apiRequest<ApiResponse<unknown>>(`/card/wishlist/${cardId}`, {
+            method: 'POST',
+            body: JSON.stringify(expectPrice != null ? { expectPrice } : {}),
+        });
+    },
+
     removeFromWishlist: async (wishListId: string): Promise<void> => {
         await apiRequest<ApiResponse<void>>(`/card/wishlist/${wishListId}`, {
             method: 'DELETE',
         });
+    },
+
+    removeFromWishlistByCardId: async (cardId: string): Promise<void> => {
+        const res = await apiRequest<ApiResponse<PageResponse<WishlistItem>>>(
+            `/card/wishlist?page=0&size=100`,
+            { method: 'GET' }
+        );
+        const item = (res.data?.content ?? []).find((w) => w.cardId === cardId);
+        if (item) await apiRequest<ApiResponse<void>>(`/card/wishlist/${item.wishListId}`, { method: 'DELETE' });
     },
 };
 
@@ -683,14 +725,15 @@ export const transactionApi = {
         return response.data;
     },
 
-    // Get my transaction history
+    // Get my transaction history (backend dùng page 1-based)
     getMyTransactions: async (
         statusPayment?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED',
-        page: number = 1,
+        page: number = 0,
         size: number = 10
     ): Promise<PageResponse<TransactionResponse>> => {
+        const pageOneBased = Math.max(1, page + 1);
         const params = new URLSearchParams({
-            page: page.toString(),
+            page: pageOneBased.toString(),
             size: size.toString(),
         });
         if (statusPayment) {
