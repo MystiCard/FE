@@ -641,10 +641,22 @@ export const categoryApi = {
 };
 
 // List Seller API (đăng bán thẻ)
+// BE chỉ có: GET /api/listseller/{cardId}?page=&size=  và  POST /api/listseller/{cardId}
 export interface ListSellerRequest {
     price: number;
     quantity: number;
     description?: string;
+}
+
+/** BE SellResponse từ getListSellersByCardId */
+export interface SellResponse {
+    listSellerId: string;
+    price: number;
+    quantity: number;
+    status: string;
+    cardId: string;
+    sellerId: string;
+    sellerName?: string;
 }
 
 export interface ListingItem {
@@ -671,20 +683,71 @@ export const listSellerApi = {
         return response.data;
     },
 
-    getListings: async (page: number = 0, size: number = 12): Promise<{ content: ListingItem[]; totalPages: number; totalElements: number; size: number; number: number }> => {
-        const response = await apiRequest<ApiResponse<{ content: ListingItem[]; totalPages: number; totalElements: number; size: number; number: number }>>(
-            `/listseller?page=${page}&size=${size}`,
+    /** BE: GET /api/listseller/{cardId}?page=&size= - danh sách đăng bán theo từng thẻ */
+    getListingsByCardId: async (
+        cardId: string,
+        page: number = 0,
+        size: number = 20
+    ): Promise<PageResponse<SellResponse>> => {
+        const response = await apiRequest<ApiResponse<PageResponse<SellResponse>>>(
+            `/listseller/${cardId}?page=${page}&size=${size}`,
             { method: 'GET' }
         );
         return response.data;
     },
 
-    getMyListings: async (page: number = 0, size: number = 10): Promise<PageResponse<unknown>> => {
-        const response = await apiRequest<ApiResponse<PageResponse<unknown>>>(
-            `/listseller/my-listings?page=${page}&size=${size}`,
-            { method: 'GET' }
+    /** Lấy toàn bộ listing cho Sàn giao dịch: gọi getListingsByCardId cho từng card và gộp (BE không có API list all) */
+    getListings: async (
+        page: number = 0,
+        size: number = 12
+    ): Promise<{ content: ListingItem[]; totalPages: number; totalElements: number; size: number; number: number }> => {
+        const cards = await cardApi.getAllCards();
+        const allListings: ListingItem[] = [];
+        // Gọi listing cho TẤT CẢ card (trước đây chỉ 60 card đầu → dễ bỏ sót)
+        await Promise.all(
+            cards.map(async (card) => {
+                try {
+                    const res = await listSellerApi.getListingsByCardId(card.cardId, 0, 50);
+                    const content = (res.content || []) as SellResponse[];
+                    content.forEach((sell) => {
+                        allListings.push({
+                            listSellerId: sell.listSellerId,
+                            price: sell.price,
+                            quantity: sell.quantity,
+                            status: typeof sell.status === 'string' ? sell.status : String(sell.status),
+                            sellerId: sell.sellerId,
+                            sellerName: sell.sellerName,
+                            cardId: sell.cardId ?? card.cardId,
+                            cardName: card.name,
+                            imageUrl: card.imageUrl,
+                            categoryName: card.categoryName,
+                            rarity: card.rarity,
+                            basePrice: card.basePrice,
+                        });
+                    });
+                } catch {
+                    // Bỏ qua card không có listing hoặc lỗi
+                }
+            })
         );
-        return response.data;
+        const totalElements = allListings.length;
+        const start = page * size;
+        const content = allListings.slice(start, start + size);
+        const totalPages = Math.max(1, Math.ceil(totalElements / size));
+        return { content, totalPages, totalElements, size, number: page };
+    },
+
+    /** BE không có my-listings; giữ để tương thích (sẽ trả về rỗng hoặc cần BE bổ sung sau) */
+    getMyListings: async (page: number = 0, size: number = 10): Promise<PageResponse<unknown>> => {
+        try {
+            const response = await apiRequest<ApiResponse<PageResponse<unknown>>>(
+                `/listseller/my-listings?page=${page}&size=${size}`,
+                { method: 'GET' }
+            );
+            return response.data;
+        } catch {
+            return { content: [], totalPages: 0, totalElements: 0, size, number: page };
+        }
     },
 };
 

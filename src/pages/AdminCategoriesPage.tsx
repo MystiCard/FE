@@ -60,7 +60,7 @@ export const AdminCategoriesPage: React.FC = () => {
 
                                 return result;
                             } catch (e) {
-                                console.warn(`Failed to load detail for category ${cat.categoryId}`, e);
+                                console.warn(`Failed to load detail for category {cat.categoryId} VND`, e);
                                 // Fallback image if detail fails
                                 return {
                                     ...cat,
