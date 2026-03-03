@@ -772,6 +772,7 @@ export interface BlindBoxRequest {
     name: string;
     description: string;
     price: number;
+    drawPrice: number;
     cardIds: string[];
 }
 
@@ -838,49 +839,67 @@ export const blindBoxApi = {
     }
 };
 
-// Rate Config API
+// Rate Config API (frontend uses id/rarity/rate; backend uses rateConfigId/cardRarity/dropRate)
 export interface RateConfig {
-    id: string; // UUID from diagram/docs calling it 'id' or 'config_id'
-    rarity: string; // 'card_type' in diagram, 'rarity' in docs
-    rate: number; // 'drop_rate' in diagram
-    variancePercent?: number; // 'variance_percent' in diagram, optional in docs?
+    id: string;
+    rarity: string;
+    rate: number;
+    variancePercent?: number;
 }
 
 export interface RateConfigRequest {
     rarity: string;
     rate: number;
-    variancePercent?: number; // Optional if not in docs but in diagram
+    variancePercent?: number;
+}
+
+function mapRateConfigFromBackend(raw: any): RateConfig {
+    return {
+        id: raw?.rateConfigId ?? raw?.id ?? '',
+        rarity: raw?.cardRarity ?? raw?.rarity ?? 'COMMON',
+        rate: Number(raw?.dropRate ?? raw?.rate ?? 0),
+        variancePercent: Number(raw?.variancePercent ?? 0),
+    };
+}
+
+function mapRateConfigRequestToBackend(data: RateConfigRequest): { cardRarity: string; dropRate: number; variancePercent: number } {
+    return {
+        cardRarity: data.rarity ?? 'COMMON',
+        dropRate: Number(data.rate ?? 0),
+        variancePercent: Number(data.variancePercent ?? 0),
+    };
 }
 
 export const rateConfigApi = {
     getAllRateConfigs: async (): Promise<RateConfig[]> => {
-        const response = await apiRequest<ApiResponse<RateConfig[]>>('/rate-config', {
+        const response = await apiRequest<ApiResponse<any[]>>('/rate-config', {
             method: 'GET',
         });
-        return response.data;
+        const list = response?.data ?? [];
+        return Array.isArray(list) ? list.map(mapRateConfigFromBackend) : [];
     },
 
     getRateConfigById: async (id: string): Promise<RateConfig> => {
-        const response = await apiRequest<ApiResponse<RateConfig>>(`/rate-config/${id}`, {
+        const response = await apiRequest<ApiResponse<any>>(`/rate-config/${id}`, {
             method: 'GET',
         });
-        return response.data;
+        return mapRateConfigFromBackend(response?.data ?? {});
     },
 
     createRateConfig: async (data: RateConfigRequest): Promise<RateConfig> => {
-        const response = await apiRequest<ApiResponse<RateConfig>>('/rate-config', {
+        const response = await apiRequest<ApiResponse<any>>('/rate-config', {
             method: 'POST',
-            body: JSON.stringify(data),
+            body: JSON.stringify(mapRateConfigRequestToBackend(data)),
         });
-        return response.data;
+        return mapRateConfigFromBackend(response?.data ?? {});
     },
 
     updateRateConfig: async (id: string, data: RateConfigRequest): Promise<RateConfig> => {
-        const response = await apiRequest<ApiResponse<RateConfig>>(`/rate-config/${id}`, {
+        const response = await apiRequest<ApiResponse<any>>(`/rate-config/${id}`, {
             method: 'PUT',
-            body: JSON.stringify(data),
+            body: JSON.stringify(mapRateConfigRequestToBackend(data)),
         });
-        return response.data;
+        return mapRateConfigFromBackend(response?.data ?? {});
     },
 
     deleteRateConfig: async (id: string): Promise<void> => {
@@ -906,6 +925,108 @@ export const rateConfigApi = {
         }
 
         return await response.json();
+    },
+};
+
+// Shipment API
+export type ShippingStatus =
+    | 'PENDING'
+    | 'ASIGNED'
+    | 'PICKED_UP'
+    | 'IN_TRANSIT'
+    | 'DELIVERED'
+    | 'FAILED'
+    | 'RETURNED'
+    | 'LOST'
+    | 'RECEIVED'
+    | 'CANCELLED';
+
+export interface ShipmentResponse {
+    shipmentId: string;
+    toAddress?: string;
+    toPhone?: string;
+    fromAddress?: string;
+    fromPhone?: string;
+    shipmentStatus: ShippingStatus;
+    shipmentFee: number;
+    createAt?: string;
+}
+
+export interface AssignShipperRequest {
+    shipmentId: string;
+    shipperId: string;
+}
+
+export interface UpdateShipmentRequest {
+    shipmentId: string;
+    shippingStatus: ShippingStatus;
+    note?: string;
+}
+
+export const shipmentApi = {
+    getByOrderItemId: async (orderItemId: string): Promise<ShipmentResponse[]> => {
+        const response = await apiRequest<ApiResponse<ShipmentResponse[]>>(
+            `/shipments/orders/${orderItemId}`,
+            { method: 'GET' }
+        );
+        return response.data;
+    },
+
+    getMyShipments: async (
+        complete: boolean = false,
+        page: number = 1,
+        size: number = 10
+    ): Promise<PageResponse<ShipmentResponse>> => {
+        const response = await apiRequest<ApiResponse<PageResponse<ShipmentResponse>>>(
+            `/shipments/me?complete=${complete}&page=${page}&size=${size}`,
+            { method: 'GET' }
+        );
+        return response.data;
+    },
+
+    getNotAssignedShipments: async (
+        page: number = 1,
+        size: number = 10
+    ): Promise<PageResponse<ShipmentResponse>> => {
+        const response = await apiRequest<ApiResponse<PageResponse<ShipmentResponse>>>(
+            `/shipments/not-asign?page=${page}&size=${size}`,
+            { method: 'GET' }
+        );
+        return response.data;
+    },
+
+    assignShipper: async (data: AssignShipperRequest): Promise<ShipmentResponse> => {
+        const response = await apiRequest<ApiResponse<ShipmentResponse>>('/shipments/asign-shipper', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        return response.data;
+    },
+
+    updateShipment: async (
+        data: UpdateShipmentRequest,
+        files?: File[]
+    ): Promise<ShipmentResponse> => {
+        const formData = new FormData();
+        formData.append(
+            'request',
+            new Blob([JSON.stringify(data)], { type: 'application/json' })
+        );
+        if (files?.length) {
+            files.forEach((f) => formData.append('fileList', f));
+        }
+        const token = tokenManager.getAccessToken();
+        const response = await fetch(`${API_BASE_URL}/shipments/update`, {
+            method: 'PATCH',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: formData,
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ message: 'Cập nhật thất bại' }));
+            throw new Error(err.message || 'Cập nhật thất bại');
+        }
+        const result: ApiResponse<ShipmentResponse> = await response.json();
+        return result.data;
     },
 };
 
