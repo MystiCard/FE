@@ -1,5 +1,13 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from '@/components/ui/dialog';
 import {
     Search,
     UserCheck,
@@ -8,9 +16,33 @@ import {
     Users as UsersIcon,
     Mail,
     Ban,
-    CheckCircle
+    CheckCircle,
+    UserPlus,
+    User,
+    Phone,
+    Lock,
+    MapPin,
+    Upload,
+    Truck,
 } from 'lucide-react';
-import { userApi, UserProfile } from '@/utils/api';
+import { userApi, UserProfile, AdminCreateUserRequest } from '@/utils/api';
+
+const ROLE_OPTIONS: { value: string; label: string }[] = [
+    { value: 'USER', label: 'Khách hàng' },
+    { value: 'ADMIN', label: 'Quản trị' },
+    { value: 'SHIPPER', label: 'Shipper' },
+];
+
+const initialCreateForm: AdminCreateUserRequest & { confirmPassword: string; role: string } = {
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    phone: '',
+    address: '',
+    gender: 'MALE',
+    role: 'USER',
+};
 
 export const AdminUsersPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = React.useState('');
@@ -19,6 +51,11 @@ export const AdminUsersPage: React.FC = () => {
     const [error, setError] = React.useState('');
     const [roleFilter, setRoleFilter] = React.useState('');
     const [statusFilter, setStatusFilter] = React.useState('');
+    const [createModalOpen, setCreateModalOpen] = React.useState(false);
+    const [createForm, setCreateForm] = React.useState(initialCreateForm);
+    const [createAvatar, setCreateAvatar] = React.useState<File | null>(null);
+    const [createSubmitting, setCreateSubmitting] = React.useState(false);
+    const [createError, setCreateError] = React.useState('');
 
     // Load users on mount
     React.useEffect(() => {
@@ -57,6 +94,68 @@ export const AdminUsersPage: React.FC = () => {
         } catch (err) {
             alert(err instanceof Error ? err.message : 'Failed to unban user');
         }
+    };
+
+    const handleCreateUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setCreateForm((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleCreateUserSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setCreateError('');
+        if (createForm.password !== createForm.confirmPassword) {
+            setCreateError('Mật khẩu xác nhận không khớp');
+            return;
+        }
+        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
+        if (!passwordRegex.test(createForm.password)) {
+            setCreateError('Mật khẩu tối thiểu 8 ký tự, có ít nhất 1 chữ và 1 số');
+            return;
+        }
+        const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+        if (!phoneRegex.test(createForm.phone)) {
+            setCreateError('Số điện thoại phải bắt đầu 0 hoặc +84 và 9 chữ số');
+            return;
+        }
+        if (createForm.name.length < 5 || createForm.address.length < 5) {
+            setCreateError('Họ tên và địa chỉ tối thiểu 5 ký tự');
+            return;
+        }
+        setCreateSubmitting(true);
+        try {
+            const newUser = await userApi.adminCreateUser(
+                {
+                    email: createForm.email,
+                    password: createForm.password,
+                    name: createForm.name,
+                    phone: createForm.phone,
+                    address: createForm.address,
+                    gender: createForm.gender as 'MALE' | 'FEMALE',
+                },
+                createAvatar || undefined
+            );
+            const selectedRole = createForm.role || 'USER';
+            if (selectedRole !== 'USER' && newUser.userId) {
+                await userApi.removeRole(newUser.userId, ['USER']);
+                await userApi.addRole(newUser.userId, [selectedRole]);
+            }
+            setCreateModalOpen(false);
+            setCreateForm(initialCreateForm);
+            setCreateAvatar(null);
+            await loadUsers();
+        } catch (err) {
+            setCreateError(err instanceof Error ? err.message : 'Tạo user thất bại');
+        } finally {
+            setCreateSubmitting(false);
+        }
+    };
+
+    const openCreateModal = () => {
+        setCreateForm(initialCreateForm);
+        setCreateAvatar(null);
+        setCreateError('');
+        setCreateModalOpen(true);
     };
 
     // Ensure users is always an array
@@ -111,9 +210,15 @@ export const AdminUsersPage: React.FC = () => {
             )}
 
             {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold font-serif gradient-text">Quản lý người dùng</h1>
-                <p className="text-muted-foreground mt-1">Quản lý người dùng và quyền</p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold font-serif gradient-text">Quản lý người dùng</h1>
+                    <p className="text-muted-foreground mt-1">Quản lý người dùng và quyền</p>
+                </div>
+                <Button onClick={openCreateModal} className="flex items-center gap-2 shrink-0">
+                    <UserPlus className="h-4 w-4" />
+                    Tạo người dùng
+                </Button>
             </div>
 
             {/* Stats Cards */}
@@ -157,8 +262,9 @@ export const AdminUsersPage: React.FC = () => {
                             className="glass-card px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                         >
                             <option value="">Tất cả vai trò</option>
-                            <option value="CUSTOMER">Khách hàng</option>
+                            <option value="USER">Khách hàng</option>
                             <option value="ADMIN">Quản trị</option>
+                            <option value="SHIPPER">Shipper</option>
                         </select>
                         <select
                             value={statusFilter}
@@ -224,11 +330,14 @@ export const AdminUsersPage: React.FC = () => {
                                                 </div>
                                             </td>
                                             <td className="p-4">
-                                                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${user.role === 'ADMIN' ? 'bg-red-500/20 text-red-400' :
+                                                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                                                    user.role === 'ADMIN' ? 'bg-red-500/20 text-red-400' :
+                                                    user.role === 'SHIPPER' ? 'bg-amber-500/20 text-amber-400' :
                                                     'bg-primary-500/20 text-primary-400'
-                                                    }`}>
+                                                }`}>
                                                     {user.role === 'ADMIN' && <Shield className="h-3 w-3" />}
-                                                    {user.role === 'ADMIN' ? 'Quản trị' : 'Khách hàng'}
+                                                    {user.role === 'SHIPPER' && <Truck className="h-3 w-3" />}
+                                                    {user.role === 'ADMIN' ? 'Quản trị' : user.role === 'SHIPPER' ? 'Shipper' : 'Khách hàng'}
                                                 </span>
                                             </td>
                                             <td className="p-4 text-sm">{user.phone || '—'}</td>
@@ -272,6 +381,165 @@ export const AdminUsersPage: React.FC = () => {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Create User Modal */}
+            <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+                <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Tạo người dùng mới</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleCreateUserSubmit} className="space-y-4">
+                        {createError && (
+                            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+                                {createError}
+                            </div>
+                        )}
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Họ tên *</label>
+                            <div className="relative">
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <input
+                                    name="name"
+                                    value={createForm.name}
+                                    onChange={handleCreateUserChange}
+                                    placeholder="Nguyễn Văn A"
+                                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                    required
+                                    minLength={5}
+                                    maxLength={255}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Email *</label>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <input
+                                    name="email"
+                                    type="email"
+                                    value={createForm.email}
+                                    onChange={handleCreateUserChange}
+                                    placeholder="user@example.com"
+                                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Mật khẩu *</label>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <input
+                                    name="password"
+                                    type="password"
+                                    value={createForm.password}
+                                    onChange={handleCreateUserChange}
+                                    placeholder="Tối thiểu 8 ký tự, 1 chữ + 1 số"
+                                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                    required
+                                    minLength={8}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Xác nhận mật khẩu *</label>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <input
+                                    name="confirmPassword"
+                                    type="password"
+                                    value={createForm.confirmPassword}
+                                    onChange={handleCreateUserChange}
+                                    placeholder="Nhập lại mật khẩu"
+                                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Số điện thoại *</label>
+                            <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <input
+                                    name="phone"
+                                    value={createForm.phone}
+                                    onChange={handleCreateUserChange}
+                                    placeholder="0912345678"
+                                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Địa chỉ *</label>
+                            <div className="relative">
+                                <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <input
+                                    name="address"
+                                    value={createForm.address}
+                                    onChange={handleCreateUserChange}
+                                    placeholder="Địa chỉ từ 5–255 ký tự"
+                                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                    required
+                                    minLength={5}
+                                    maxLength={255}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Giới tính *</label>
+                            <select
+                                name="gender"
+                                value={createForm.gender}
+                                onChange={handleCreateUserChange}
+                                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                            >
+                                <option value="MALE">Nam</option>
+                                <option value="FEMALE">Nữ</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Vai trò *</label>
+                            <select
+                                name="role"
+                                value={createForm.role}
+                                onChange={handleCreateUserChange}
+                                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                            >
+                                {ROLE_OPTIONS.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Avatar (tùy chọn)</label>
+                            <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-lg cursor-pointer hover:bg-white/10 text-sm">
+                                    <Upload className="h-4 w-4" />
+                                    Chọn ảnh
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => setCreateAvatar(e.target.files?.[0] ?? null)}
+                                    />
+                                </label>
+                                {createAvatar && <span className="text-xs text-muted-foreground">{createAvatar.name}</span>}
+                            </div>
+                        </div>
+                        <DialogFooter className="gap-2 sm:gap-0 pt-4">
+                            <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)}>
+                                Hủy
+                            </Button>
+                            <Button type="submit" disabled={createSubmitting}>
+                                {createSubmitting ? 'Đang tạo...' : 'Tạo người dùng'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

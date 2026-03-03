@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Home, ShoppingBag, TrendingUp, User, Settings, Truck } from 'lucide-react';
+import { Home, ShoppingBag, TrendingUp, User, Settings } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
     return (
@@ -32,13 +32,6 @@ export const Sidebar: React.FC = () => {
                         <TrendingUp className="h-6 w-6 group-hover:text-primary-400 " />
                     </Link>
 
-                    <Link
-                        to="/shipments"
-                        className="p-3 rounded-lg hover:bg-white/10 group"
-                        title="Vận chuyển"
-                    >
-                        <Truck className="h-6 w-6 group-hover:text-primary-400 " />
-                    </Link>
                     <Link
                         to="/profile"
                         className="p-3 rounded-lg hover:bg-white/10 group"

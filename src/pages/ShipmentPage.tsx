@@ -173,8 +173,8 @@ export const ShipmentPage: React.FC = () => {
     if (!isAuthenticated) return null;
 
     return (
-        <div className="min-h-screen p-4 md:p-8">
-            <div className="max-w-5xl mx-auto">
+        <div className="space-y-6">
+            <div>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                     <h1 className="text-2xl md:text-3xl font-bold gradient-text flex items-center gap-2">
                         <Truck className="h-8 w-8" />
@@ -443,3 +443,4 @@ export const ShipmentPage: React.FC = () => {
         </div>
     );
 };
+

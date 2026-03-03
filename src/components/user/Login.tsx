@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Mail, Lock } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { authApi, isAdmin, tokenManager } from '@/utils/api';
+import { authApi, isAdmin, isShipper, tokenManager } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const Login: React.FC = () => {
@@ -41,10 +41,12 @@ export const Login: React.FC = () => {
             // Save tokens and update auth context
             login(response.accessToken, response.refreshToken);
 
-            // Check if user is admin and redirect accordingly
+            // Redirect by role: admin -> /admin, shipper -> /shipments, else -> /
             const userInfo = tokenManager.getUserInfo();
             if (isAdmin(userInfo)) {
                 navigate('/admin');
+            } else if (isShipper(userInfo)) {
+                navigate('/shipments');
             } else {
                 navigate('/');
             }

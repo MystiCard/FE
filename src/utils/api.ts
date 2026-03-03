@@ -50,6 +50,23 @@ export const isAdmin = (user: UserInfo | null): boolean => {
     return false;
 };
 
+// Helper function to check if user is shipper
+export const isShipper = (user: UserInfo | null): boolean => {
+    if (!user) return false;
+
+    if (user.roles && Array.isArray(user.roles)) {
+        return user.roles.some(role =>
+            role === 'ROLE_SHIPPER' || role === 'SHIPPER'
+        );
+    }
+
+    if (user.scope && typeof user.scope === 'string') {
+        return user.scope.includes('ROLE_SHIPPER') || user.scope.includes('SHIPPER');
+    }
+
+    return false;
+};
+
 // Decode JWT token to get user info
 const decodeToken = (token: string): UserInfo | null => {
     try {
@@ -244,6 +261,12 @@ export interface RegisterRequest {
     phone: string;
 }
 
+/** Admin create user: same as RegisterRequest + optional districtId/wardId (BE requires them) */
+export interface AdminCreateUserRequest extends RegisterRequest {
+    districtId?: string;
+    wardId?: string;
+}
+
 export interface UpdateProfileRequest {
     name: string;
     email: string;
@@ -287,6 +310,35 @@ export const userApi = {
             throw new Error(error.message || 'Registration failed');
         }
 
+        const result: ApiResponse<UserProfile> = await response.json();
+        return result.data;
+    },
+
+    /** Admin: create new user (uses same POST /users/create, with districtId/wardId for BE validation) */
+    adminCreateUser: async (data: AdminCreateUserRequest, avatar?: File): Promise<UserProfile> => {
+        const payload = {
+            email: data.email,
+            password: data.password,
+            gender: data.gender,
+            address: data.address,
+            name: data.name,
+            phone: data.phone,
+            districtId: data.districtId ?? '3695',
+            wardId: data.wardId ?? '90752',
+        };
+        const formData = new FormData();
+        formData.append('request', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+        if (avatar) formData.append('avatar', avatar);
+        const token = tokenManager.getAccessToken();
+        const response = await fetch(`${API_BASE_URL}/users/create`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: formData,
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ message: 'Tạo user thất bại' }));
+            throw new Error(err.message || 'Tạo user thất bại');
+        }
         const result: ApiResponse<UserProfile> = await response.json();
         return result.data;
     },
@@ -372,6 +424,22 @@ export const userApi = {
             body: JSON.stringify({ role }),
         });
         return response.data;
+    },
+
+    /** Add roles to user (BE: PUT /users/add-role, body: { userId, roleCode: string[] }) */
+    addRole: async (userId: string, roleCodes: string[]): Promise<void> => {
+        await apiRequest<ApiResponse<string>>('/users/add-role', {
+            method: 'PUT',
+            body: JSON.stringify({ userId, roleCode: roleCodes }),
+        });
+    },
+
+    /** Remove roles from user (BE: DELETE /users/remove-role) */
+    removeRole: async (userId: string, roleCodes: string[]): Promise<void> => {
+        await apiRequest<ApiResponse<string>>('/users/remove-role', {
+            method: 'DELETE',
+            body: JSON.stringify({ userId, roleCode: roleCodes }),
+        });
     },
 };
 

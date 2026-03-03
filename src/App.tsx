@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { MainLayout } from '@/layouts/MainLayout';
 import { AdminLayout } from '@/layouts/AdminLayout';
+import { ShipmentLayout } from '@/layouts/ShipmentLayout';
 import { HomePage } from '@/pages/HomePage';
 import { ProductsPage } from '@/pages/ProductsPage';
 import { BoosterBoxesPage } from '@/pages/BoosterBoxesPage';
@@ -113,7 +114,6 @@ function App() {
                         <Route path="post-listing" element={<PostListingPage />} />
                         <Route path="profile" element={<ProfilePage />} />
                         <Route path="wallet" element={<WalletPage />} />
-                        <Route path="shipments" element={<ShipmentPage />} />
                         <Route path="payment/callback" element={<PaymentCallbackPage />} />
                         <Route path="settings" element={<ProfilePage />} />
                         <Route path="compare" element={<ComparisonPage />} />
@@ -136,6 +136,11 @@ function App() {
                         <Route path="blind-boxes" element={<AdminBlindBoxesPage />} />
                         <Route path="rate-configs" element={<AdminRateConfigPage />} />
                         <Route path="users" element={<AdminUsersPage />} />
+                    </Route>
+
+                    {/* Shipment Routes (standalone like Admin) */}
+                    <Route path="/shipments" element={<ShipmentLayout />}>
+                        <Route index element={<ShipmentPage />} />
                     </Route>
                 </Routes>
             </BrowserRouter>
