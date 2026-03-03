@@ -574,7 +574,7 @@ export const AdminCardsPage: React.FC = () => {
 
                                     {/* Price */}
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Giá ($) *</label>
+                                        <label className="block text-sm font-medium mb-2">Giá (VND) *</label>
                                         <input
                                             type="number"
                                             step="0.01"

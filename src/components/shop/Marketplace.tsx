@@ -14,7 +14,10 @@ import {
     Users,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { listSellerApi, ListingItem, categoryApi, Category } from '@/utils/api';
+import { listSellerApi, ListingItem, categoryApi, Category, cardApi } from '@/utils/api';
+import { useWishlist } from '@/hooks/useWishlist';
+import { useAuth } from '@/contexts/AuthContext';
+import { Heart, Loader2 } from 'lucide-react';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
 
@@ -86,6 +89,10 @@ export const Marketplace: React.FC = () => {
     const [selectedProduct, setSelectedProduct] = useState<CardProduct | null>(null);
     const [selectedListing, setSelectedListing] = useState<ListingItem | null>(null);
     const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+    const { isAuthenticated } = useAuth();
+    const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
+    const [wishlistCardIds, setWishlistCardIds] = useState<Set<string>>(new Set());
+    const [wishlistLoadingCardId, setWishlistLoadingCardId] = useState<string | null>(null);
 
     useEffect(() => {
         loadListings(currentPage);
@@ -102,6 +109,24 @@ export const Marketplace: React.FC = () => {
         };
         load();
     }, []);
+
+    // Load danh sách card trong wishlist từ BE (khi đã đăng nhập)
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setWishlistCardIds(new Set());
+            return;
+        }
+        const loadWishlist = async () => {
+            try {
+                const res = await cardApi.getUserWishlist(0, 500);
+                const ids = new Set((res.content ?? []).map((w) => w.cardId));
+                setWishlistCardIds(ids);
+            } catch {
+                setWishlistCardIds(new Set());
+            }
+        };
+        loadWishlist();
+    }, [isAuthenticated]);
 
     const loadListings = async (page: number) => {
         try {
@@ -143,6 +168,52 @@ export const Marketplace: React.FC = () => {
         else list.sort((a, b) => a.cardName.localeCompare(b.cardName));
         return list;
     }, [listings, searchQuery, priceRange, sortBy, filterCategory, filterRarity, categories]);
+
+    const toggleWishlistForCard = async (product: CardProduct, e?: React.MouseEvent) => {
+        if (e) {
+            e.stopPropagation();
+        }
+        const cardId = product.cardId;
+        const inList = wishlistCardIds.has(cardId) || isInWishlist(cardId);
+        setWishlistLoadingCardId(cardId);
+        try {
+            if (inList) {
+                removeFromWishlistLocal(cardId);
+                setWishlistCardIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(cardId);
+                    return next;
+                });
+                if (isAuthenticated) {
+                    try {
+                        await cardApi.removeFromWishlistByCardId(cardId);
+                        window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+                    } catch {
+                        // ignore, đã cập nhật local
+                    }
+                }
+            } else {
+                addToWishlistLocal({
+                    id: cardId,
+                    name: product.cardName,
+                    price: product.basePrice,
+                    image: product.imageUrl || PLACEHOLDER_IMG,
+                    rarity: product.rarity,
+                });
+                setWishlistCardIds((prev) => new Set(prev).add(cardId));
+                if (isAuthenticated) {
+                    try {
+                        await cardApi.addToWishlist(cardId);
+                        window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+                    } catch {
+                        // ignore, đã cập nhật local
+                    }
+                }
+            }
+        } finally {
+            setWishlistLoadingCardId(null);
+        }
+    };
 
     const products = useMemo(() => {
         const grouped = groupListingsByCard(filteredListings);
@@ -346,18 +417,44 @@ export const Marketplace: React.FC = () => {
                                                             </span>
                                                         </td>
                                                         <td className="p-4">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="gap-1"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setSelectedProduct(product);
-                                                                }}
-                                                            >
-                                                                Xem đề nghị
-                                                                <ChevronDown className="h-4 w-4" />
-                                                            </Button>
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="gap-1"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedProduct(product);
+                                                                    }}
+                                                                >
+                                                                    Xem đề nghị
+                                                                    <ChevronDown className="h-4 w-4" />
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="rounded-full"
+                                                                    onClick={(e) => toggleWishlistForCard(product, e)}
+                                                                    disabled={wishlistLoadingCardId === product.cardId}
+                                                                    aria-label={
+                                                                        wishlistCardIds.has(product.cardId) || isInWishlist(product.cardId)
+                                                                            ? 'Bỏ khỏi wishlist'
+                                                                            : 'Thêm vào wishlist'
+                                                                    }
+                                                                >
+                                                                    {wishlistLoadingCardId === product.cardId ? (
+                                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    ) : (
+                                                                        <Heart
+                                                                            className={`h-4 w-4 ${
+                                                                                wishlistCardIds.has(product.cardId) || isInWishlist(product.cardId)
+                                                                                    ? 'fill-red-500 text-red-500'
+                                                                                    : ''
+                                                                            }`}
+                                                                        />
+                                                                    )}
+                                                                </Button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                     {/* Hàng mở rộng: bảng offer bên dưới thẻ */}
@@ -541,64 +638,115 @@ function ListingOffersModal({
     placeholderImg: string;
 }) {
     const open = !!product;
+
+    if (!product) {
+        return null;
+    }
+
+    const prices = product.offers.map((o) => o.price);
+    const quantities = product.offers.map((o) => o.quantity);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+    const totalQuantity = quantities.reduce((sum, q) => sum + q, 0);
+
     return (
         <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-card-strong border-white/10">
-                {product && (
-                    <>
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-3">
-                                <img
-                                    src={product.imageUrl || placeholderImg}
-                                    alt={product.cardName}
-                                    className="w-14 h-20 object-cover rounded-lg"
-                                    onError={(e) => {
-                                        e.currentTarget.src = placeholderImg;
-                                    }}
-                                />
-                                <div className="text-left">
-                                    <div className="font-semibold text-lg">{product.cardName}</div>
-                                    <div className="text-sm text-muted-foreground">
-                                        {product.categoryName || '—'} · {formatRarity(product.rarity)}
-                                    </div>
-                                </div>
-                            </DialogTitle>
-                        </DialogHeader>
-                        <div className="mt-4">
-                            <div className="text-xs font-medium text-muted-foreground mb-2 uppercase">Các đề nghị</div>
-                            <div className="space-y-2 max-h-80 overflow-y-auto">
-                                {product.offers.map((offer) => (
-                                    <div
-                                        key={offer.listSellerId}
-                                        className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10"
-                                    >
-                                        <div className="flex items-center gap-4 flex-wrap">
-                                            <span className="font-semibold text-accent-400 text-lg">
-                                                ${offer.price.toFixed(2)}
-                                            </span>
-                                            <span className="text-sm text-muted-foreground">
-                                                Số lượng: {offer.quantity}
-                                            </span>
-                                            <span className="text-sm text-muted-foreground">
-                                                Người bán: {offer.sellerName || '—'}
-                                            </span>
-                                        </div>
-                                        <Button
-                                            variant="premium"
-                                            size="sm"
-                                            onClick={() => onSelectOffer(offer)}
-                                        >
-                                            Xem chi tiết
-                                        </Button>
-                                    </div>
-                                ))}
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto glass-card-strong border-white/10">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-4">
+                        <img
+                            src={product.imageUrl || placeholderImg}
+                            alt={product.cardName}
+                            className="w-20 h-28 object-cover rounded-lg shadow-lg"
+                            onError={(e) => {
+                                e.currentTarget.src = placeholderImg;
+                            }}
+                        />
+                        <div className="text-left space-y-1">
+                            <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded bg-white/10 text-[10px] uppercase tracking-wider">
+                                    {formatRarity(product.rarity)}
+                                </span>
+                                {product.categoryName && (
+                                    <span className="text-xs text-muted-foreground">{product.categoryName}</span>
+                                )}
+                            </div>
+                            <div className="text-2xl font-semibold">{product.cardName}</div>
+                            <div className="text-xs text-muted-foreground">
+                                Tổng {product.offers.length} đề nghị · {totalQuantity} bản có sẵn
                             </div>
                         </div>
-                        <Button variant="ghost" className="w-full mt-4" onClick={onClose}>
-                            Đóng
-                        </Button>
-                    </>
-                )}
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3 rounded-lg bg-white/5">
+                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            Giá thấp nhất
+                        </div>
+                        <div className="text-lg font-bold text-accent-400">${minPrice.toFixed(2)}</div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/5">
+                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            Giá trung bình
+                        </div>
+                        <div className="text-lg font-bold">${avgPrice.toFixed(2)}</div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/5">
+                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            Giá cao nhất
+                        </div>
+                        <div className="text-lg font-bold">${maxPrice.toFixed(2)}</div>
+                    </div>
+                </div>
+
+                <div className="mt-6">
+                    <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                        Danh sách người bán
+                    </div>
+                    <div className="rounded-lg border border-white/10 overflow-hidden">
+                        <table className="w-full text-sm">
+                            <thead className="bg-white/5 text-muted-foreground">
+                                <tr>
+                                    <th className="px-4 py-2 text-left">Người bán</th>
+                                    <th className="px-4 py-2 text-right">Giá</th>
+                                    <th className="px-4 py-2 text-center">Số lượng</th>
+                                    <th className="px-4 py-2 text-right">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {product.offers.map((offer) => (
+                                    <tr key={offer.listSellerId} className="border-t border-white/5">
+                                        <td className="px-4 py-2 text-sm text-muted-foreground">
+                                            {offer.sellerName || '—'}
+                                        </td>
+                                        <td className="px-4 py-2 text-right font-semibold text-accent-400">
+                                            ${offer.price.toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-2 text-center">{offer.quantity}</td>
+                                        <td className="px-4 py-2 text-right">
+                                            <Button
+                                                variant="premium"
+                                                size="sm"
+                                                onClick={() => onSelectOffer(offer)}
+                                            >
+                                                Xem chi tiết
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <Button variant="ghost" className="w-full mt-4" onClick={onClose}>
+                    Đóng
+                </Button>
             </DialogContent>
         </Dialog>
     );

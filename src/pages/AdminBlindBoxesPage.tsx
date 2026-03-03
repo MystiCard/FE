@@ -19,6 +19,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { blindBoxApi, cardApi, categoryApi, BlindBox, Card as CardType, BlindBoxProbability, Category } from '@/utils/api';
+import { parse } from 'node:path';
 
 export const AdminBlindBoxesPage: React.FC = () => {
     // --- State: List View ---
@@ -34,6 +35,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
         name: '',
         description: '',
         price: '',
+        drawPrice: '',
         cardIds: [] as string[],
     });
 
@@ -83,6 +85,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
     // --- Handlers: Create Box ---
     const handleCreateBox = async () => {
         const price = parseFloat(newBox.price);
+        const  drawPrice = parseFloat(newBox.drawPrice);
 
         // Validation
         if (!newBox.name.trim()) {
@@ -104,6 +107,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                 name: newBox.name,
                 description: newBox.description,
                 price: price,
+                drawPrice: drawPrice,
                 cardIds: newBox.cardIds
             };
 
@@ -114,6 +118,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                 name: '',
                 description: '',
                 price: '',
+                drawPrice: '',
                 cardIds: [],
             });
             setIsCreating(false);
@@ -211,6 +216,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
     // --- UI Helpers ---
     const getBoxPrice = (box: BlindBox): number => {
         const p = box?.price;
+        const d = box?.drawPrice;
         if (p == null) return 0;
         const n = typeof p === 'string' ? parseFloat(p) : Number(p);
         return Number.isFinite(n) ? n : 0;
@@ -282,19 +288,15 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                         className="glass-card bg-black/40"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-200">Price ($)</label>
-                                    <div className="relative">
-                                        <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            type="number"
-                                            placeholder="0.00"
-                                            value={newBox.price}
-                                            onChange={(e) => setNewBox({ ...newBox, price: e.target.value })}
-                                            className="pl-9 glass-card bg-black/40"
-                                        />
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Price:</span>
+                                        <span className="font-bold text-accent-400">
+                                            ${availableCards
+                                                .filter(c => newBox.cardIds.includes(c.cardId))
+                                                .reduce((sum, c) => sum + (c.basePrice*1.3 || 0), 0)
+                                                .toFixed(2)}
+                                        </span>
                                     </div>
-                                </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-200">Description</label>
                                     <Textarea
