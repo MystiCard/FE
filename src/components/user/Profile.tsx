@@ -4,43 +4,216 @@ import { Button } from '@/components/ui/button';
 import {
     User, Mail, Edit, Share2, Layers, Award, TrendingUp,
     Settings, Image as ImageIcon, LifeBuoy, CreditCard,
-    Briefcase, Activity
+    Briefcase, Activity, Heart, Trash2, Package
 } from 'lucide-react';
-import { userApi, UserProfile, transactionApi } from '@/utils/api';
+import { userApi, UserProfile, transactionApi, cardApi, listSellerApi, ListingItem, UpdateProfileRequest, WishlistItem, Card as CardType } from '@/utils/api';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { AddressSelect } from '@/components/shared/AddressSelect';
+import { useWishlist } from '@/hooks/useWishlist';
+
+const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
 
 export const Profile: React.FC = () => {
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
+    const { removeItem: removeFromWishlistLocal } = useWishlist();
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [showDepositModal, setShowDepositModal] = useState(false);
     const [depositAmount, setDepositAmount] = useState('');
-    const [selectedProvider, setSelectedProvider] = useState<'MOMO' | 'VNPAY'>('MOMO');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [stats, setStats] = useState({ listingsCount: 0, wishlistCount: 0, transactionsCount: 0 });
+    const [listings, setListings] = useState<ListingItem[]>([]);
+    const [listingsLoading, setListingsLoading] = useState(false);
+    const [wishlistRows, setWishlistRows] = useState<{ item: WishlistItem; card: CardType | null }[]>([]);
+    const [wishlistTotal, setWishlistTotal] = useState(0);
+    const [wishlistLoading, setWishlistLoading] = useState(false);
+    const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+    const [editForm, setEditForm] = useState<UpdateProfileRequest>({ name: '', email: '' });
+    const [avatarFile, setAvatarFile] = useState<File | null>(null);
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+    // Check for payment callback parameters
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const paymentStatus = params.get('payment');
+        const amount = params.get('amount');
+        const message = params.get('message');
+
+        if (paymentStatus === 'success') {
+            alert(`Nạp tiền thành công! Số tiền: ${Number(amount).toLocaleString('vi-VN')} đ`);
+            // Reload profile to get updated balance
+            fetchProfile();
+            // Clean URL
+            window.history.replaceState({}, '', '/profile');
+        } else if (paymentStatus === 'failed') {
+            alert(`Nạp tiền thất bại! ${message || 'Vui lòng thử lại'}`);
+            window.history.replaceState({}, '', '/profile');
+        } else if (paymentStatus === 'error') {
+            alert(`Lỗi xác thực! ${message || 'Vui lòng liên hệ hỗ trợ'}`);
+            window.history.replaceState({}, '', '/profile');
+        }
+    }, []);
 
     // Fetch user profile
+    const fetchProfile = async () => {
+        if (!isAuthenticated) {
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const data = await userApi.getMyProfile();
+            setProfile(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Không tải được hồ sơ');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Fetch stats (listings, wishlist, transactions) - wishlist từ API backend
+    const fetchStats = async () => {
+        if (!isAuthenticated) return;
+        try {
+            const [listingsRes, wishlistRes, transactionsRes] = await Promise.all([
+                listSellerApi.getMyListings(0, 1),
+                cardApi.getUserWishlist(0, 1),
+                transactionApi.getMyTransactions(undefined, 0, 1),
+            ]);
+            setStats({
+                listingsCount: listingsRes.totalElements ?? 0,
+                wishlistCount: wishlistRes.totalElements ?? 0,
+                transactionsCount: transactionsRes.totalElements ?? 0,
+            });
+        } catch {
+            setStats({ listingsCount: 0, wishlistCount: 0, transactionsCount: 0 });
+        }
+    };
+
     useEffect(() => {
-        const fetchProfile = async () => {
-            if (!isAuthenticated) {
-                setIsLoading(false);
-                return;
-            }
-
-            try {
-                const data = await userApi.getMyProfile();
-                setProfile(data);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'Failed to load profile');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchProfile();
     }, [isAuthenticated]);
+
+    useEffect(() => {
+        if (profile?.userId) fetchStats();
+    }, [profile?.userId]);
+
+    const fetchWishlist = async () => {
+        if (!isAuthenticated) return;
+        setWishlistLoading(true);
+        try {
+            const res = await cardApi.getUserWishlist(0, 8);
+            setWishlistTotal(res.totalElements ?? 0);
+            const rows = await Promise.all(
+                (res.content ?? []).map(async (item) => {
+                    try {
+                        const card = await cardApi.getCardById(item.cardId);
+                        return { item, card };
+                    } catch {
+                        return { item, card: null as CardType | null };
+                    }
+                })
+            );
+            setWishlistRows(rows);
+        } catch {
+            setWishlistRows([]);
+            setWishlistTotal(0);
+        } finally {
+            setWishlistLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (profile?.userId) fetchWishlist();
+    }, [profile?.userId]);
+
+    const handleRemoveFromWishlist = async (wishListId: string, cardId: string) => {
+        try {
+            await cardApi.removeFromWishlist(wishListId);
+            removeFromWishlistLocal(cardId);
+            window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+            fetchStats();
+            fetchWishlist();
+        } catch {
+            alert('Không thể xóa khỏi wishlist');
+        }
+    };
+
+    // Fetch my listings for "Đang bán" section
+    const fetchListings = async () => {
+        if (!isAuthenticated) return;
+        setListingsLoading(true);
+        try {
+            const res = await listSellerApi.getMyListings(0, 8);
+            const content = (res.content ?? []) as ListingItem[];
+            setListings(Array.isArray(content) ? content : []);
+        } catch {
+            setListings([]);
+        } finally {
+            setListingsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (profile?.userId) fetchListings();
+    }, [profile?.userId]);
+
+    const openEditProfile = () => {
+        if (!profile) return;
+        setEditForm({
+            name: profile.name ?? '',
+            email: profile.email ?? '',
+            phone: profile.phone ?? '',
+            address: profile.address ?? '',
+            gender: (profile.gender as 'MALE' | 'FEMALE') || undefined,
+        });
+        setAvatarFile(null);
+        setAvatarPreview(null);
+        setShowEditProfileModal(true);
+    };
+
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setAvatarFile(file);
+            setAvatarPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const handleSaveProfile = async () => {
+        if (!profile?.userId) return;
+        if (!editForm.name?.trim()) {
+            alert('Vui lòng nhập tên hiển thị');
+            return;
+        }
+        if (!editForm.email?.trim()) {
+            alert('Vui lòng nhập email');
+            return;
+        }
+        setIsSavingProfile(true);
+        try {
+            const payload: UpdateProfileRequest = {
+                name: editForm.name.trim(),
+                email: editForm.email.trim(),
+                phone: editForm.phone?.trim() || '',
+                address: editForm.address?.trim() || '',
+                gender: editForm.gender,
+            };
+            if (editForm.password?.trim()) payload.password = editForm.password.trim();
+            const updated = await userApi.updateProfile(profile.userId, payload, avatarFile ?? undefined);
+            setProfile(updated);
+            setShowEditProfileModal(false);
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Cập nhật thất bại');
+        } finally {
+            setIsSavingProfile(false);
+        }
+    };
 
     const handleTopUp = () => {
         setShowDepositModal(true);
@@ -59,40 +232,47 @@ export const Profile: React.FC = () => {
 
         setIsProcessing(true);
         try {
+            console.log('Sending deposit request:', {
+                userId: profile.userId,
+                amount: Number(depositAmount),
+                provider: 'MOMO'
+            });
+
             const paymentUrl = await transactionApi.deposit({
                 userId: profile.userId,
                 amount: Number(depositAmount),
-                provider: selectedProvider,
+                provider: 'MOMO', // Backend only supports MoMo for now
             });
-            
-            // Redirect to payment gateway
+
+            console.log('Received payment URL:', paymentUrl);
+
+            // Check if paymentUrl is valid
+            if (!paymentUrl || paymentUrl === 'undefined' || !paymentUrl.startsWith('http')) {
+                throw new Error('Invalid payment URL received from server');
+            }
+
+            // Redirect to MoMo payment gateway
             window.location.href = paymentUrl;
         } catch (err) {
+            console.error('Deposit error:', err);
             alert(err instanceof Error ? err.message : 'Nạp tiền thất bại');
             setIsProcessing(false);
         }
     };
 
     const handleViewTransactions = () => {
-        // TODO: Navigate to transaction history page or open modal
-        alert('Tính năng xem lịch sử giao dịch đang được phát triển');
+        navigate('/wallet');
     };
 
-    const stats = {
-        totalCards: 156,
-        totalSets: 23,
-        totalBadges: 8,
-        totalValue: profile?.walletResponse?.balance || 48500000
-    };
-
+    const totalValue = profile?.walletResponse?.balance ?? 0;
     const [activeTab, setActiveTab] = useState<'stats' | 'badges' | 'support'>('stats');
 
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-                    <div className="text-xl">Loading profile...</div>
+                    <div className="rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                    <div className="text-xl">Đang tải hồ sơ...</div>
                 </div>
             </div>
         );
@@ -113,7 +293,7 @@ export const Profile: React.FC = () => {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
-                    <div className="text-xl">Please login to view profile</div>
+                    <div className="text-xl">Vui lòng đăng nhập để xem hồ sơ</div>
                 </div>
             </div>
         );
@@ -148,15 +328,27 @@ export const Profile: React.FC = () => {
                                 </span>
                             )}
                         </div>
-                        <div className="absolute bottom-2 right-2 w-6 h-6 bg-blue-500 rounded-full border-2 border-[#0B0112] flex items-center justify-center">
-                            <Edit className="w-3 h-3 text-white" />
-                        </div>
+                        <button
+                                type="button"
+                                onClick={openEditProfile}
+                                className="absolute bottom-2 right-2 w-6 h-6 bg-blue-500 rounded-full border-2 border-[#0B0112] flex items-center justify-center hover:bg-blue-600 transition-colors"
+                                aria-label="Chỉnh sửa ảnh đại diện"
+                            >
+                                <Edit className="w-3 h-3 text-white" />
+                            </button>
                     </div>
 
                     <div className="flex-1 mb-2">
                         <div className="flex items-center gap-2">
                             <h1 className="text-2xl font-bold text-white">{profile.name}</h1>
-                            <Edit className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-white" />
+                            <button
+                                type="button"
+                                onClick={openEditProfile}
+                                className="p-1 rounded hover:bg-white/10 transition-colors"
+                                aria-label="Chỉnh sửa profile"
+                            >
+                                <Edit className="w-4 h-4 text-muted-foreground hover:text-white" />
+                            </button>
                             <Award className="w-4 h-4 text-yellow-500" />
                         </div>
                         <p className="text-primary-400 font-medium">@{profile.email?.split('@')[0]}</p>
@@ -173,7 +365,7 @@ export const Profile: React.FC = () => {
                         <Button variant="outline" className="glass-card">
                             <Share2 className="w-4 h-4 mr-2" /> Share
                         </Button>
-                        <Button variant="premium">
+                        <Button variant="premium" onClick={() => navigate('/settings')}>
                             <Settings className="w-4 h-4 mr-2" /> Settings
                         </Button>
                     </div>
@@ -181,40 +373,40 @@ export const Profile: React.FC = () => {
             </div>
 
             <div className="px-4 space-y-6">
-                {/* 2. Stats Bar */}
+                {/* 2. Stats Bar (API) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <Card className="bg-transparent border-none shadow-none">
                         <CardContent className="p-4 text-center">
-                            <div className="text-xs font-bold text-[#FFF9C4] uppercase tracking-wider mb-1">Total Cards</div>
-                            <div className="text-2xl font-bold text-blue-400">{stats.totalCards}</div>
+                            <div className="text-xs font-bold text-[#FFF9C4] uppercase tracking-wider mb-1">Đang bán</div>
+                            <div className="text-2xl font-bold text-blue-400">{stats.listingsCount}</div>
                         </CardContent>
                     </Card>
                     <Card className="bg-transparent border-none shadow-none">
                         <CardContent className="p-4 text-center">
-                            <div className="text-xs font-bold text-[#E1F5FE] uppercase tracking-wider mb-1">Total Sets</div>
-                            <div className="text-2xl font-bold text-blue-400">{stats.totalSets}</div>
+                            <div className="text-xs font-bold text-[#E1F5FE] uppercase tracking-wider mb-1">Wishlist</div>
+                            <div className="text-2xl font-bold text-blue-400">{stats.wishlistCount}</div>
                         </CardContent>
                     </Card>
                     <Card className="bg-transparent border-none shadow-none">
                         <CardContent className="p-4 text-center">
-                            <div className="text-xs font-bold text-[#E8F5E9] uppercase tracking-wider mb-1">Total Badges</div>
-                            <div className="text-2xl font-bold text-green-400">{stats.totalBadges}</div>
+                            <div className="text-xs font-bold text-[#E8F5E9] uppercase tracking-wider mb-1">Giao dịch</div>
+                            <div className="text-2xl font-bold text-green-400">{stats.transactionsCount}</div>
                         </CardContent>
                     </Card>
                     <Card className="bg-transparent border-none shadow-none">
                         <CardContent className="p-4 text-center">
-                            <div className="text-xs font-bold text-[#FFEBEE] uppercase tracking-wider mb-1">Total Value</div>
-                            <div className="text-2xl font-bold text-red-400">{stats.totalValue.toLocaleString('vi-VN')} đ</div>
+                            <div className="text-xs font-bold text-[#FFEBEE] uppercase tracking-wider mb-1">Số dư ví</div>
+                            <div className="text-2xl font-bold text-red-400">{totalValue.toLocaleString('vi-VN')} đ</div>
                         </CardContent>
                     </Card>
                 </div>
 
                 {/* 3. Action Bar */}
                 <div className="flex justify-between items-center text-sm border-b border-white/10 pb-4">
-                    <button className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 transition-colors">
-                        <User className="w-4 h-4" /> View Social Profile
+                    <button className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 ">
+                        <User className="w-4 h-4" /> Xem trang cá nhân
                     </button>
-                    <button className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors">
+                    <button className="flex items-center gap-2 text-blue-400 hover:text-blue-300 ">
                         <Edit className="w-4 h-4" /> Edit Background
                     </button>
                 </div>
@@ -225,7 +417,7 @@ export const Profile: React.FC = () => {
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab as any)}
-                            className={`py-2 text-sm font-medium rounded-md transition-all ${activeTab === tab
+                            className={`py-2 text-sm font-medium rounded-md ${activeTab === tab
                                 ? 'bg-primary-500 text-white shadow-lg'
                                 : 'text-muted-foreground hover:text-white hover:bg-white/5'
                                 }`}
@@ -245,7 +437,7 @@ export const Profile: React.FC = () => {
                         {/* Background decoration */}
                         <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl"></div>
                         <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
-                        
+
                         <div className="relative z-10">
                             <div className="flex items-center justify-between mb-6">
                                 <div>
@@ -263,15 +455,15 @@ export const Profile: React.FC = () => {
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
-                                <Button 
+                                <Button
                                     className="bg-green-600 hover:bg-green-700 text-white"
                                     onClick={handleTopUp}
                                 >
                                     <CreditCard className="w-4 h-4 mr-2" />
                                     Nạp tiền
                                 </Button>
-                                <Button 
-                                    variant="outline" 
+                                <Button
+                                    variant="outline"
                                     className="border-green-500/30 hover:bg-green-500/10"
                                     onClick={handleViewTransactions}
                                 >
@@ -289,38 +481,183 @@ export const Profile: React.FC = () => {
                     </Card>
                 </div>
 
-                {/* 6. Main Collection Summary */}
+                {/* 6. Tổng quan (API) */}
                 <div>
                     <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-yellow-400">
                         <Briefcase className="w-5 h-5" />
-                        Portfolio: Main Collection
+                        Tổng quan
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <Card className="bg-transparent border-none shadow-none">
+                        <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/post-listing')}>
                             <CardContent className="p-4 text-center">
-                                <div className="text-2xl font-bold text-blue-400">156</div>
-                                <div className="text-xs text-muted-foreground">Cards</div>
+                                <div className="text-2xl font-bold text-blue-400">{stats.listingsCount}</div>
+                                <div className="text-xs text-muted-foreground">Đang bán</div>
                             </CardContent>
                         </Card>
-                        <Card className="bg-transparent border-none shadow-none">
+                        <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/portfolio')}>
                             <CardContent className="p-4 text-center">
-                                <div className="text-2xl font-bold text-blue-400">23</div>
-                                <div className="text-xs text-muted-foreground">Sets</div>
+                                <div className="text-2xl font-bold text-blue-400">{stats.wishlistCount}</div>
+                                <div className="text-xs text-muted-foreground">Wishlist</div>
                             </CardContent>
                         </Card>
-                        <Card className="bg-transparent border-none shadow-none">
+                        <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/wallet')}>
                             <CardContent className="p-4 text-center">
-                                <div className="text-2xl font-bold text-green-400">8</div>
-                                <div className="text-xs text-muted-foreground">Graded</div>
+                                <div className="text-2xl font-bold text-green-400">{stats.transactionsCount}</div>
+                                <div className="text-xs text-muted-foreground">Giao dịch</div>
                             </CardContent>
                         </Card>
-                        <Card className="bg-transparent border-none shadow-none">
+                        <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/wallet')}>
                             <CardContent className="p-4 text-center">
-                                <div className="text-2xl font-bold text-red-400">48.700.000 đ</div>
-                                <div className="text-xs text-muted-foreground">Value</div>
+                                <div className="text-2xl font-bold text-red-400">{totalValue.toLocaleString('vi-VN')} đ</div>
+                                <div className="text-xs text-muted-foreground">Số dư ví</div>
                             </CardContent>
                         </Card>
                     </div>
+                </div>
+
+                {/* Đang bán - tin đăng của tôi */}
+                <div>
+                    <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-[#FFF9C4]">
+                        <Package className="w-5 h-5" />
+                        Đang bán
+                        {listings.length > 0 && (
+                            <span className="text-sm font-normal text-muted-foreground">({stats.listingsCount} tin)</span>
+                        )}
+                    </h3>
+                    {listingsLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                            <div className="rounded-full h-10 w-10 border-2 border-yellow-500/30 border-t-yellow-500 animate-spin" />
+                        </div>
+                    ) : listings.length === 0 ? (
+                        <Card className="glass-card p-8 text-center">
+                            <div className="w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center mx-auto mb-4">
+                                <Package className="w-8 h-8 text-yellow-400" />
+                            </div>
+                            <p className="text-muted-foreground">Chưa có tin đăng bán</p>
+                            <p className="text-sm text-muted-foreground mt-1">Đăng thẻ lên Marketplace để bán</p>
+                            <Button variant="outline" className="mt-4" onClick={() => navigate('/post-listing')}>
+                                Đăng bán
+                            </Button>
+                        </Card>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                {listings.map((item) => (
+                                    <Card
+                                        key={item.listSellerId}
+                                        className="overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
+                                    >
+                                        <Link to="/marketplace" className="block">
+                                            <div className="relative aspect-[2.5/3.5] rounded-t-lg overflow-hidden bg-white/5">
+                                                <img
+                                                    src={item.imageUrl || PLACEHOLDER_IMG}
+                                                    alt={item.cardName}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.currentTarget.src = PLACEHOLDER_IMG;
+                                                    }}
+                                                />
+                                            </div>
+                                            <CardContent className="p-3">
+                                                <h4 className="font-semibold text-sm line-clamp-2">{item.cardName}</h4>
+                                                <p className="text-sm font-bold text-yellow-400 mt-1">
+                                                    {Number(item.price).toLocaleString('vi-VN')} đ
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">SL: {item.quantity}</p>
+                                            </CardContent>
+                                        </Link>
+                                    </Card>
+                                ))}
+                            </div>
+                            {stats.listingsCount > 8 && (
+                                <div className="mt-4 text-center">
+                                    <Button variant="outline" size="sm" onClick={() => navigate('/post-listing')}>
+                                        Xem tất cả tin đăng
+                                    </Button>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+
+                {/* Wishlist Section - từ API backend */}
+                <div>
+                    <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-pink-400">
+                        <Heart className="w-5 h-5" />
+                        Wishlist của tôi
+                        {wishlistTotal > 0 && (
+                            <span className="text-sm font-normal text-muted-foreground">({wishlistTotal} thẻ)</span>
+                        )}
+                    </h3>
+                    {wishlistLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                            <div className="rounded-full h-10 w-10 border-2 border-pink-500/30 border-t-pink-500 animate-spin" />
+                        </div>
+                    ) : wishlistRows.length === 0 ? (
+                        <Card className="glass-card p-8 text-center">
+                            <div className="w-16 h-16 rounded-full bg-pink-500/10 flex items-center justify-center mx-auto mb-4">
+                                <Heart className="w-8 h-8 text-pink-400" />
+                            </div>
+                            <p className="text-muted-foreground">Chưa có thẻ nào trong wishlist</p>
+                            <p className="text-sm text-muted-foreground mt-1">Thêm thẻ yêu thích từ Shop hoặc My Collection</p>
+                            <Button variant="outline" className="mt-4" onClick={() => navigate('/shop')}>
+                                Đến Shop
+                            </Button>
+                        </Card>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                {wishlistRows.map(({ item, card }) => (
+                                    <Card
+                                        key={item.wishListId}
+                                        className="relative overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors group"
+                                    >
+                                        <Link to={card ? `/portfolio?card=${card.cardId}` : '/portfolio'} className="block">
+                                            <div className="relative aspect-[2.5/3.5] rounded-t-lg overflow-hidden bg-white/5">
+                                                <img
+                                                    src={card?.imageUrl || PLACEHOLDER_IMG}
+                                                    alt={card?.name || 'Thẻ'}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.currentTarget.src = PLACEHOLDER_IMG;
+                                                    }}
+                                                />
+                                            </div>
+                                            <CardContent className="p-3">
+                                                <h4 className="font-semibold text-sm line-clamp-2">{card?.name || 'Thẻ'}</h4>
+                                                {item.expectPrice != null && (
+                                                    <p className="text-xs text-pink-400 mt-1">
+                                                        Mong muốn: {Number(item.expectPrice).toLocaleString('vi-VN')} đ
+                                                    </p>
+                                                )}
+                                            </CardContent>
+                                        </Link>
+                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-8 w-8 rounded-full bg-black/50 hover:bg-red-500/20 text-red-400"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    handleRemoveFromWishlist(item.wishListId, item.cardId);
+                                                }}
+                                                aria-label="Xóa khỏi wishlist"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </Card>
+                                ))}
+                            </div>
+                            {wishlistTotal > 8 && (
+                                <div className="mt-4 text-center">
+                                    <Button variant="outline" size="sm" onClick={() => navigate('/portfolio')}>
+                                        Xem tất cả wishlist
+                                    </Button>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
 
                 {/* 7. Performance Chart Placeholder */}
@@ -353,7 +690,7 @@ export const Profile: React.FC = () => {
                             </svg>
                         </div>
                         <div className="relative z-10 flex flex-col items-center gap-4">
-                            <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center animate-pulse">
+                            <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
                                 <TrendingUp className="w-8 h-8 text-blue-400" />
                             </div>
                             <p className="text-muted-foreground text-sm max-w-md text-center">
@@ -364,12 +701,130 @@ export const Profile: React.FC = () => {
                 </div>
             </div>
 
+            {/* Edit Profile Modal */}
+            {showEditProfileModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-[#1a0a2e] rounded-lg p-6 max-w-md w-full border border-white/10 my-8">
+                        <h3 className="text-xl font-bold mb-4 text-white">Chỉnh sửa profile</h3>
+                        <div className="space-y-4">
+                            {/* Avatar */}
+                            <div className="flex flex-col items-center gap-2">
+                                <div className="w-24 h-24 rounded-full border-4 border-white/10 overflow-hidden bg-white/5 flex items-center justify-center">
+                                    {avatarPreview ? (
+                                        <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                                    ) : profile?.avatarUrl ? (
+                                        <img src={profile.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-2xl font-bold text-primary-400">
+                                            {editForm.name?.charAt(0).toUpperCase() || 'U'}
+                                        </span>
+                                    )}
+                                </div>
+                                <label className="text-sm text-primary-400 cursor-pointer hover:underline">
+                                    Đổi ảnh đại diện
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={handleAvatarChange}
+                                    />
+                                </label>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">Tên hiển thị</label>
+                                <input
+                                    type="text"
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                                    placeholder="Tên của bạn"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">Email</label>
+                                <input
+                                    type="email"
+                                    value={editForm.email}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                                    placeholder="email@example.com"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">Số điện thoại</label>
+                                <input
+                                    type="tel"
+                                    value={editForm.phone ?? ''}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                                    placeholder="0912345678"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">Địa chỉ</label>
+                                <AddressSelect
+                                    value={editForm.address}
+                                    onChange={(address) => setEditForm((f) => ({ ...f, address }))}
+                                    showDetailInput={true}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">Giới tính</label>
+                                <select
+                                    value={editForm.gender ?? ''}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, gender: (e.target.value || undefined) as 'MALE' | 'FEMALE' | undefined }))}
+                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                                >
+                                    <option value="">-- Chọn --</option>
+                                    <option value="MALE">Nam</option>
+                                    <option value="FEMALE">Nữ</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">Mật khẩu mới (để trống nếu không đổi)</label>
+                                <input
+                                    type="password"
+                                    value={editForm.password ?? ''}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))}
+                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                                    placeholder="••••••••"
+                                    autoComplete="new-password"
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() => setShowEditProfileModal(false)}
+                                    disabled={isSavingProfile}
+                                >
+                                    Hủy
+                                </Button>
+                                <Button
+                                    type="button"
+                                    className="flex-1 bg-primary-600 hover:bg-primary-700"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleSaveProfile();
+                                    }}
+                                    disabled={isSavingProfile}
+                                >
+                                    {isSavingProfile ? 'Đang lưu...' : 'Lưu'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Deposit Modal */}
             {showDepositModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-[#1a0a2e] rounded-lg p-6 max-w-md w-full border border-white/10">
                         <h3 className="text-xl font-bold mb-4 text-white">Nạp tiền vào ví</h3>
-                        
+
                         <div className="space-y-4">
                             {/* Amount Input */}
                             <div>
@@ -390,40 +845,16 @@ export const Profile: React.FC = () => {
                                 </p>
                             </div>
 
-                            {/* Provider Selection */}
-                            <div>
-                                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                                    Phương thức thanh toán
-                                </label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedProvider('MOMO')}
-                                        className={`p-4 rounded-lg border-2 transition-all ${
-                                            selectedProvider === 'MOMO'
-                                                ? 'border-pink-500 bg-pink-500/10'
-                                                : 'border-white/10 bg-white/5 hover:border-white/20'
-                                        }`}
-                                    >
-                                        <div className="text-center">
-                                            <div className="text-2xl mb-1">💳</div>
-                                            <div className="text-sm font-medium text-white">MoMo</div>
+                            {/* Payment Provider Info */}
+                            <div className="p-4 bg-pink-500/10 border border-pink-500/30 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                    <div className="text-3xl">💳</div>
+                                    <div>
+                                        <div className="font-medium text-white">Thanh toán qua MoMo</div>
+                                        <div className="text-xs text-muted-foreground">
+                                            Nhanh chóng, an toàn và bảo mật
                                         </div>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedProvider('VNPAY')}
-                                        className={`p-4 rounded-lg border-2 transition-all ${
-                                            selectedProvider === 'VNPAY'
-                                                ? 'border-blue-500 bg-blue-500/10'
-                                                : 'border-white/10 bg-white/5 hover:border-white/20'
-                                        }`}
-                                    >
-                                        <div className="text-center">
-                                            <div className="text-2xl mb-1">🏦</div>
-                                            <div className="text-sm font-medium text-white">VNPay</div>
-                                        </div>
-                                    </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -441,11 +872,11 @@ export const Profile: React.FC = () => {
                                     Hủy
                                 </Button>
                                 <Button
-                                    className="flex-1 bg-green-600 hover:bg-green-700"
+                                    className="flex-1 bg-pink-600 hover:bg-pink-700"
                                     onClick={handleDeposit}
                                     disabled={isProcessing}
                                 >
-                                    {isProcessing ? 'Đang xử lý...' : 'Nạp tiền'}
+                                    {isProcessing ? 'Đang xử lý...' : 'Thanh toán MoMo'}
                                 </Button>
                             </div>
                         </div>

@@ -81,12 +81,12 @@ export const NewArrivals: React.FC = () => {
         <section className="py-16">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h2 className="text-4xl font-bold mb-2 font-serif">New Arrivals</h2>
-                    <p className="text-muted-foreground">Fresh cards just added to our collection</p>
+                    <h2 className="text-4xl font-bold mb-2 font-serif">Sản phẩm mới</h2>
+                    <p className="text-muted-foreground">Thẻ mới vừa được thêm vào bộ sưu tập</p>
                 </div>
                 <Link to="/products">
                     <Button variant="outline" className="glass-card hover:bg-white/20">
-                        View All
+                        Xem tất cả
                     </Button>
                 </Link>
             </div>
@@ -95,14 +95,14 @@ export const NewArrivals: React.FC = () => {
                 {products.map((product, index) => (
                     <Card
                         key={product.id}
-                        className="group hover-lift animate-slide-up overflow-hidden"
+                        className="group overflow-hidden"
                         style={{ animationDelay: `${index * 0.1}s` }}
                     >
                         <div className="relative aspect-[3/4] overflow-hidden">
                             <img
                                 src={product.image}
                                 alt={product.name}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                className="w-full h-full object-cover group-hover:scale-110"
                             />
                             <div className="absolute top-2 right-2">
                                 <div className="glass-card-strong px-2 py-1 rounded-full text-xs font-medium">
@@ -111,7 +111,7 @@ export const NewArrivals: React.FC = () => {
                             </div>
                             <button
                                 onClick={() => addToWishlist({ id: product.id, name: product.name, price: product.price, image: product.image, rarity: product.rarity })}
-                                className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20 transition-colors"
+                                className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20 "
                             >
                                 <Heart className={`h-4 w-4 ${isInWishlist(product.id) ? 'fill-red-500 text-red-500' : ''}`} />
                             </button>
@@ -128,13 +128,13 @@ export const NewArrivals: React.FC = () => {
                                     variant="premium"
                                     onClick={() => addToCart({ id: product.id, name: product.name, price: product.price, image: product.image, rarity: product.rarity })}
                                 >
-                                    Add to Cart
+                                    Thêm vào giỏ
                                 </Button>
                             </div>
 
                             <div className="flex items-center mt-3 text-xs text-muted-foreground">
                                 <Star className="h-3 w-3 fill-accent-500 text-accent-500 mr-1" />
-                                <span>4.9 (127 reviews)</span>
+                                <span>4.9 (127 đánh giá)</span>
                             </div>
                         </CardContent>
                     </Card>

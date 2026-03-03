@@ -13,28 +13,28 @@ import {
 
 const stats = [
     {
-        title: 'Total Revenue',
-        value: '$45,231',
+        title: 'Doanh thu',
+        value: '45.231đ',
         change: '+20.1%',
         trend: 'up',
         icon: DollarSign,
     },
     {
-        title: 'Total Orders',
-        value: '1,234',
+        title: 'Đơn hàng',
+        value: '1.234',
         change: '+12.5%',
         trend: 'up',
         icon: ShoppingBag,
     },
     {
-        title: 'Active Users',
-        value: '2,847',
+        title: 'Người dùng',
+        value: '2.847',
         change: '+8.2%',
         trend: 'up',
         icon: Users,
     },
     {
-        title: 'Products',
+        title: 'Sản phẩm',
         value: '456',
         change: '-2.4%',
         trend: 'down',
@@ -55,8 +55,8 @@ export const AdminDashboard: React.FC = () => {
         <div className="py-8">
             {/* Header */}
             <div className="mb-8">
-                <h1 className="text-4xl font-bold mb-2 font-serif">Admin Dashboard</h1>
-                <p className="text-muted-foreground">Welcome back, Admin!</p>
+                <h1 className="text-4xl font-bold mb-2 font-serif">Bảng điều khiển Admin</h1>
+                <p className="text-muted-foreground">Chào mừng trở lại, Admin!</p>
             </div>
 
             {/* Stats Grid */}
@@ -66,7 +66,7 @@ export const AdminDashboard: React.FC = () => {
                     return (
                         <Card
                             key={index}
-                            className="glass-card-strong hover-lift animate-slide-up"
+                            className="glass-card-strong "
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
                             <CardHeader className="pb-3">
@@ -90,7 +90,7 @@ export const AdminDashboard: React.FC = () => {
                                     ) : (
                                         <ArrowDown className="h-4 w-4 mr-1" />
                                     )}
-                                    <span>{stat.change} from last month</span>
+                                    <span>{stat.change} so với tháng trước</span>
                                 </div>
                             </CardContent>
                         </Card>
@@ -102,25 +102,25 @@ export const AdminDashboard: React.FC = () => {
                 {/* Recent Orders */}
                 <Card className="lg:col-span-2">
                     <CardHeader>
-                        <CardTitle>Recent Orders</CardTitle>
+                        <CardTitle>Đơn hàng gần đây</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b border-white/10">
-                                        <th className="text-left p-3 font-semibold">Order ID</th>
-                                        <th className="text-left p-3 font-semibold">Customer</th>
-                                        <th className="text-left p-3 font-semibold">Product</th>
-                                        <th className="text-right p-3 font-semibold">Amount</th>
-                                        <th className="text-right p-3 font-semibold">Status</th>
+                                        <th className="text-left p-3 font-semibold">Mã đơn</th>
+                                        <th className="text-left p-3 font-semibold">Khách hàng</th>
+                                        <th className="text-left p-3 font-semibold">Sản phẩm</th>
+                                        <th className="text-right p-3 font-semibold">Số tiền</th>
+                                        <th className="text-right p-3 font-semibold">Trạng thái</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {recentOrders.map((order, index) => (
                                         <tr
                                             key={order.id}
-                                            className="border-b border-white/5 hover:bg-white/5 transition-colors animate-slide-up"
+                                            className="border-b border-white/5 hover:bg-white/5 "
                                             style={{ animationDelay: `${index * 0.05}s` }}
                                         >
                                             <td className="p-3 font-medium">{order.id}</td>
@@ -133,7 +133,7 @@ export const AdminDashboard: React.FC = () => {
                                                         order.status === 'Shipped' ? 'bg-secondary-500/20 text-secondary-300' :
                                                             'bg-amber-500/20 text-amber-400'
                                                     }`}>
-                                                    {order.status}
+                                                    {order.status === 'Completed' ? 'Hoàn thành' : order.status === 'Processing' ? 'Đang xử lý' : order.status === 'Shipped' ? 'Đã giao' : 'Chờ xử lý'}
                                                 </span>
                                             </td>
                                         </tr>
@@ -147,45 +147,45 @@ export const AdminDashboard: React.FC = () => {
                 {/* Quick Actions */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Quick Actions</CardTitle>
+                        <CardTitle>Thao tác nhanh</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 transition-colors text-left">
+                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 text-left">
                             <div className="flex items-center gap-3">
                                 <Package className="h-5 w-5 text-primary-400" />
                                 <div>
-                                    <div className="font-semibold">Add Product</div>
-                                    <div className="text-xs text-muted-foreground">Create new product</div>
+                                    <div className="font-semibold">Thêm sản phẩm</div>
+                                    <div className="text-xs text-muted-foreground">Tạo sản phẩm mới</div>
                                 </div>
                             </div>
                         </button>
 
-                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 transition-colors text-left">
+                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 text-left">
                             <div className="flex items-center gap-3">
                                 <Users className="h-5 w-5 text-primary-400" />
                                 <div>
-                                    <div className="font-semibold">Manage Users</div>
-                                    <div className="text-xs text-muted-foreground">View all users</div>
+                                    <div className="font-semibold">Quản lý người dùng</div>
+                                    <div className="text-xs text-muted-foreground">Xem tất cả người dùng</div>
                                 </div>
                             </div>
                         </button>
 
-                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 transition-colors text-left">
+                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 text-left">
                             <div className="flex items-center gap-3">
                                 <TrendingUp className="h-5 w-5 text-primary-400" />
                                 <div>
-                                    <div className="font-semibold">Analytics</div>
-                                    <div className="text-xs text-muted-foreground">View reports</div>
+                                    <div className="font-semibold">Phân tích</div>
+                                    <div className="text-xs text-muted-foreground">Xem báo cáo</div>
                                 </div>
                             </div>
                         </button>
 
-                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 transition-colors text-left">
+                        <button className="w-full glass-card p-4 rounded-lg hover:bg-white/10 text-left">
                             <div className="flex items-center gap-3">
                                 <AlertCircle className="h-5 w-5 text-amber-400" />
                                 <div>
-                                    <div className="font-semibold">Alerts</div>
-                                    <div className="text-xs text-muted-foreground">3 pending issues</div>
+                                    <div className="font-semibold">Cảnh báo</div>
+                                    <div className="text-xs text-muted-foreground">3 vấn đề chờ xử lý</div>
                                 </div>
                             </div>
                         </button>
@@ -199,9 +199,9 @@ export const AdminDashboard: React.FC = () => {
                     <div className="flex items-start gap-4">
                         <AlertCircle className="h-6 w-6 text-amber-500 flex-shrink-0 mt-1" />
                         <div>
-                            <h3 className="font-semibold mb-1">Low Stock Alert</h3>
+                            <h3 className="font-semibold mb-1">Cảnh báo tồn kho thấp</h3>
                             <p className="text-sm text-muted-foreground">
-                                5 products are running low on stock. Consider restocking soon.
+                                5 sản phẩm sắp hết hàng. Cân nhắc nhập thêm sớm.
                             </p>
                         </div>
                     </div>

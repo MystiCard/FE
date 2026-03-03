@@ -41,6 +41,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const login = (accessToken: string, refreshToken: string) => {
         tokenManager.setTokens(accessToken, refreshToken);
         updateUser();
+        // Xóa wishlist lưu trên máy khi đăng nhập thành công (dùng wishlist từ DB)
+        localStorage.removeItem('wishlist');
+        window.dispatchEvent(new CustomEvent('wishlist-clear'));
     };
 
     const logout = async () => {

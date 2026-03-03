@@ -11,25 +11,25 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
     if (!isOpen) return null;
 
     const menuItems = [
-        { icon: Home, label: 'Home', path: '/' },
-        { icon: Info, label: 'About', path: '/about' },
-        { icon: ShoppingBag, label: 'Shop', path: '/shop' },
-        { icon: Package, label: 'Products', path: '/products' },
-        { icon: TrendingUp, label: 'Marketplace', path: '/marketplace' },
-        { icon: User, label: 'Profile', path: '/profile' },
-        { icon: Settings, label: 'Admin', path: '/admin' },
+        { icon: Home, label: 'Trang chủ', path: '/' },
+        { icon: Info, label: 'Giới thiệu', path: '/about' },
+        { icon: ShoppingBag, label: 'Cửa hàng', path: '/shop' },
+        { icon: Package, label: 'Sản phẩm', path: '/products' },
+        { icon: TrendingUp, label: 'Sàn giao dịch', path: '/marketplace' },
+        { icon: User, label: 'Hồ sơ', path: '/profile' },
+        { icon: Settings, label: 'Quản trị', path: '/admin' },
     ];
 
     return (
         <>
             {/* Overlay */}
             <div
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden animate-fade-in"
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden "
                 onClick={onClose}
             />
 
             {/* Menu */}
-            <div className="fixed left-0 top-0 h-full w-64 glass-card-strong border-r border-white/20 z-50 md:hidden animate-slide-down shadow-2xl">
+            <div className="fixed left-0 top-0 h-full w-64 glass-card-strong border-r border-white/20 z-50 md:hidden shadow-2xl">
                 {/* Header */}
                 <div className="p-6 border-b border-white/10">
                     <div className="flex items-center justify-between">
@@ -45,7 +45,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                         </div>
                         <button
                             onClick={onClose}
-                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                            className="p-2 hover:bg-white/10 rounded-lg "
                         >
                             <X className="h-5 w-5" />
                         </button>
@@ -61,7 +61,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                                 key={item.path}
                                 to={item.path}
                                 onClick={onClose}
-                                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 transition-colors"
+                                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 "
                             >
                                 <Icon className="h-5 w-5" />
                                 <span className="font-medium">{item.label}</span>
@@ -72,29 +72,29 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
 
                 {/* Shop Submenu */}
                 <div className="px-4 py-2">
-                    <div className="text-xs font-semibold text-muted-foreground mb-2 px-4">SHOP</div>
+                    <div className="text-xs font-semibold text-muted-foreground mb-2 px-4">CỬA HÀNG</div>
                     <div className="space-y-1">
-                        <Link to="/products" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
-                            All Products
+                        <Link to="/products" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
+                            Tất cả sản phẩm
                         </Link>
-                        <Link to="/booster-boxes" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
-                            Booster Boxes
+                        <Link to="/booster-boxes" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
+                            Hộp Booster
                         </Link>
-                        <Link to="/mystery-box" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
-                            Mystery Box
+                        <Link to="/mystery-box" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
+                            Hộp bí ẩn
                         </Link>
                     </div>
                 </div>
 
                 {/* Portfolio Submenu */}
                 <div className="px-4 py-2">
-                    <div className="text-xs font-semibold text-muted-foreground mb-2 px-4">PORTFOLIO</div>
+                    <div className="text-xs font-semibold text-muted-foreground mb-2 px-4">BỘ SƯU TẬP</div>
                     <div className="space-y-1">
-                        <Link to="/portfolio" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
-                            My Collection
+                        <Link to="/portfolio" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
+                            Bộ sưu tập của tôi
                         </Link>
-                        <Link to="/trends" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 transition-colors text-sm">
-                            Market Trends
+                        <Link to="/trends" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
+                            Xu hướng thị trường
                         </Link>
                     </div>
                 </div>
@@ -102,8 +102,8 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                 {/* Bottom Actions */}
                 <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
                     <Link to="/login" onClick={onClose}>
-                        <button className="w-full glass-card px-4 py-3 rounded-lg hover:bg-white/10 transition-colors font-medium">
-                            Sign In
+                        <button className="w-full glass-card px-4 py-3 rounded-lg hover:bg-white/10 font-medium">
+                            Đăng nhập
                         </button>
                     </Link>
                 </div>

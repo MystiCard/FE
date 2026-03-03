@@ -16,35 +16,35 @@ import {
 } from 'lucide-react';
 
 const stats = [
-    { label: 'Active Traders', value: '10K+', icon: Users },
-    { label: 'Cards Available', value: '50K+', icon: Sparkles },
-    { label: 'Successful Trades', value: '100K+', icon: TrendingUp },
-    { label: 'Customer Satisfaction', value: '99%', icon: Award },
+    { label: 'Người giao dịch', value: '10K+', icon: Users },
+    { label: 'Thẻ có sẵn', value: '50K+', icon: Sparkles },
+    { label: 'Giao dịch thành công', value: '100K+', icon: TrendingUp },
+    { label: 'Hài lòng khách hàng', value: '99%', icon: Award },
 ];
 
 const values = [
     {
         icon: Shield,
-        title: 'Authenticity Guaranteed',
-        description: 'Every card is verified and authenticated by our expert team to ensure you receive genuine products.',
+        title: 'Cam kết chính hãng',
+        description: 'Mọi thẻ đều được đội ngũ chuyên gia kiểm định để đảm bảo bạn nhận được sản phẩm thật.',
         color: 'from-primary-500 to-primary-300',
     },
     {
         icon: Heart,
-        title: 'Community First',
-        description: 'We build a passionate community of collectors and traders who share the love for rare cards.',
+        title: 'Cộng đồng là trên hết',
+        description: 'Chúng tôi xây dựng cộng đồng người sưu tầm và giao dịch đam mê thẻ hiếm.',
         color: 'from-secondary-500 to-secondary-300',
     },
     {
         icon: Zap,
-        title: 'Fast & Secure',
-        description: 'Lightning-fast transactions with bank-level security to protect your valuable collection.',
+        title: 'Nhanh chóng & An toàn',
+        description: 'Giao dịch nhanh với bảo mật cấp ngân hàng để bảo vệ bộ sưu tập quý giá của bạn.',
         color: 'from-accent-500 to-accent-300',
     },
     {
         icon: Target,
-        title: 'Fair Pricing',
-        description: 'Transparent market-based pricing ensures fair value for both buyers and sellers.',
+        title: 'Giá công bằng',
+        description: 'Giá minh bạch theo thị trường đảm bảo công bằng cho cả người mua và người bán.',
         color: 'from-primary-400 to-accent-400',
     },
 ];
@@ -52,27 +52,27 @@ const values = [
 const team = [
     {
         name: 'Alex Chen',
-        role: 'Founder & CEO',
+        role: 'Người sáng lập & CEO',
         image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80',
-        bio: '15+ years in trading card industry',
+        bio: 'Hơn 15 năm trong ngành thẻ sưu tầm',
     },
     {
         name: 'Sarah Johnson',
-        role: 'Head of Authentication',
+        role: 'Trưởng bộ phận Kiểm định',
         image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&q=80',
-        bio: 'Expert card grader & authenticator',
+        bio: 'Chuyên gia định cấp & xác thực thẻ',
     },
     {
         name: 'Michael Park',
-        role: 'Chief Technology Officer',
+        role: 'Giám đốc Công nghệ',
         image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80',
-        bio: 'Building secure trading platforms',
+        bio: 'Xây dựng nền tảng giao dịch an toàn',
     },
     {
         name: 'Emma Williams',
-        role: 'Community Manager',
+        role: 'Quản lý Cộng đồng',
         image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&q=80',
-        bio: 'Connecting collectors worldwide',
+        bio: 'Kết nối người sưu tầm toàn cầu',
     },
 ];
 
@@ -96,22 +96,22 @@ export const About: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-r from-primary-900/80 via-secondary-800/60 to-accent-900/80 z-10" />
 
                 {/* Floating Elements */}
-                <div className="absolute top-20 left-20 w-32 h-32 bg-secondary-500/20 rounded-full blur-3xl animate-float" />
-                <div className="absolute bottom-20 right-20 w-40 h-40 bg-accent-500/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }} />
+                <div className="absolute top-20 left-20 w-32 h-32 bg-secondary-500/20 rounded-full blur-3xl " />
+                <div className="absolute bottom-20 right-20 w-40 h-40 bg-accent-500/20 rounded-full blur-3xl " style={{ animationDelay: '1s' }} />
 
                 {/* Content */}
                 <div className="relative z-20 text-center px-4 max-w-4xl mx-auto">
-                    <div className="inline-flex items-center space-x-2 glass-card-strong px-4 py-2 rounded-full mb-6 animate-scale-in">
+                    <div className="inline-flex items-center space-x-2 glass-card-strong px-4 py-2 rounded-full mb-6 ">
                         <Sparkles className="h-4 w-4 text-accent-400" />
-                        <span className="text-sm font-medium">About MysticCard</span>
+                        <span className="text-sm font-medium">Về MysticCard</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-6xl font-bold mb-6 animate-slide-up font-serif">
-                        Your Trusted <span className="gradient-text">Card Trading</span> Platform
+                    <h1 className="text-5xl md:text-6xl font-bold mb-6 font-serif">
+                        Nền tảng <span className="gradient-text">Giao dịch thẻ</span> đáng tin cậy
                     </h1>
 
-                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto animate-slide-up stagger-1">
-                        Connecting collectors worldwide with rare and valuable trading cards since 2020
+                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto ">
+                        Kết nối người sưu tầm toàn cầu với thẻ hiếm và có giá trị từ năm 2020
                     </p>
                 </div>
             </section>
@@ -124,7 +124,7 @@ export const About: React.FC = () => {
                         return (
                             <Card
                                 key={index}
-                                className="glass-card-strong text-center hover-lift animate-slide-up"
+                                className="glass-card-strong text-center "
                                 style={{ animationDelay: `${index * 0.1}s` }}
                             >
                                 <CardContent className="p-6">
@@ -147,36 +147,36 @@ export const About: React.FC = () => {
             {/* Our Story */}
             <section className="mb-16">
                 <div className="grid md:grid-cols-2 gap-12 items-center">
-                    <div className="animate-slide-up">
-                        <h2 className="text-4xl font-bold mb-6 font-serif">Our Story</h2>
+                    <div className="">
+                        <h2 className="text-4xl font-bold mb-6 font-serif">Câu chuyện của chúng tôi</h2>
                         <div className="space-y-4 text-muted-foreground">
                             <p>
-                                Founded in 2020 by passionate card collectors, MysticCard was born from a simple vision:
-                                to create the most trusted and user-friendly platform for trading rare cards.
+                                MysticCard được thành lập năm 2020 bởi những người đam mê sưu tầm thẻ, với tầm nhìn đơn giản:
+                                tạo ra nền tảng giao dịch thẻ hiếm đáng tin cậy và dễ sử dụng nhất.
                             </p>
                             <p>
-                                What started as a small community of enthusiasts has grown into a global marketplace
-                                connecting thousands of collectors. We've facilitated over 100,000 successful trades,
-                                helping collectors find their dream cards and build valuable portfolios.
+                                Từ một cộng đồng nhỏ những người đam mê, chúng tôi đã phát triển thành sàn giao dịch toàn cầu
+                                kết nối hàng nghìn người sưu tầm. Chúng tôi đã hỗ trợ hơn 100.000 giao dịch thành công,
+                                giúp người chơi tìm được thẻ mơ ước và xây dựng bộ sưu tập giá trị.
                             </p>
                             <p>
-                                Our commitment to authenticity, security, and community has made us the go-to platform
-                                for serious collectors and casual traders alike. Every card that passes through our
-                                platform is verified by experts, ensuring you always get what you pay for.
+                                Cam kết về tính chính hãng, bảo mật và cộng đồng đã biến chúng tôi thành lựa chọn hàng đầu
+                                cho cả người sưu tầm chuyên nghiệp và người giao dịch thông thường. Mọi thẻ qua nền tảng
+                                đều được chuyên gia kiểm định, đảm bảo bạn luôn nhận đúng những gì bạn trả.
                             </p>
                         </div>
                         <div className="mt-8">
                             <Button variant="premium" size="lg">
-                                Join Our Community
+                                Tham gia cộng đồng
                             </Button>
                         </div>
                     </div>
 
-                    <div className="relative animate-slide-up stagger-1">
+                    <div className="relative ">
                         <div className="aspect-square rounded-2xl overflow-hidden glass-card-strong">
                             <img
                                 src="https://images.unsplash.com/photo-1511882150382-421056c481d6?w=800&q=80"
-                                alt="Trading cards collection"
+                                alt="Bộ sưu tập thẻ"
                                 className="w-full h-full object-cover"
                             />
                         </div>
@@ -190,9 +190,9 @@ export const About: React.FC = () => {
             {/* Core Values */}
             <section className="mb-16">
                 <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold mb-4 font-serif">Our Core Values</h2>
+                    <h2 className="text-4xl font-bold mb-4 font-serif">Giá trị cốt lõi</h2>
                     <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                        The principles that guide everything we do
+                        Những nguyên tắc dẫn dắt mọi hoạt động của chúng tôi
                     </p>
                 </div>
 
@@ -202,11 +202,11 @@ export const About: React.FC = () => {
                         return (
                             <Card
                                 key={index}
-                                className="group hover-lift animate-slide-up overflow-hidden"
+                                className="group overflow-hidden"
                                 style={{ animationDelay: `${index * 0.1}s` }}
                             >
                                 {/* Glow Effect */}
-                                <div className={`absolute inset-0 bg-gradient-to-br ${value.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
+                                <div className={`absolute inset-0 bg-gradient-to-br ${value.color} opacity-0 group-hover:opacity-10 `} />
 
                                 <CardContent className="p-6 relative">
                                     <div className={`w-14 h-14 mb-4 rounded-xl bg-gradient-to-br ${value.color} flex items-center justify-center`}>
@@ -224,9 +224,9 @@ export const About: React.FC = () => {
             {/* Team Section */}
             <section className="mb-16">
                 <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold mb-4 font-serif">Meet Our Team</h2>
+                    <h2 className="text-4xl font-bold mb-4 font-serif">Đội ngũ của chúng tôi</h2>
                     <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                        Passionate experts dedicated to serving the collector community
+                        Chuyên gia tâm huyết phục vụ cộng đồng người sưu tầm
                     </p>
                 </div>
 
@@ -234,16 +234,16 @@ export const About: React.FC = () => {
                     {team.map((member, index) => (
                         <Card
                             key={index}
-                            className="group hover-lift animate-slide-up text-center overflow-hidden"
+                            className="group text-center overflow-hidden"
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
                             <div className="relative aspect-square overflow-hidden">
                                 <img
                                     src={member.image}
                                     alt={member.name}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    className="w-full h-full object-cover group-hover:scale-110"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 " />
                             </div>
                             <CardContent className="p-6">
                                 <h3 className="font-bold text-lg mb-1">{member.name}</h3>
@@ -265,9 +265,9 @@ export const About: React.FC = () => {
 
                     <CardContent className="p-12 relative">
                         <div className="max-w-3xl mx-auto text-center">
-                            <h2 className="text-4xl font-bold mb-4 font-serif">Get In Touch</h2>
+                            <h2 className="text-4xl font-bold mb-4 font-serif">Liên hệ</h2>
                             <p className="text-xl text-muted-foreground mb-8">
-                                Have questions? We'd love to hear from you. Our team is here to help.
+                                Có câu hỏi? Chúng tôi rất muốn lắng nghe bạn. Đội ngũ luôn sẵn sàng hỗ trợ.
                             </p>
 
                             <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -278,18 +278,18 @@ export const About: React.FC = () => {
                                 </div>
                                 <div className="glass-card p-4 rounded-lg">
                                     <Phone className="h-6 w-6 text-accent-400 mx-auto mb-2" />
-                                    <p className="text-sm font-medium">Phone</p>
-                                    <p className="text-xs text-muted-foreground">+1 (555) 123-4567</p>
+                                    <p className="text-sm font-medium">Điện thoại</p>
+                                    <p className="text-xs text-muted-foreground">+84 9123456789</p>
                                 </div>
                                 <div className="glass-card p-4 rounded-lg">
                                     <MapPin className="h-6 w-6 text-accent-400 mx-auto mb-2" />
-                                    <p className="text-sm font-medium">Location</p>
-                                    <p className="text-xs text-muted-foreground">San Francisco, CA</p>
+                                    <p className="text-sm font-medium">Địa chỉ</p>
+                                    <p className="text-xs text-muted-foreground">Nhà văn hóa Sinh Viên, Đại học Quốc Gia TP.HCM, Q9, TP.HCM</p>
                                 </div>
                             </div>
 
                             <Button variant="premium" size="lg">
-                                Contact Us
+                                Liên hệ với chúng tôi
                             </Button>
                         </div>
                     </CardContent>

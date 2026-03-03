@@ -249,7 +249,7 @@ export const Products: React.FC = () => {
             {/* Header */}
             <div className="mb-8">
                 <h1 className="text-4xl font-bold mb-2 font-serif">All Products</h1>
-                <p className="text-muted-foreground">Browse our complete collection of trading cards</p>
+                <p className="text-muted-foreground">Xem toàn bộ bộ sưu tập thẻ bài</p>
             </div>
 
             {/* Filters */}
@@ -260,7 +260,7 @@ export const Products: React.FC = () => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <input
                             type="search"
-                            placeholder="Search products..."
+                            placeholder="Tìm sản phẩm..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50"
@@ -306,14 +306,14 @@ export const Products: React.FC = () => {
                     {currentProducts.map((product, index) => (
                         <Card
                             key={product.id}
-                            className="group hover-lift animate-slide-up overflow-hidden"
+                            className="group overflow-hidden"
                             style={{ animationDelay: `${index * 0.05}s` }}
                         >
                             <div className="relative aspect-[3/4] overflow-hidden">
                                 <img
                                     src={product.image}
                                     alt={product.name}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    className="w-full h-full object-cover group-hover:scale-110"
                                 />
                                 <div className="absolute top-2 right-2">
                                     <div className="glass-card-strong px-3 py-1 rounded-full text-xs font-medium">
@@ -322,7 +322,7 @@ export const Products: React.FC = () => {
                                 </div>
                                 <button
                                     onClick={() => addToWishlist({ id: product.id, name: product.name, price: product.price, image: product.image, rarity: product.rarity })}
-                                    className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20 transition-colors"
+                                    className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20 "
                                 >
                                     <Heart className={`h-4 w-4 ${isInWishlist(product.id) ? 'fill-red-500 text-red-500' : ''}`} />
                                 </button>
@@ -347,7 +347,7 @@ export const Products: React.FC = () => {
                                     size="sm"
                                     onClick={() => addToCart({ id: product.id, name: product.name, price: product.price, image: product.image, rarity: product.rarity })}
                                 >
-                                    Add to Cart
+                                    Thêm vào giỏ
                                 </Button>
                             </CardContent>
                         </Card>
@@ -355,8 +355,8 @@ export const Products: React.FC = () => {
                 </div>
             ) : (
                 <div className="text-center py-12 glass-card rounded-xl">
-                    <p className="text-muted-foreground mb-2">No products found</p>
-                    <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
+                    <p className="text-muted-foreground mb-2">Không tìm thấy sản phẩm</p>
+                    <p className="text-sm text-muted-foreground">Thử đổi từ khóa hoặc bộ lọc</p>
                 </div>
             )}
 

@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, Bell, User, ChevronDown, Menu, Heart, LogOut } from 'lucide-react';
+import { Search, ShoppingCart, Bell, User, ChevronDown, Menu, Heart, LogOut, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/hooks/useCart';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 import { WishlistDrawer } from '@/components/shared/WishlistDrawer';
 import { MobileMenu } from '@/components/shared/MobileMenu';
+import { userApi, cardApi } from '@/utils/api';
 
 export const Header: React.FC = () => {
     const navigate = useNavigate();
@@ -16,20 +17,65 @@ export const Header: React.FC = () => {
     const [isWishlistOpen, setIsWishlistOpen] = React.useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
     const { itemCount } = useCart();
-    const { itemCount: wishlistCount } = useWishlist();
+    const { itemCount: wishlistLocalCount } = useWishlist();
     const { user, isAuthenticated, logout } = useAuth();
+    const [walletBalance, setWalletBalance] = useState<number>(0);
+    const [apiWishlistCount, setApiWishlistCount] = useState<number>(0);
 
-    const handleLogout = async () => {
-        await logout();
-        navigate('/login');
+    // Khi đã đăng nhập: số wishlist lấy từ API (DB)
+    const wishlistCount = isAuthenticated ? apiWishlistCount : wishlistLocalCount;
+
+    const fetchWishlistCount = async () => {
+        try {
+            const res = await cardApi.getUserWishlist(0, 1);
+            setApiWishlistCount(res.totalElements ?? 0);
+        } catch {
+            setApiWishlistCount(0);
+        }
+    };
+
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        fetchWishlistCount();
+        const onUpdated = () => fetchWishlistCount();
+        window.addEventListener('wishlist-api-updated', onUpdated);
+        return () => window.removeEventListener('wishlist-api-updated', onUpdated);
+    }, [isAuthenticated]);
+
+    // Fetch wallet balance for authenticated users
+    useEffect(() => {
+        const fetchWalletBalance = async () => {
+            if (isAuthenticated) {
+                try {
+                    const profile = await userApi.getMyProfile();
+                    setWalletBalance(profile.walletResponse?.balance || 0);
+                } catch (err) {
+                    console.error('Failed to fetch wallet balance:', err);
+                }
+            }
+        };
+
+        fetchWalletBalance();
+    }, [isAuthenticated]);
+
+    const handleLogout = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        console.log("Logout clicked");
+        try {
+            await logout();
+        } catch (error) {
+            console.error("Logout failed:", error);
+        } finally {
+            navigate('/login');
+        }
     };
 
     return (
-        <header className="pokemon-header glass-card-strong sticky top-0 z-50 w-full border-b border-white/10 animate-slide-down">
+        <header className="pokemon-header glass-card-strong sticky top-0 z-50 w-full border-b border-white/10 ">
             <div className="container mx-auto px-4">
-                <div className="flex h-16 items-center justify-between">
+                <div className="flex h-16 items-center justify-between gap-6 lg:gap-8">
                     {/* Logo */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 shrink-0">
                         <Button
                             variant="ghost"
                             size="icon"
@@ -39,7 +85,7 @@ export const Header: React.FC = () => {
                             <Menu className="h-5 w-5" />
                         </Button>
 
-                        <Link to="/" className="flex items-center space-x-2 hover-lift">
+                        <Link to="/" className="flex items-center gap-2">
                             <img
                                 src="/logo/logo.png"
                                 alt="MysticCard Logo"
@@ -52,48 +98,48 @@ export const Header: React.FC = () => {
                     </div>
 
                     {/* Navigation */}
-                    <nav className="hidden md:flex items-center space-x-6">
-                        <Link to="/" className="text-sm font-medium hover-lift hover:text-primary-400 transition-colors">
-                            Home
+                    <nav className="hidden md:flex items-center gap-5 lg:gap-6">
+                        <Link to="/" className="text-sm font-medium hover:text-primary-400">
+                            Trang chủ
                         </Link>
 
-                        <Link to="/about" className="text-sm font-medium hover-lift hover:text-primary-400 transition-colors">
-                            About
+                        <Link to="/about" className="text-sm font-medium hover:text-primary-400">
+                            Giới thiệu
                         </Link>
 
-                        {/* Shop Dropdown */}
+                        {/* Shop Dropdown - pt-2 thay mt-2 để không có khe hở, chuột di xuống vẫn trong vùng hover */}
                         <div
                             className="relative"
                             onMouseEnter={() => setIsShopOpen(true)}
                             onMouseLeave={() => setIsShopOpen(false)}
                         >
-                            <button className="flex items-center space-x-1 text-sm font-medium hover-lift hover:text-primary-400 transition-colors">
-                                <span>Shop</span>
+                            <button className="flex items-center gap-1 text-sm font-medium hover:text-primary-400">
+                                <span>Cửa hàng</span>
                                 <ChevronDown className="h-4 w-4" />
                             </button>
 
                             {isShopOpen && (
-                                <div className="absolute top-full left-0 mt-2 w-48 glass-card-strong rounded-lg shadow-xl animate-slide-down">
-                                    <div className="p-2 space-y-1">
-                                        <Link to="/products" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors">
-                                            All Products
+                                <div className="absolute top-full left-0 pt-2 w-48">
+                                    <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
+                                        <Link to="/products" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
+                                            Tất cả sản phẩm
                                         </Link>
-                                        <Link to="/booster-boxes" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors">
-                                            Booster Boxes
+                                        <Link to="/booster-boxes" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
+                                            Hộp Booster
                                         </Link>
-                                        <Link to="/special-items" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors">
-                                            Special Items
+                                        <Link to="/special-items" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
+                                            Sản phẩm đặc biệt
                                         </Link>
-                                        <Link to="/mystery-box" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors">
-                                            Mystery Box
+                                        <Link to="/mystery-box" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
+                                            Hộp bí ẩn
                                         </Link>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        <Link to="/marketplace" className="text-sm font-medium hover-lift hover:text-primary-400 transition-colors">
-                            Marketplace
+                        <Link to="/marketplace" className="text-sm font-medium hover:text-primary-400">
+                            Sàn giao dịch
                         </Link>
 
                         {/* Portfolio Dropdown */}
@@ -102,22 +148,22 @@ export const Header: React.FC = () => {
                             onMouseEnter={() => setIsPortfolioOpen(true)}
                             onMouseLeave={() => setIsPortfolioOpen(false)}
                         >
-                            <button className="flex items-center space-x-1 text-sm font-medium hover-lift hover:text-primary-400 transition-colors">
-                                <span>Portfolio</span>
+                            <button className="flex items-center gap-1 text-sm font-medium hover:text-primary-400">
+                                <span>Bộ sưu tập</span>
                                 <ChevronDown className="h-4 w-4" />
                             </button>
 
                             {isPortfolioOpen && (
-                                <div className="absolute top-full left-0 mt-2 w-48 glass-card-strong rounded-lg shadow-xl animate-slide-down">
-                                    <div className="p-2 space-y-1">
-                                        <Link to="/portfolio" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors">
-                                            My Collection
+                                <div className="absolute top-full left-0 pt-2 w-48">
+                                    <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
+                                        <Link to="/portfolio" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
+                                            Bộ sưu tập của tôi
                                         </Link>
-                                        <Link to="/trends" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors">
-                                            Market Trends
+                                        <Link to="/trends" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
+                                            Xu hướng thị trường
                                         </Link>
-                                        <Link to="/post-listing" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors">
-                                            Post Listing
+                                        <Link to="/post-listing" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
+                                            Đăng bán
                                         </Link>
                                     </div>
                                 </div>
@@ -126,23 +172,38 @@ export const Header: React.FC = () => {
                     </nav>
 
                     {/* Search Bar */}
-                    <div className="hidden lg:flex items-center flex-1 max-w-md mx-8">
+                    <div className="hidden lg:flex items-center flex-1 min-w-0 max-w-md justify-center px-4">
                         <div className="relative w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <input
                                 type="search"
-                                placeholder="Search cards..."
-                                className="glass-card w-full pl-10 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all"
+                                placeholder="Tìm thẻ..."
+                                className="glass-card w-full pl-10 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                             />
                         </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center gap-3 lg:gap-4 shrink-0">
+                        {/* Wallet Balance - Show for authenticated users */}
+                        {isAuthenticated && (
+                            <Link to="/wallet">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="hidden md:flex items-center gap-2 hover:bg-white/10"
+                                >
+                                    <Wallet className="h-4 w-4 text-green-400" />
+                                    <span className="text-sm font-medium text-green-400">
+                                        {walletBalance.toLocaleString('vi-VN')}đ
+                                    </span>
+                                </Button>
+                            </Link>
+                        )}
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="hover-lift relative"
+                            className="relative"
                             onClick={() => setIsWishlistOpen(true)}
                         >
                             <Heart className="h-5 w-5" />
@@ -155,7 +216,7 @@ export const Header: React.FC = () => {
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="hover-lift relative"
+                            className="relative"
                             onClick={() => navigate('/cart')}
                         >
                             <ShoppingCart className="h-5 w-5" />
@@ -165,7 +226,7 @@ export const Header: React.FC = () => {
                                 </span>
                             )}
                         </Button>
-                        <Button variant="ghost" size="icon" className="hover-lift">
+                        <Button variant="ghost" size="icon" className="">
                             <Bell className="h-5 w-5" />
                         </Button>
 
@@ -176,7 +237,7 @@ export const Header: React.FC = () => {
                                 onMouseEnter={() => setIsUserMenuOpen(true)}
                                 onMouseLeave={() => setIsUserMenuOpen(false)}
                             >
-                                <button className="flex items-center space-x-2 hover-lift">
+                                <button className="flex items-center gap-2">
                                     {user.picture || user.avatarUrl ? (
                                         <img
                                             src={user.picture || user.avatarUrl}
@@ -195,39 +256,46 @@ export const Header: React.FC = () => {
                                 </button>
 
                                 {isUserMenuOpen && (
-                                    <div className="absolute top-full right-0 mt-2 w-48 glass-card-strong rounded-lg shadow-xl animate-slide-down">
-                                        <div className="p-2 space-y-1">
+                                    <div className="absolute top-full right-0 pt-2 w-48">
+                                        <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
                                             <Link
                                                 to="/profile"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
                                             >
-                                                Profile
+                                                Hồ sơ
+                                            </Link>
+                                            <Link
+                                                to="/wallet"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md flex items-center gap-2"
+                                            >
+                                                <Wallet className="h-4 w-4 text-green-400" />
+                                                <span>Ví tiền</span>
                                             </Link>
                                             <Link
                                                 to="/portfolio"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
                                             >
-                                                My Collection
+                                                Bộ sưu tập
                                             </Link>
                                             <Link
                                                 to="/settings"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
                                             >
-                                                Settings
+                                                Cài đặt
                                             </Link>
                                             <Link
                                                 to="/admin"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
                                             >
-                                                Admin Panel
+                                                Quản trị
                                             </Link>
                                             <hr className="my-2 border-white/10" />
                                             <button
                                                 onClick={handleLogout}
-                                                className="w-full text-left px-4 py-2 text-sm hover:bg-white/10 rounded-md transition-colors text-red-400 flex items-center space-x-2"
+                                                className="w-full text-left px-4 py-2 text-sm hover:bg-white/10 rounded-md text-red-400 flex items-center gap-2"
                                             >
                                                 <LogOut className="h-4 w-4" />
-                                                <span>Logout</span>
+                                                <span>Đăng xuất</span>
                                             </button>
                                         </div>
                                     </div>
@@ -235,8 +303,8 @@ export const Header: React.FC = () => {
                             </div>
                         ) : (
                             <Link to="/login">
-                                <Button variant="premium" className="hover-lift">
-                                    <User className="h-4 w-4 mr-2" />
+                                <Button variant="premium" className="gap-2">
+                                    <User className="h-4 w-4" />
                                     <span>Đăng nhập</span>
                                 </Button>
                             </Link>

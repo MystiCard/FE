@@ -51,7 +51,7 @@ export const CartPage: React.FC = () => {
     // Empty cart state
     if (items.length === 0) {
         return (
-            <div className="min-h-[60vh] flex items-center justify-center animate-fade-in">
+            <div className="min-h-[60vh] flex items-center justify-center ">
                 <div className="text-center max-w-md mx-auto px-4">
                     <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary-500/20 to-accent-500/20 flex items-center justify-center">
                         <ShoppingCart className="h-16 w-16 text-muted-foreground" />
@@ -75,12 +75,12 @@ export const CartPage: React.FC = () => {
     }
 
     return (
-        <div className="py-8 animate-fade-in">
+        <div className="py-8 ">
             {/* Header */}
             <div className="mb-6">
                 <button
                     onClick={() => navigate(-1)}
-                    className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
+                    className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4"
                 >
                     <ArrowLeft className="h-4 w-4" />
                     <span className="text-sm">Tiếp tục mua sắm</span>
@@ -121,7 +121,7 @@ export const CartPage: React.FC = () => {
                         return (
                             <div
                                 key={item.id}
-                                className={`glass-card p-6 rounded-lg transition-all ${isSelected ? 'ring-2 ring-primary-500/50 bg-primary-500/5' : ''
+                                className={`glass-card p-6 rounded-lg ${isSelected ? 'ring-2 ring-primary-500/50 bg-primary-500/5' : ''
                                     }`}
                             >
                                 <div className="flex gap-4">
@@ -161,7 +161,7 @@ export const CartPage: React.FC = () => {
                                             <div className="flex items-center gap-3">
                                                 <button
                                                     onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                                    className="w-8 h-8 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+                                                    className="w-8 h-8 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center "
                                                 >
                                                     <Minus className="h-4 w-4" />
                                                 </button>
@@ -170,7 +170,7 @@ export const CartPage: React.FC = () => {
                                                 </span>
                                                 <button
                                                     onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                    className="w-8 h-8 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+                                                    className="w-8 h-8 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center "
                                                 >
                                                     <Plus className="h-4 w-4" />
                                                 </button>
@@ -178,7 +178,7 @@ export const CartPage: React.FC = () => {
 
                                             <button
                                                 onClick={() => removeItem(item.id)}
-                                                className="p-2 hover:bg-red-500/20 rounded-md transition-colors text-red-400 flex items-center gap-2"
+                                                className="p-2 hover:bg-red-500/20 rounded-md text-red-400 flex items-center gap-2"
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                                 <span className="text-sm">Xóa</span>
@@ -248,7 +248,7 @@ export const CartPage: React.FC = () => {
                                     </div>
                                     <button
                                         onClick={handleRemoveVoucher}
-                                        className="text-sm text-red-400 hover:text-red-300 transition-colors"
+                                        className="text-sm text-red-400 hover:text-red-300 "
                                     >
                                         Xóa
                                     </button>

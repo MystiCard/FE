@@ -1,444 +1,605 @@
-import React, { useState, useMemo } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, TrendingUp, TrendingDown, Star, PlusCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Search,
+    Filter,
+    PlusCircle,
+    ChevronLeft,
+    ChevronRight,
+    Package,
+    DollarSign,
+    ChevronDown,
+    Users,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { listSellerApi, ListingItem, categoryApi, Category } from '@/utils/api';
 
-const allMarketplaceItems = [
-    {
-        id: 1,
-        name: 'Charizard VMAX PSA 10',
-        seller: 'CardMaster99',
-        price: 450.00,
-        condition: 'Mint',
-        image: 'https://images.unsplash.com/photo-1613771404721-1f92d799e49f?w=400&q=80',
-        trending: 'up' as const,
-        change: '+12%',
-        rating: 4.9,
-        rarity: 'Secret Rare',
-    },
-    {
-        id: 2,
-        name: 'Pikachu Illustrator',
-        seller: 'RareCollector',
-        price: 1250.00,
-        condition: 'Near Mint',
-        image: 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80',
-        trending: 'up' as const,
-        change: '+25%',
-        rating: 5.0,
-        rarity: 'Ultra Rare',
-    },
-    {
-        id: 3,
-        name: 'Umbreon VMAX Alt Art',
-        seller: 'ProTrader',
-        price: 380.00,
-        condition: 'Mint',
-        image: 'https://images.unsplash.com/photo-1542779283-429940ce8336?w=400&q=80',
-        trending: 'down' as const,
-        change: '-5%',
-        rating: 4.8,
-        rarity: 'Rare',
-    },
-    {
-        id: 4,
-        name: 'Lugia Legend Top',
-        seller: 'VintageCards',
-        price: 220.00,
-        condition: 'Lightly Played',
-        image: 'https://images.unsplash.com/photo-1611068813580-c0c3c4a0d8a8?w=400&q=80',
-        trending: 'up' as const,
-        change: '+8%',
-        rating: 4.7,
-        rarity: 'Rare',
-    },
-    {
-        id: 5,
-        name: 'Rayquaza VMAX',
-        seller: 'DragonMaster',
-        price: 195.00,
-        condition: 'Near Mint',
-        image: 'https://images.unsplash.com/photo-1613771404721-1f92d799e49f?w=400&q=80',
-        trending: 'up' as const,
-        change: '+15%',
-        rating: 4.9,
-        rarity: 'Ultra Rare',
-    },
-    {
-        id: 6,
-        name: 'Mewtwo EX Full Art',
-        seller: 'LegendaryCards',
-        price: 165.00,
-        condition: 'Mint',
-        image: 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80',
-        trending: 'up' as const,
-        change: '+3%',
-        rating: 4.6,
-        rarity: 'Rare',
-    },
-    {
-        id: 7,
-        name: 'Gengar VMAX Rainbow',
-        seller: 'GhostCollector',
-        price: 285.00,
-        condition: 'Mint',
-        image: 'https://images.unsplash.com/photo-1611068813580-c0c3c4a0d8a8?w=400&q=80',
-        trending: 'up' as const,
-        change: '+18%',
-        rating: 4.8,
-        rarity: 'Secret Rare',
-    },
-    {
-        id: 8,
-        name: 'Mew VMAX Alt Art',
-        seller: 'PsychicTrader',
-        price: 320.00,
-        condition: 'Near Mint',
-        image: 'https://images.unsplash.com/photo-1542779283-429940ce8336?w=400&q=80',
-        trending: 'up' as const,
-        change: '+22%',
-        rating: 4.9,
-        rarity: 'Ultra Rare',
-    },
-    {
-        id: 9,
-        name: 'Dragonite V Full Art',
-        seller: 'DragonVault',
-        price: 95.00,
-        condition: 'Excellent',
-        image: 'https://images.unsplash.com/photo-1613771404721-1f92d799e49f?w=400&q=80',
-        trending: 'down' as const,
-        change: '-3%',
-        rating: 4.5,
-        rarity: 'Rare',
-    },
-    {
-        id: 10,
-        name: 'Giratina VSTAR Gold',
-        seller: 'GhostlyTrades',
-        price: 425.00,
-        condition: 'Mint',
-        image: 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80',
-        trending: 'up' as const,
-        change: '+28%',
-        rating: 5.0,
-        rarity: 'Secret Rare',
-    },
-    {
-        id: 11,
-        name: 'Eevee VMAX Promo',
-        seller: 'EeveeEvolution',
-        price: 145.00,
-        condition: 'Near Mint',
-        image: 'https://images.unsplash.com/photo-1611068813580-c0c3c4a0d8a8?w=400&q=80',
-        trending: 'up' as const,
-        change: '+10%',
-        rating: 4.7,
-        rarity: 'Rare',
-    },
-    {
-        id: 12,
-        name: 'Arceus VSTAR Rainbow',
-        seller: 'GodCards',
-        price: 310.00,
-        condition: 'Mint',
-        image: 'https://images.unsplash.com/photo-1542779283-429940ce8336?w=400&q=80',
-        trending: 'up' as const,
-        change: '+16%',
-        rating: 4.8,
-        rarity: 'Secret Rare',
-    },
-];
+const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
+
+const formatRarity = (rarity: string) =>
+    rarity
+        ? String(rarity)
+              .toLowerCase()
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, c => c.toUpperCase())
+        : '';
+
+const rarityClass: Record<string, string> = {
+    SECRET_RARE: 'bg-purple-500/20 text-purple-400',
+    ULTRA_RARE: 'bg-yellow-500/20 text-yellow-400',
+    SUPER_RARE: 'bg-orange-500/20 text-orange-400',
+    RARE: 'bg-blue-500/20 text-blue-400',
+    UNCOMMON: 'bg-green-500/20 text-green-400',
+    COMMON: 'bg-gray-500/20 text-gray-400',
+};
+
+const RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SUPER_RARE', 'SECRET_RARE'];
+
+/** Nhóm listing theo cardId → mỗi thẻ một dòng, nhiều offer bên dưới (kiểu Cardmarket) */
+type CardProduct = {
+    cardId: string;
+    cardName: string;
+    imageUrl?: string;
+    categoryName?: string;
+    rarity: string;
+    basePrice: number;
+    offers: ListingItem[];
+};
+
+function groupListingsByCard(listings: ListingItem[]): CardProduct[] {
+    const byCard = new Map<string, ListingItem[]>();
+    for (const item of listings) {
+        const list = byCard.get(item.cardId) || [];
+        list.push(item);
+        byCard.set(item.cardId, list);
+    }
+    return Array.from(byCard.entries()).map(([cardId, offers]) => {
+        const first = offers[0];
+        return {
+            cardId,
+            cardName: first.cardName,
+            imageUrl: first.imageUrl,
+            categoryName: first.categoryName,
+            rarity: first.rarity,
+            basePrice: first.basePrice,
+            offers: offers.sort((a, b) => a.price - b.price),
+        };
+    });
+}
 
 export const Marketplace: React.FC = () => {
+    const [listings, setListings] = useState<ListingItem[]>([]);
+    const [totalElements, setTotalElements] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [pageSize] = useState(24);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [priceRange, setPriceRange] = useState<[number, number]>([0, 1500]);
-    const [condition, setCondition] = useState('all');
-    const [sortBy, setSortBy] = useState('trending');
-    const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
+    const [priceRange, setPriceRange] = useState<[number, number]>([0, 5000]);
+    const [sortBy, setSortBy] = useState<'price-asc' | 'price-desc' | 'name'>('price-asc');
+    const [filterCategory, setFilterCategory] = useState<string>('all');
+    const [filterRarity, setFilterRarity] = useState<string>('all');
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [selectedProduct, setSelectedProduct] = useState<CardProduct | null>(null);
+    const [selectedListing, setSelectedListing] = useState<ListingItem | null>(null);
+    const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
-    const toggleRarity = (rarity: string) => {
-        setSelectedRarities(prev =>
-            prev.includes(rarity)
-                ? prev.filter(r => r !== rarity)
-                : [...prev, rarity]
-        );
+    useEffect(() => {
+        loadListings(currentPage);
+    }, [currentPage]);
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const data = await categoryApi.getAllCategories();
+                setCategories(data);
+            } catch {
+                setCategories([]);
+            }
+        };
+        load();
+    }, []);
+
+    const loadListings = async (page: number) => {
+        try {
+            setIsLoading(true);
+            setError('');
+            const data = await listSellerApi.getListings(page, pageSize);
+            setListings(data.content || []);
+            setTotalElements(data.totalElements ?? 0);
+            setTotalPages(data.totalPages ?? 0);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Không tải được danh sách đăng bán');
+            setListings([]);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    // Filter and sort items
-    const filteredAndSortedItems = useMemo(() => {
-        let filtered = [...allMarketplaceItems];
-
-        // Apply search filter
+    const filteredListings = useMemo(() => {
+        let list = [...listings];
         if (searchQuery.trim()) {
-            filtered = filtered.filter(item =>
-                item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                item.seller.toLowerCase().includes(searchQuery.toLowerCase())
+            const q = searchQuery.toLowerCase();
+            list = list.filter(
+                item =>
+                    item.cardName.toLowerCase().includes(q) ||
+                    (item.categoryName && item.categoryName.toLowerCase().includes(q))
             );
         }
-
-        // Apply price range filter
-        filtered = filtered.filter(item =>
-            item.price >= priceRange[0] && item.price <= priceRange[1]
-        );
-
-        // Apply condition filter
-        if (condition !== 'all') {
-            filtered = filtered.filter(item =>
-                item.condition.toLowerCase().replace(' ', '-') === condition
-            );
+        list = list.filter(item => item.price >= priceRange[0] && item.price <= priceRange[1]);
+        if (filterCategory !== 'all') {
+            const cat = categories.find(c => c.categoryId === filterCategory);
+            if (cat?.categoryName) {
+                const name = cat.categoryName.toLowerCase();
+                list = list.filter(item => item.categoryName?.toLowerCase() === name);
+            }
         }
+        if (filterRarity !== 'all') list = list.filter(item => item.rarity === filterRarity);
+        if (sortBy === 'price-asc') list.sort((a, b) => a.price - b.price);
+        else if (sortBy === 'price-desc') list.sort((a, b) => b.price - a.price);
+        else list.sort((a, b) => a.cardName.localeCompare(b.cardName));
+        return list;
+    }, [listings, searchQuery, priceRange, sortBy, filterCategory, filterRarity, categories]);
 
-        // Apply rarity filter
-        if (selectedRarities.length > 0) {
-            filtered = filtered.filter(item =>
-                selectedRarities.includes(item.rarity)
-            );
-        }
-
-        // Apply sorting
-        switch (sortBy) {
-            case 'price-low':
-                filtered.sort((a, b) => a.price - b.price);
-                break;
-            case 'price-high':
-                filtered.sort((a, b) => b.price - a.price);
-                break;
-            case 'newest':
-                // Keep original order for newest
-                break;
-            case 'ending':
-                // Reverse order for ending soon
-                filtered.reverse();
-                break;
-            default:
-                // trending - sort by trending up first, then by change percentage
-                filtered.sort((a, b) => {
-                    if (a.trending === 'up' && b.trending === 'down') return -1;
-                    if (a.trending === 'down' && b.trending === 'up') return 1;
-                    return parseFloat(b.change) - parseFloat(a.change);
-                });
-                break;
-        }
-
-        return filtered;
-    }, [searchQuery, priceRange, condition, sortBy, selectedRarities]);
+    const products = useMemo(() => {
+        const grouped = groupListingsByCard(filteredListings);
+        if (sortBy === 'name') grouped.sort((a, b) => a.cardName.localeCompare(b.cardName));
+        else if (sortBy === 'price-asc') grouped.sort((a, b) => a.offers[0].price - b.offers[0].price);
+        else if (sortBy === 'price-desc') grouped.sort((a, b) => b.offers[0].price - a.offers[0].price);
+        return grouped;
+    }, [filteredListings, sortBy]);
 
     return (
         <div className="py-8">
-            {/* Header */}
-            <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-4xl font-bold mb-2 font-serif">Marketplace</h1>
-                    <p className="text-muted-foreground">Buy and sell cards with collectors worldwide</p>
+            {error && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
+                    {error}
                 </div>
-                <Link to="/post-listing">
-                    <Button variant="premium" className="shadow-lg hover:shadow-primary-500/25">
-                        <PlusCircle className="w-5 h-5 mr-2" />
-                        Sell Item
-                    </Button>
-                </Link>
-            </div>
+            )}
 
-            {/* Stats Banner */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <div className="glass-card p-4 rounded-xl">
-                    <div className="text-sm text-muted-foreground mb-1">Active Listings</div>
-                    <div className="text-2xl font-bold gradient-text">2,847</div>
+            {/* Header giống Cardmarket: tiêu đề + search nổi bật */}
+            <div className="mb-8">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div>
+                        <h1 className="text-3xl md:text-4xl font-bold font-serif gradient-text">Sàn giao dịch</h1>
+                        <p className="text-muted-foreground mt-1">
+                            Mua thẻ từ người bán — mỗi thẻ có nhiều lời chào giá, chọn giá tốt nhất
+                        </p>
+                    </div>
+                    <Link to="/post-listing">
+                        <Button variant="premium" className="shadow-lg">
+                            <PlusCircle className="w-5 h-5 mr-2" />
+                            Đăng bán
+                        </Button>
+                    </Link>
                 </div>
-                <div className="glass-card p-4 rounded-xl">
-                    <div className="text-sm text-muted-foreground mb-1">Total Sales (24h)</div>
-                    <div className="text-2xl font-bold gradient-text">$45,230</div>
-                </div>
-                <div className="glass-card p-4 rounded-xl">
-                    <div className="text-sm text-muted-foreground mb-1">Avg. Price</div>
-                    <div className="text-2xl font-bold gradient-text">$156</div>
-                </div>
-                <div className="glass-card p-4 rounded-xl">
-                    <div className="text-sm text-muted-foreground mb-1">Active Traders</div>
-                    <div className="text-2xl font-bold gradient-text">1,234</div>
+
+                {/* Ô tìm kiếm lớn */}
+                <div className="relative max-w-2xl">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <input
+                        type="search"
+                        placeholder="Tìm thẻ hoặc set (ví dụ: Pikachu, Ascended Heroes)..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 glass-card-strong rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                    />
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Filters Sidebar */}
+                {/* Sidebar bộ lọc */}
                 <div className="lg:col-span-1">
-                    <div className="glass-card p-6 rounded-xl sticky top-24">
-                        <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                            <Filter className="h-5 w-5" />
-                            Filters
-                        </h3>
-
-                        {/* Search */}
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium mb-2">Search</label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <input
-                                    type="search"
-                                    placeholder="Card name..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 text-sm"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Price Range */}
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium mb-2">Price Range</label>
-                            <div className="space-y-2">
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="1500"
-                                    value={priceRange[1]}
-                                    onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])}
-                                    className="w-full"
-                                />
-                                <div className="flex justify-between text-sm text-muted-foreground">
-                                    <span>${priceRange[0]}</span>
-                                    <span>${priceRange[1]}</span>
+                    <Card className="glass-card-strong sticky top-24">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-base flex items-center gap-2">
+                                <Filter className="h-4 w-4" />
+                                Bộ lọc
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Giá ($)</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={0.01}
+                                        value={priceRange[0]}
+                                        onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])}
+                                        className="w-full px-3 py-2 glass-card rounded-lg text-sm"
+                                    />
+                                    <span className="self-center text-muted-foreground">–</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={0.01}
+                                        value={priceRange[1]}
+                                        onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
+                                        className="w-full px-3 py-2 glass-card rounded-lg text-sm"
+                                    />
                                 </div>
                             </div>
-                        </div>
-
-                        {/* Condition */}
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium mb-2">Condition</label>
-                            <select
-                                value={condition}
-                                onChange={(e) => setCondition(e.target.value)}
-                                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 text-sm"
-                            >
-                                <option value="all">All Conditions</option>
-                                <option value="mint">Mint</option>
-                                <option value="near-mint">Near Mint</option>
-                                <option value="excellent">Excellent</option>
-                                <option value="good">Good</option>
-                                <option value="lightly-played">Lightly Played</option>
-                            </select>
-                        </div>
-
-                        {/* Rarity */}
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium mb-2">Rarity</label>
-                            <div className="space-y-2">
-                                {['Common', 'Uncommon', 'Rare', 'Ultra Rare', 'Secret Rare'].map((rarity) => (
-                                    <label key={rarity} className="flex items-center space-x-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedRarities.includes(rarity)}
-                                            onChange={() => toggleRarity(rarity)}
-                                            className="w-4 h-4 rounded border-white/10 bg-white/5"
-                                        />
-                                        <span className="text-sm">{rarity}</span>
-                                    </label>
-                                ))}
+                            <div>
+                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Set</label>
+                                <select
+                                    value={filterCategory}
+                                    onChange={(e) => setFilterCategory(e.target.value)}
+                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
+                                >
+                                    <option value="all">Tất cả set</option>
+                                    {categories.map((c) => (
+                                        <option key={c.categoryId} value={c.categoryId}>
+                                            {c.categoryName}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
-                        </div>
-
-                        <Button
-                            variant="outline"
-                            className="w-full glass-card"
-                            onClick={() => {
-                                setSearchQuery('');
-                                setPriceRange([0, 1500]);
-                                setCondition('all');
-                                setSelectedRarities([]);
-                            }}
-                        >
-                            Reset Filters
-                        </Button>
-                    </div>
+                            <div>
+                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Độ hiếm</label>
+                                <select
+                                    value={filterRarity}
+                                    onChange={(e) => setFilterRarity(e.target.value)}
+                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
+                                >
+                                    <option value="all">Tất cả</option>
+                                    {RARITIES.map((r) => (
+                                        <option key={r} value={r}>
+                                            {formatRarity(r)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => {
+                                    setSearchQuery('');
+                                    setPriceRange([0, 5000]);
+                                    setFilterCategory('all');
+                                    setFilterRarity('all');
+                                }}
+                            >
+                                Xóa bộ lọc
+                            </Button>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                {/* Marketplace Items */}
+                {/* Khu vực danh sách sản phẩm kiểu Cardmarket */}
                 <div className="lg:col-span-3">
-                    {/* Sort Options */}
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                         <div className="text-sm text-muted-foreground">
-                            Showing {filteredAndSortedItems.length} results
+                            <span className="font-medium text-white">{products.length}</span> thẻ
+                            <span className="mx-1">·</span>
+                            <span className="font-medium text-white">{filteredListings.length}</span> lời chào giá
                         </div>
                         <select
                             value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 text-sm"
+                            onChange={(e) => setSortBy(e.target.value as 'price-asc' | 'price-desc' | 'name')}
+                            className="px-3 py-2 glass-card rounded-lg text-sm bg-black/60"
                         >
-                            <option value="trending">Trending</option>
-                            <option value="price-low">Price: Low to High</option>
-                            <option value="price-high">Price: High to Low</option>
-                            <option value="newest">Newest First</option>
-                            <option value="ending">Ending Soon</option>
+                            <option value="name">Tên A → Z</option>
+                            <option value="price-asc">Giá thấp nhất trước</option>
+                            <option value="price-desc">Giá cao nhất trước</option>
                         </select>
                     </div>
 
-                    {/* Items Grid */}
-                    {filteredAndSortedItems.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                            {filteredAndSortedItems.map((item, index) => (
-                                <Card
-                                    key={item.id}
-                                    className="group hover-lift animate-slide-up overflow-hidden"
-                                    style={{ animationDelay: `${index * 0.05}s` }}
-                                >
-                                    <div className="relative aspect-[3/4] overflow-hidden">
-                                        <img
-                                            src={item.image}
-                                            alt={item.name}
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                        />
-
-                                        {/* Trending Badge */}
-                                        <div className="absolute top-2 right-2">
-                                            <div className={`glass-card-strong px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${item.trending === 'up' ? 'text-green-400' : 'text-red-400'
-                                                }`}>
-                                                {item.trending === 'up' ? (
-                                                    <TrendingUp className="h-3 w-3" />
-                                                ) : (
-                                                    <TrendingDown className="h-3 w-3" />
-                                                )}
-                                                {item.change}
-                                            </div>
-                                        </div>
-
-                                        {/* Condition Badge */}
-                                        <div className="absolute top-2 left-2">
-                                            <div className="glass-card-strong px-2 py-1 rounded-full text-xs font-medium">
-                                                {item.condition}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <CardContent className="p-4">
-                                        <h3 className="font-semibold text-lg mb-1 line-clamp-1">{item.name}</h3>
-                                        <p className="text-sm text-muted-foreground mb-3">by {item.seller}</p>
-
-                                        <div className="flex items-center mb-3 text-xs text-muted-foreground">
-                                            <Star className="h-3 w-3 fill-accent-500 text-accent-500 mr-1" />
-                                            <span>{item.rating} seller rating</span>
-                                        </div>
-
-                                        <div className="flex items-center justify-between mb-3">
-                                            <span className="text-2xl font-bold gradient-text">${item.price}</span>
-                                        </div>
-
-                                        <Button variant="premium" className="w-full" size="sm">
-                                            Buy Now
-                                        </Button>
-                                    </CardContent>
-                                </Card>
-                            ))}
+                    {isLoading ? (
+                        <div className="text-center py-16">
+                            <div className="w-12 h-12 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                            <p className="text-muted-foreground">Đang tải...</p>
                         </div>
+                    ) : products.length > 0 ? (
+                        <Card className="glass-card-strong overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-white/10 text-left text-xs text-muted-foreground uppercase tracking-wider">
+                                            <th className="p-4 font-medium">Sản phẩm</th>
+                                            <th className="p-4 font-medium text-center w-24">Số đề nghị</th>
+                                            <th className="p-4 font-medium text-right w-28">Từ</th>
+                                            <th className="p-4 w-32" />
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {products.map((product) => {
+                                            const minPrice = Math.min(...product.offers.map(o => o.price));
+                                            const isExpanded = expandedCardId === product.cardId;
+                                            return (
+                                                <React.Fragment key={product.cardId}>
+                                                    <tr
+                                                        className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                                                        onClick={() => setExpandedCardId(isExpanded ? null : product.cardId)}
+                                                    >
+                                                        <td className="p-4">
+                                                            <div className="flex items-center gap-4">
+                                                                <img
+                                                                    src={product.imageUrl || PLACEHOLDER_IMG}
+                                                                    alt={product.cardName}
+                                                                    className="w-12 h-16 object-cover rounded-lg shrink-0"
+                                                                    onError={(e) => {
+                                                                        e.currentTarget.src = PLACEHOLDER_IMG;
+                                                                    }}
+                                                                />
+                                                                <div>
+                                                                    <div className="font-medium">{product.cardName}</div>
+                                                                    <div className="text-xs text-muted-foreground">
+                                                                        {product.categoryName || '—'} · {formatRarity(product.rarity)}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            <span className="inline-flex items-center gap-1 text-sm">
+                                                                <Users className="h-4 w-4 text-muted-foreground" />
+                                                                {product.offers.length}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4 text-right">
+                                                            <span className="font-semibold text-accent-400">
+                                                                ${minPrice.toFixed(2)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="gap-1"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedProduct(product);
+                                                                }}
+                                                            >
+                                                                Xem đề nghị
+                                                                <ChevronDown className="h-4 w-4" />
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                    {/* Hàng mở rộng: bảng offer bên dưới thẻ */}
+                                                    {isExpanded && (
+                                                        <tr className="bg-white/5">
+                                                            <td colSpan={4} className="p-4">
+                                                                <div className="pl-16 pr-4">
+                                                                    <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                                                                        {product.offers.length} đề nghị
+                                                                    </div>
+                                                                    <table className="w-full text-sm">
+                                                                        <thead>
+                                                                            <tr className="text-muted-foreground text-left">
+                                                                                <th className="pb-2 font-medium">Giá</th>
+                                                                                <th className="pb-2 font-medium">Số lượng</th>
+                                                                                <th className="pb-2 font-medium">Người bán</th>
+                                                                                <th className="pb-2 font-medium text-right">Thao tác</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {product.offers.map((offer) => (
+                                                                                <tr key={offer.listSellerId} className="border-t border-white/5">
+                                                                                    <td className="py-2 font-medium text-accent-400">
+                                                                                        ${offer.price.toFixed(2)}
+                                                                                    </td>
+                                                                                    <td className="py-2">{offer.quantity}</td>
+                                                                                    <td className="py-2 text-muted-foreground">
+                                                                                        {offer.sellerName || '—'}
+                                                                                    </td>
+                                                                                    <td className="py-2 text-right">
+                                                                                        <Button
+                                                                                            variant="premium"
+                                                                                            size="sm"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                setSelectedProduct(product);
+                                                                                                setSelectedListing(offer);
+                                                                                            }}
+                                                                                        >
+                                                                                            Xem chi tiết
+                                                                                        </Button>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
                     ) : (
-                        <div className="text-center py-12 glass-card rounded-xl">
-                            <p className="text-muted-foreground mb-2">No items found</p>
-                            <p className="text-sm text-muted-foreground">Try adjusting your filters</p>
+                        <Card className="glass-card-strong">
+                            <CardContent className="py-16 text-center">
+                                <Package className="h-14 w-14 mx-auto mb-4 text-muted-foreground opacity-50" />
+                                <p className="text-muted-foreground font-medium">Chưa có thẻ nào được đăng bán</p>
+                                <p className="text-sm text-muted-foreground mt-1">Thử đổi bộ lọc hoặc đăng bán thẻ của bạn</p>
+                                <Link to="/post-listing">
+                                    <Button variant="premium" className="mt-4">
+                                        Đăng bán ngay
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-4 mt-6">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                                disabled={currentPage === 0}
+                            >
+                                <ChevronLeft className="h-4 w-4 mr-1" /> Trước
+                            </Button>
+                            <span className="text-sm text-muted-foreground">
+                                Trang {currentPage + 1} / {totalPages}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+                                disabled={currentPage >= totalPages - 1}
+                            >
+                                Sau <ChevronRight className="h-4 w-4 ml-1" />
+                            </Button>
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Modal danh sách offer của 1 thẻ (kiểu Cardmarket) */}
+            <ListingOffersModal
+                product={selectedProduct}
+                onClose={() => {
+                    setSelectedProduct(null);
+                    setSelectedListing(null);
+                }}
+                onSelectOffer={(offer) => {
+                    setSelectedListing(offer);
+                    setSelectedProduct(null);
+                }}
+                formatRarity={formatRarity}
+                rarityClass={rarityClass}
+                placeholderImg={PLACEHOLDER_IMG}
+            />
+
+            {/* Modal chi tiết 1 offer */}
+            <Dialog open={!!selectedListing} onOpenChange={(o) => !o && setSelectedListing(null)}>
+                <DialogContent className="max-w-md glass-card-strong border-white/10">
+                    {selectedListing && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle className="text-lg">Chi tiết đề nghị</DialogTitle>
+                            </DialogHeader>
+                            <div className="flex gap-4 mt-4">
+                                <img
+                                    src={selectedListing.imageUrl || PLACEHOLDER_IMG}
+                                    alt={selectedListing.cardName}
+                                    className="w-24 h-32 object-cover rounded-lg shrink-0"
+                                    onError={(e) => {
+                                        e.currentTarget.src = PLACEHOLDER_IMG;
+                                    }}
+                                />
+                                <div className="space-y-2 flex-1">
+                                    <div className="font-medium">{selectedListing.cardName}</div>
+                                    <p className="text-sm text-muted-foreground">
+                                        {selectedListing.categoryName || '—'} · {formatRarity(selectedListing.rarity)}
+                                    </p>
+                                    <div className="pt-2 border-t border-white/10">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Giá bán</span>
+                                            <span className="font-bold text-accent-400">${selectedListing.price.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Số lượng</span>
+                                            <span>{selectedListing.quantity}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Người bán</span>
+                                            <span>{selectedListing.sellerName || '—'}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Giá gốc thẻ</span>
+                                            <span>${selectedListing.basePrice.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                    <Button variant="ghost" className="w-full mt-2" onClick={() => setSelectedListing(null)}>
+                                        Đóng
+                                    </Button>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
+
+function ListingOffersModal({
+    product,
+    onClose,
+    onSelectOffer,
+    formatRarity,
+    rarityClass,
+    placeholderImg,
+}: {
+    product: CardProduct | null;
+    onClose: () => void;
+    onSelectOffer: (offer: ListingItem) => void;
+    formatRarity: (r: string) => string;
+    rarityClass: Record<string, string>;
+    placeholderImg: string;
+}) {
+    const open = !!product;
+    return (
+        <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-card-strong border-white/10">
+                {product && (
+                    <>
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-3">
+                                <img
+                                    src={product.imageUrl || placeholderImg}
+                                    alt={product.cardName}
+                                    className="w-14 h-20 object-cover rounded-lg"
+                                    onError={(e) => {
+                                        e.currentTarget.src = placeholderImg;
+                                    }}
+                                />
+                                <div className="text-left">
+                                    <div className="font-semibold text-lg">{product.cardName}</div>
+                                    <div className="text-sm text-muted-foreground">
+                                        {product.categoryName || '—'} · {formatRarity(product.rarity)}
+                                    </div>
+                                </div>
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="mt-4">
+                            <div className="text-xs font-medium text-muted-foreground mb-2 uppercase">Các đề nghị</div>
+                            <div className="space-y-2 max-h-80 overflow-y-auto">
+                                {product.offers.map((offer) => (
+                                    <div
+                                        key={offer.listSellerId}
+                                        className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10"
+                                    >
+                                        <div className="flex items-center gap-4 flex-wrap">
+                                            <span className="font-semibold text-accent-400 text-lg">
+                                                ${offer.price.toFixed(2)}
+                                            </span>
+                                            <span className="text-sm text-muted-foreground">
+                                                Số lượng: {offer.quantity}
+                                            </span>
+                                            <span className="text-sm text-muted-foreground">
+                                                Người bán: {offer.sellerName || '—'}
+                                            </span>
+                                        </div>
+                                        <Button
+                                            variant="premium"
+                                            size="sm"
+                                            onClick={() => onSelectOffer(offer)}
+                                        >
+                                            Xem chi tiết
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <Button variant="ghost" className="w-full mt-4" onClick={onClose}>
+                            Đóng
+                        </Button>
+                    </>
+                )}
+            </DialogContent>
+        </Dialog>
+    );
+}

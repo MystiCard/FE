@@ -32,7 +32,7 @@ const Toast = React.forwardRef<
     return (
         <ToastPrimitives.Root
             ref={ref}
-            className={`group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-lg border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-slide-up data-[state=closed]:animate-fade-out ${variants[variant]} ${className}`.trim()}
+            className={`group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-lg border p-6 pr-8 shadow-lg data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] ${variants[variant]} ${className}`.trim()}
             {...props}
         />
     )
@@ -45,7 +45,7 @@ const ToastAction = React.forwardRef<
 >(({ className = '', ...props }, ref) => (
     <ToastPrimitives.Action
         ref={ref}
-        className={`inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${className}`.trim()}
+        className={`inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${className}`.trim()}
         {...props}
     />
 ))
@@ -57,7 +57,7 @@ const ToastClose = React.forwardRef<
 >(({ className = '', ...props }, ref) => (
     <ToastPrimitives.Close
         ref={ref}
-        className={`absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 ${className}`.trim()}
+        className={`absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 ${className}`.trim()}
         toast-close=""
         {...props}
     >

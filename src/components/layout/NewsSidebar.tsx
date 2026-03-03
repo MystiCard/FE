@@ -59,7 +59,7 @@ const newsData: NewsItem[] = [
 
 export const NewsSidebar: React.FC = () => {
     return (
-        <aside className="fixed left-20 top-16 h-[calc(100vh-4rem)] w-80 border-r border-white/10 animate-slide-right hidden xl:block overflow-hidden">
+        <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-80 border-r border-white/10 hidden xl:block overflow-hidden">
             <div className="h-full flex flex-col glass-card-strong">
                 {/* Header */}
                 <div className="p-6 border-b border-white/10">
@@ -67,9 +67,9 @@ export const NewsSidebar: React.FC = () => {
                         <div className="p-2 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500">
                             <Newspaper className="h-5 w-5 text-white" />
                         </div>
-                        <h2 className="text-xl font-bold gradient-text">Latest News</h2>
+                        <h2 className="text-xl font-bold gradient-text">Tin mới nhất</h2>
                     </div>
-                    <p className="text-sm text-muted-foreground">Stay updated with the latest</p>
+                    <p className="text-sm text-muted-foreground">Cập nhật tin tức mới</p>
                 </div>
 
                 {/* News List */}
@@ -77,7 +77,7 @@ export const NewsSidebar: React.FC = () => {
                     {newsData.map((news, index) => (
                         <Card
                             key={news.id}
-                            className="glass-card hover-lift cursor-pointer group overflow-hidden transition-all duration-300 hover:scale-[1.02]"
+                            className="glass-card cursor-pointer group overflow-hidden hover:scale-[1.02]"
                             style={{ animationDelay: `${index * 100}ms` }}
                         >
                             <div className="relative">
@@ -86,7 +86,7 @@ export const NewsSidebar: React.FC = () => {
                                     <img
                                         src={news.image}
                                         alt={news.title}
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        className="w-full h-full object-cover group-hover:scale-110"
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
 
@@ -109,7 +109,7 @@ export const NewsSidebar: React.FC = () => {
 
                                 {/* Content */}
                                 <div className="p-4">
-                                    <h3 className="font-semibold text-sm mb-2 line-clamp-2 group-hover:text-primary-400 transition-colors">
+                                    <h3 className="font-semibold text-sm mb-2 line-clamp-2 group-hover:text-primary-400 ">
                                         {news.title}
                                     </h3>
                                     <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
@@ -122,7 +122,7 @@ export const NewsSidebar: React.FC = () => {
                                             <Clock className="h-3 w-3" />
                                             <span>{news.date}</span>
                                         </div>
-                                        <ChevronRight className="h-4 w-4 text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        <ChevronRight className="h-4 w-4 text-primary-400 opacity-0 group-hover:opacity-100 " />
                                     </div>
                                 </div>
                             </div>
@@ -132,8 +132,8 @@ export const NewsSidebar: React.FC = () => {
 
                 {/* Footer */}
                 <div className="p-4 border-t border-white/10">
-                    <button className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-primary-500 to-accent-500 hover:from-primary-600 hover:to-accent-600 transition-all font-semibold text-sm text-white shadow-lg hover:shadow-primary-500/50 hover-lift">
-                        View All News
+                    <button className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-primary-500 to-accent-500 hover:from-primary-600 hover:to-accent-600 font-semibold text-sm text-white shadow-lg hover:shadow-primary-500/50">
+                        Xem tất cả tin
                     </button>
                 </div>
             </div>

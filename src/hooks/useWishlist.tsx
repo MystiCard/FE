@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export interface WishlistItem {
-    id: number;
+    id: number | string;
     name: string;
     price: number;
     image: string;
@@ -11,8 +11,8 @@ export interface WishlistItem {
 interface WishlistContextType {
     items: WishlistItem[];
     addItem: (item: WishlistItem) => void;
-    removeItem: (id: number) => void;
-    isInWishlist: (id: number) => boolean;
+    removeItem: (id: number | string) => void;
+    isInWishlist: (id: number | string) => boolean;
     itemCount: number;
 }
 
@@ -28,20 +28,27 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         localStorage.setItem('wishlist', JSON.stringify(items));
     }, [items]);
 
+    // Khi đăng nhập thành công, AuthContext dispatch 'wishlist-clear' → reset state
+    useEffect(() => {
+        const handler = () => setItems([]);
+        window.addEventListener('wishlist-clear', handler);
+        return () => window.removeEventListener('wishlist-clear', handler);
+    }, []);
+
     const addItem = (item: WishlistItem) => {
         setItems(currentItems => {
-            const exists = currentItems.find(i => i.id === item.id);
+            const exists = currentItems.find(i => String(i.id) === String(item.id));
             if (exists) return currentItems;
             return [...currentItems, item];
         });
     };
 
-    const removeItem = (id: number) => {
-        setItems(currentItems => currentItems.filter(item => item.id !== id));
+    const removeItem = (id: number | string) => {
+        setItems(currentItems => currentItems.filter(item => String(item.id) !== String(id)));
     };
 
-    const isInWishlist = (id: number) => {
-        return items.some(item => item.id === id);
+    const isInWishlist = (id: number | string) => {
+        return items.some(item => String(item.id) === String(id));
     };
 
     const itemCount = items.length;

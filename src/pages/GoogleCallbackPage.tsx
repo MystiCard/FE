@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { isAdmin, tokenManager } from '@/utils/api';
+import { isAdmin, isShipper, tokenManager } from '@/utils/api';
 
 export const GoogleCallbackPage: React.FC = () => {
     const navigate = useNavigate();
@@ -25,10 +25,12 @@ export const GoogleCallbackPage: React.FC = () => {
             // Save tokens and update auth context
             login(accessToken, refreshToken);
             
-            // Check if user is admin and redirect accordingly
+            // Redirect by role: admin -> /admin, shipper -> /shipments, else -> /
             const userInfo = tokenManager.getUserInfo();
             if (isAdmin(userInfo)) {
                 navigate('/admin');
+            } else if (isShipper(userInfo)) {
+                navigate('/shipments');
             } else {
                 navigate('/');
             }
@@ -44,11 +46,11 @@ export const GoogleCallbackPage: React.FC = () => {
                 {error ? (
                     <div>
                         <div className="text-red-400 text-xl mb-4">{error}</div>
-                        <div className="text-muted-foreground">Redirecting to login...</div>
+                        <div className="text-muted-foreground">Đang chuyển đến trang đăng nhập...</div>
                     </div>
                 ) : (
                     <div>
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                        <div className="rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
                         <div className="text-xl">Completing Google login...</div>
                     </div>
                 )}

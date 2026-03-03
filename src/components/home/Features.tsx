@@ -5,23 +5,23 @@ import { Shield, Zap, TrendingUp, Users } from 'lucide-react';
 const features = [
     {
         icon: Shield,
-        title: 'Secure Trading',
-        description: 'Trade with confidence using our secure platform and buyer protection',
+        title: 'Giao dịch an toàn',
+        description: 'Giao dịch yên tâm với nền tảng bảo mật và bảo vệ người mua',
     },
     {
         icon: Zap,
-        title: 'Instant Delivery',
-        description: 'Get your digital cards instantly after purchase',
+        title: 'Giao hàng nhanh',
+        description: 'Nhận thẻ ngay sau khi thanh toán',
     },
     {
         icon: TrendingUp,
-        title: 'Market Insights',
-        description: 'Track card values and market trends in real-time',
+        title: 'Thị trường theo thời gian thực',
+        description: 'Theo dõi giá trị thẻ và xu hướng thị trường',
     },
     {
         icon: Users,
-        title: 'Active Community',
-        description: 'Join thousands of collectors and traders worldwide',
+        title: 'Cộng đồng sôi động',
+        description: 'Tham gia cùng hàng ngàn người sưu tầm và giao dịch',
     },
 ];
 
@@ -29,8 +29,8 @@ export const Features: React.FC = () => {
     return (
         <section className="py-16">
             <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold mb-4 font-serif">Why Choose MyScard?</h2>
-                <p className="text-xl text-muted-foreground">The ultimate platform for card collectors</p>
+                <h2 className="text-4xl font-bold mb-4 font-serif">Tại sao chọn MysticCard?</h2>
+                <p className="text-xl text-muted-foreground">Nền tảng hàng đầu cho người sưu tầm thẻ</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -39,7 +39,7 @@ export const Features: React.FC = () => {
                     return (
                         <Card
                             key={index}
-                            className="hover-lift animate-slide-up"
+                            className=""
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
                             <CardHeader>
