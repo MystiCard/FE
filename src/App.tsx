@@ -29,6 +29,7 @@ import { PaymentCallbackPage } from '@/pages/PaymentCallbackPage';
 import { TermsPage } from '@/pages/TermsPage';
 import { PrivacyPage } from '@/pages/PrivacyPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { ShipmentPage } from '@/pages/ShipmentPage';
 
 // Placeholder pages
 const ShopPage = () => {
@@ -112,6 +113,7 @@ function App() {
                         <Route path="post-listing" element={<PostListingPage />} />
                         <Route path="profile" element={<ProfilePage />} />
                         <Route path="wallet" element={<WalletPage />} />
+                        <Route path="shipments" element={<ShipmentPage />} />
                         <Route path="payment/callback" element={<PaymentCallbackPage />} />
                         <Route path="settings" element={<ProfilePage />} />
                         <Route path="compare" element={<ComparisonPage />} />
