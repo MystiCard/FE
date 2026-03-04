@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Search, Package, Tag, Filter, X, Heart } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { cardApi, categoryApi, listSellerApi, Card as CardType, Category } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWishlist } from '@/hooks/useWishlist';
@@ -28,6 +28,7 @@ const rarityClass: Record<string, string> = {
 
 export const PostListingPage: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { isAuthenticated } = useAuth();
     const { items: wishlistItems } = useWishlist();
     const [cards, setCards] = useState<CardType[]>([]);
@@ -45,6 +46,10 @@ export const PostListingPage: React.FC = () => {
     const [description, setDescription] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+
+    // Nếu được chuyển từ lịch sử mở hộp bí ẩn: ?card={cardId}
+    const searchParams = new URLSearchParams(location.search);
+    const preselectCardId = searchParams.get('card') || undefined;
 
     const wishlistCardIds = isAuthenticated
         ? apiWishlistIds
@@ -95,6 +100,15 @@ export const PostListingPage: React.FC = () => {
     };
 
     const RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SUPER_RARE', 'SECRET_RARE'] as const;
+
+    // Tự động chọn thẻ nếu có query param ?card=...
+    useEffect(() => {
+        if (!preselectCardId || !cards.length) return;
+        const card = cards.find((c) => c.cardId === preselectCardId);
+        if (card && wishlistCardIds.has(card.cardId)) {
+            setSelectedCard(card);
+        }
+    }, [preselectCardId, cards, wishlistCardIds]);
 
     const filteredCards = useMemo(() => {
         // Chỉ được đăng bán thẻ đã có trong wishlist

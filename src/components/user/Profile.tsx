@@ -97,6 +97,13 @@ export const Profile: React.FC = () => {
 
     useEffect(() => {
         fetchProfile();
+
+        const handler = () => {
+            fetchProfile();
+            fetchStats();
+        };
+        window.addEventListener('wallet-updated', handler);
+        return () => window.removeEventListener('wallet-updated', handler);
     }, [isAuthenticated]);
 
     useEffect(() => {
@@ -171,6 +178,10 @@ export const Profile: React.FC = () => {
             phone: profile.phone ?? '',
             address: profile.address ?? '',
             gender: (profile.gender as 'MALE' | 'FEMALE') || undefined,
+            // Giữ lại districtId / wardId hiện tại để gửi lên BE, tránh bị null
+            // (AddressSelect hiện tại chỉ cập nhật chuỗi address, chưa map sang code).
+            districtId: (profile as any).districtId,
+            wardId: (profile as any).wardId,
         });
         setAvatarFile(null);
         setAvatarPreview(null);
@@ -599,9 +610,9 @@ export const Profile: React.FC = () => {
                                 <Heart className="w-8 h-8 text-pink-400" />
                             </div>
                             <p className="text-muted-foreground">Chưa có thẻ nào trong wishlist</p>
-                            <p className="text-sm text-muted-foreground mt-1">Thêm thẻ yêu thích từ Shop hoặc My Collection</p>
-                            <Button variant="outline" className="mt-4" onClick={() => navigate('/shop')}>
-                                Đến Shop
+                            <p className="text-sm text-muted-foreground mt-1">Thêm thẻ yêu thích từ Hộp bí ẩn hoặc Bộ sưu tập</p>
+                            <Button variant="outline" className="mt-4" onClick={() => navigate('/mystery-box')}>
+                                Đến Hộp bí ẩn
                             </Button>
                         </Card>
                     ) : (

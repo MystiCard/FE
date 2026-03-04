@@ -13,8 +13,8 @@ import {
     ChevronDown,
     Users,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { listSellerApi, ListingItem, categoryApi, Category, cardApi } from '@/utils/api';
+import { Link, useNavigate } from 'react-router-dom';
+import { listSellerApi, ListingItem, categoryApi, Category, cardApi, userApi, orderApi, transactionApi } from '@/utils/api';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 import { Heart, Loader2 } from 'lucide-react';
@@ -28,6 +28,11 @@ const formatRarity = (rarity: string) =>
               .replace(/_/g, ' ')
               .replace(/\b\w/g, c => c.toUpperCase())
         : '';
+
+const formatCurrencyVND = (value: number) => {
+    const safe = Number.isFinite(value) ? value : 0;
+    return safe.toLocaleString('vi-VN') + ' đ';
+};
 
 const rarityClass: Record<string, string> = {
     SECRET_RARE: 'bg-purple-500/20 text-purple-400',
@@ -81,15 +86,22 @@ export const Marketplace: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [priceRange, setPriceRange] = useState<[number, number]>([0, 5000]);
+    const [priceRange, setPriceRange] = useState<[number, number]>([0, 5_000_000]);
     const [sortBy, setSortBy] = useState<'price-asc' | 'price-desc' | 'name'>('price-asc');
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [filterRarity, setFilterRarity] = useState<string>('all');
     const [categories, setCategories] = useState<Category[]>([]);
     const [selectedProduct, setSelectedProduct] = useState<CardProduct | null>(null);
     const [selectedListing, setSelectedListing] = useState<ListingItem | null>(null);
+    const [orderQuantity, setOrderQuantity] = useState<number>(1);
+    const [orderLoading, setOrderLoading] = useState(false);
+    const [orderError, setOrderError] = useState<string | null>(null);
+    const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'MOMO'>('WALLET');
     const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+    const [cartItems, setCartItems] = useState<{ listing: ListingItem; quantity: number }[]>([]);
+    const [cartOpen, setCartOpen] = useState(false);
     const { isAuthenticated } = useAuth();
+    const navigate = useNavigate();
     const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
     const [wishlistCardIds, setWishlistCardIds] = useState<Set<string>>(new Set());
     const [wishlistLoadingCardId, setWishlistLoadingCardId] = useState<string | null>(null);
@@ -149,20 +161,26 @@ export const Marketplace: React.FC = () => {
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             list = list.filter(
-                item =>
+                (item) =>
                     item.cardName.toLowerCase().includes(q) ||
-                    (item.categoryName && item.categoryName.toLowerCase().includes(q))
+                    (item.categoryName && item.categoryName.toLowerCase().includes(q)),
             );
         }
-        list = list.filter(item => item.price >= priceRange[0] && item.price <= priceRange[1]);
+        list = list.filter(
+            (item) => item.price >= priceRange[0] && item.price <= priceRange[1],
+        );
         if (filterCategory !== 'all') {
-            const cat = categories.find(c => c.categoryId === filterCategory);
+            const cat = categories.find((c) => c.categoryId === filterCategory);
             if (cat?.categoryName) {
                 const name = cat.categoryName.toLowerCase();
-                list = list.filter(item => item.categoryName?.toLowerCase() === name);
+                list = list.filter((item) => item.categoryName?.toLowerCase() === name);
             }
         }
-        if (filterRarity !== 'all') list = list.filter(item => item.rarity === filterRarity);
+        if (filterRarity !== 'all') list = list.filter((item) => item.rarity === filterRarity);
+
+        // Chỉ giữ lại các offer còn hàng (quantity >= 1)
+        list = list.filter((item) => item.quantity && item.quantity > 0);
+
         if (sortBy === 'price-asc') list.sort((a, b) => a.price - b.price);
         else if (sortBy === 'price-desc') list.sort((a, b) => b.price - a.price);
         else list.sort((a, b) => a.cardName.localeCompare(b.cardName));
@@ -215,6 +233,188 @@ export const Marketplace: React.FC = () => {
         }
     };
 
+    const addToCart = (offer: ListingItem, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setCartItems((prev) => {
+            const existing = prev.find((c) => c.listing.listSellerId === offer.listSellerId);
+            if (existing) {
+                const nextQty = Math.min(existing.quantity + 1, offer.quantity);
+                return prev.map((c) =>
+                    c.listing.listSellerId === offer.listSellerId ? { ...c, quantity: nextQty } : c,
+                );
+            }
+            return [...prev, { listing: offer, quantity: 1 }];
+        });
+        setCartOpen(true);
+    };
+
+    const handleCheckoutCart = async () => {
+        if (!cartItems.length) return;
+        if (!isAuthenticated) {
+            navigate('/login');
+            return;
+        }
+        setOrderError(null);
+        setOrderLoading(true);
+        try {
+            const profile = await userApi.getMyProfile();
+            if (!profile.address || !profile.phone) {
+                setOrderError('Vui lòng cập nhật địa chỉ và số điện thoại trong Hồ sơ trước khi mua.');
+                return;
+            }
+
+            const toDistrictId = profile.districtId ? Number(profile.districtId) : 3695;
+            const toWardId = profile.wardId ? Number(profile.wardId) : 90752;
+
+            const orderItemsList = cartItems.map((c) => ({
+                listSellerId: c.listing.listSellerId,
+                quantity: Math.max(1, Math.min(c.quantity, c.listing.quantity)),
+            }));
+
+            const order = await orderApi.createOrder({
+                buyerAddress: profile.address,
+                buyerPhone: profile.phone,
+                toDistrictId,
+                toWardId,
+                orderItemsList,
+            });
+
+            const totalShipFee =
+                order.orderItems?.reduce((sum, oi) => sum + (oi.shipfee ?? 0), 0) ?? 0;
+            const totalItems =
+                order.orderItems?.reduce(
+                    (sum, oi) =>
+                        sum +
+                        oi.orderDetailResponseList.reduce(
+                            (s, d) => s + d.quantity * d.price,
+                            0,
+                        ),
+                    0,
+                ) ?? 0;
+
+            if (paymentMethod === 'WALLET') {
+                await transactionApi.payOrderWithWallet(order.orderId);
+                window.dispatchEvent(new CustomEvent('wallet-updated'));
+                alert(
+                    [
+                        'Đã đặt mua & thanh toán các thẻ trong giỏ bằng Ví MystiCard.',
+                        `Mã đơn: ${order.orderId.slice(0, 8)}`,
+                        `Tiền hàng: ${totalItems.toLocaleString('vi-VN')}đ`,
+                        `Phí ship: ${totalShipFee.toLocaleString('vi-VN')}đ`,
+                        `Tổng thanh toán: ${order.totalAmount.toLocaleString('vi-VN')}đ`,
+                    ].join('\n'),
+                );
+            } else {
+                alert(
+                    [
+                        'Đã tạo đơn mua cho các thẻ trong giỏ (thanh toán MoMo sẽ được bổ sung sau).',
+                        `Mã đơn: ${order.orderId.slice(0, 8)}`,
+                        `Tiền hàng: ${totalItems.toLocaleString('vi-VN')}đ`,
+                        `Phí ship: ${totalShipFee.toLocaleString('vi-VN')}đ`,
+                        `Tổng tiền đơn: ${order.totalAmount.toLocaleString('vi-VN')}đ`,
+                    ].join('\n'),
+                );
+            }
+
+            setCartItems([]);
+            setCartOpen(false);
+            navigate('/orders');
+        } catch (e) {
+            setOrderError(
+                e instanceof Error ? e.message : 'Thanh toán giỏ hàng thất bại. Vui lòng thử lại.',
+            );
+        } finally {
+            setOrderLoading(false);
+        }
+    };
+    const handleBuyNow = async () => {
+        if (!selectedListing) return;
+        if (!isAuthenticated) {
+            navigate('/login');
+            return;
+        }
+        setOrderError(null);
+        setOrderLoading(true);
+        try {
+            const profile = await userApi.getMyProfile();
+            if (!profile.address || !profile.phone) {
+                setOrderError('Vui lòng cập nhật địa chỉ và số điện thoại trong Hồ sơ trước khi mua.');
+                return;
+            }
+
+            const toDistrictId = profile.districtId ? Number(profile.districtId) : 3695;
+            const toWardId = profile.wardId ? Number(profile.wardId) : 90752;
+            const safeQuantity = Math.max(
+                1,
+                Math.min(orderQuantity || 1, selectedListing.quantity ?? 1),
+            );
+
+            const order = await orderApi.createOrder({
+                buyerAddress: profile.address,
+                buyerPhone: profile.phone,
+                toDistrictId,
+                toWardId,
+                orderItemsList: [
+                    {
+                        listSellerId: selectedListing.listSellerId,
+                        quantity: safeQuantity,
+                    },
+                ],
+            });
+
+            // Tính tổng tiền hàng và phí ship từ order trả về
+            const totalShipFee =
+                order.orderItems?.reduce((sum, oi) => sum + (oi.shipfee ?? 0), 0) ?? 0;
+            const totalItems =
+                order.orderItems?.reduce(
+                    (sum, oi) =>
+                        sum +
+                        oi.orderDetailResponseList.reduce(
+                            (s, d) => s + d.quantity * d.price,
+                            0,
+                        ),
+                    0,
+                ) ?? 0;
+
+            if (paymentMethod === 'WALLET') {
+                // Thanh toán đơn bằng ví
+                await transactionApi.payOrderWithWallet(order.orderId);
+                window.dispatchEvent(new CustomEvent('wallet-updated'));
+                alert(
+                    [
+                        'Đặt mua & thanh toán bằng Ví MystiCard thành công.',
+                        `Mã đơn: ${order.orderId.slice(0, 8)}`,
+                        `Tiền hàng: ${totalItems.toLocaleString('vi-VN')}đ`,
+                        `Phí ship: ${totalShipFee.toLocaleString('vi-VN')}đ`,
+                        `Tổng thanh toán: ${order.totalAmount.toLocaleString('vi-VN')}đ`,
+                    ].join('\n'),
+                );
+            } else {
+                // Chưa tích hợp MoMo cho đơn marketplace: chỉ hiển thị thông tin
+                alert(
+                    [
+                        'Đã tạo đơn mua thẻ (thanh toán qua MoMo sẽ được bổ sung sau).',
+                        `Mã đơn: ${order.orderId.slice(0, 8)}`,
+                        `Tiền hàng: ${totalItems.toLocaleString('vi-VN')}đ`,
+                        `Phí ship (tính theo từng người bán): ${totalShipFee.toLocaleString('vi-VN')}đ`,
+                        `Tổng tiền đơn: ${order.totalAmount.toLocaleString('vi-VN')}đ`,
+                    ].join('\n'),
+                );
+            }
+
+            setSelectedListing(null);
+            setSelectedProduct(null);
+            setOrderQuantity(1);
+            navigate('/orders');
+        } catch (e) {
+            setOrderError(
+                e instanceof Error ? e.message : 'Đặt mua thất bại. Vui lòng thử lại.',
+            );
+        } finally {
+            setOrderLoading(false);
+        }
+    };
+
     const products = useMemo(() => {
         const grouped = groupListingsByCard(filteredListings);
         if (sortBy === 'name') grouped.sort((a, b) => a.cardName.localeCompare(b.cardName));
@@ -261,6 +461,20 @@ export const Marketplace: React.FC = () => {
                 </div>
             </div>
 
+            {/* Nút nổi mở giỏ hàng */}
+            {cartItems.length > 0 && (
+                <div className="fixed bottom-6 right-6 z-40">
+                    <Button
+                        variant="premium"
+                        className="shadow-lg flex items-center gap-2"
+                        onClick={() => setCartOpen(true)}
+                    >
+                        <Package className="h-4 w-4" />
+                        Giỏ hàng ({cartItems.length})
+                    </Button>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Sidebar bộ lọc */}
                 <div className="lg:col-span-1">
@@ -273,7 +487,7 @@ export const Marketplace: React.FC = () => {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Giá ($)</label>
+                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Giá (đ)</label>
                                 <div className="flex gap-2">
                                     <input
                                         type="number"
@@ -413,7 +627,7 @@ export const Marketplace: React.FC = () => {
                                                         </td>
                                                         <td className="p-4 text-right">
                                                             <span className="font-semibold text-accent-400">
-                                                                ${minPrice.toFixed(2)}
+                                                                {formatCurrencyVND(minPrice)}
                                                             </span>
                                                         </td>
                                                         <td className="p-4">
@@ -478,7 +692,7 @@ export const Marketplace: React.FC = () => {
                                                                             {product.offers.map((offer) => (
                                                                                 <tr key={offer.listSellerId} className="border-t border-white/5">
                                                                                     <td className="py-2 font-medium text-accent-400">
-                                                                                        ${offer.price.toFixed(2)}
+                                                                                        {formatCurrencyVND(offer.price)}
                                                                                     </td>
                                                                                     <td className="py-2">{offer.quantity}</td>
                                                                                     <td className="py-2 text-muted-foreground">
@@ -564,6 +778,7 @@ export const Marketplace: React.FC = () => {
                     setSelectedListing(offer);
                     setSelectedProduct(null);
                 }}
+                onAddToCart={(offer) => addToCart(offer)}
                 formatRarity={formatRarity}
                 rarityClass={rarityClass}
                 placeholderImg={PLACEHOLDER_IMG}
@@ -594,7 +809,7 @@ export const Marketplace: React.FC = () => {
                                     <div className="pt-2 border-t border-white/10">
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Giá bán</span>
-                                            <span className="font-bold text-accent-400">${selectedListing.price.toFixed(2)}</span>
+                                            <span className="font-bold text-accent-400">{formatCurrencyVND(selectedListing.price)}</span>
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Số lượng</span>
@@ -606,8 +821,66 @@ export const Marketplace: React.FC = () => {
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Giá gốc thẻ</span>
-                                            <span>${selectedListing.basePrice.toFixed(2)}</span>
+                                            <span>{formatCurrencyVND(selectedListing.basePrice)}</span>
                                         </div>
+                                    </div>
+                                    {orderError && (
+                                        <p className="text-xs text-red-400 mt-2">{orderError}</p>
+                                    )}
+                                    <div className="pt-3 border-t border-white/10 space-y-2">
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="text-muted-foreground">Số lượng mua</span>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={selectedListing.quantity}
+                                                value={orderQuantity}
+                                                onChange={(e) =>
+                                                    setOrderQuantity(
+                                                        Number.isNaN(Number(e.target.value))
+                                                            ? 1
+                                                            : Number(e.target.value),
+                                                    )
+                                                }
+                                                className="w-24 px-2 py-1 rounded bg-white/5 border border-white/10 text-right text-sm"
+                                            />
+                                        </div>
+                                        <div className="flex gap-2 text-xs">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentMethod('WALLET')}
+                                                className={`flex-1 px-3 py-2 rounded border ${
+                                                    paymentMethod === 'WALLET'
+                                                        ? 'border-yellow-400 bg-yellow-500/10 text-yellow-200'
+                                                        : 'border-white/10 text-muted-foreground hover:border-yellow-400'
+                                                }`}
+                                            >
+                                                Ví MystiCard
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentMethod('MOMO')}
+                                                className={`flex-1 px-3 py-2 rounded border ${
+                                                    paymentMethod === 'MOMO'
+                                                        ? 'border-pink-400 bg-pink-500/10 text-pink-200'
+                                                        : 'border-white/10 text-muted-foreground hover:border-pink-400'
+                                                }`}
+                                            >
+                                                MoMo
+                                            </button>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Địa chỉ và số điện thoại sẽ dùng thông tin trong mục Hồ sơ của bạn.
+                                            Nếu cần thay đổi, hãy cập nhật Hồ sơ trước khi mua.
+                                        </p>
+                                        <Button
+                                            variant="premium"
+                                            className="w-full"
+                                            disabled={orderLoading}
+                                            onClick={handleBuyNow}
+                                        >
+                                            {orderLoading ? 'Đang đặt mua...' : 'Mua ngay'}
+                                        </Button>
                                     </div>
                                     <Button variant="ghost" className="w-full mt-2" onClick={() => setSelectedListing(null)}>
                                         Đóng
@@ -615,6 +888,132 @@ export const Marketplace: React.FC = () => {
                                 </div>
                             </div>
                         </>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Giỏ hàng nhiều offer */}
+            <Dialog open={cartOpen} onOpenChange={(o) => setCartOpen(o)}>
+                <DialogContent className="max-w-lg glass-card-strong border-white/10">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg">Giỏ hàng sàn giao dịch</DialogTitle>
+                    </DialogHeader>
+                    {cartItems.length === 0 ? (
+                        <p className="text-sm text-muted-foreground mt-4">
+                            Giỏ hàng đang trống. Hãy thêm thẻ từ Sàn giao dịch.
+                        </p>
+                    ) : (
+                        <div className="mt-4 space-y-3 text-sm">
+                            <table className="w-full text-sm">
+                                <thead className="text-muted-foreground">
+                                    <tr>
+                                        <th className="text-left px-2 py-1">Thẻ</th>
+                                        <th className="text-right px-2 py-1">Giá</th>
+                                        <th className="text-center px-2 py-1">SL</th>
+                                        <th className="text-right px-2 py-1">Tạm tính</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {cartItems.map((item) => (
+                                        <tr key={item.listing.listSellerId} className="border-t border-white/5">
+                                            <td className="px-2 py-1">
+                                                <div className="line-clamp-2">{item.listing.cardName}</div>
+                                                <div className="text-[11px] text-muted-foreground">
+                                                    {item.listing.sellerName || '—'}
+                                                </div>
+                                            </td>
+                                            <td className="px-2 py-1 text-right">
+                                                {formatCurrencyVND(item.listing.price)}
+                                            </td>
+                                            <td className="px-2 py-1 text-center">
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={item.listing.quantity}
+                                                    value={item.quantity}
+                                                    onChange={(e) => {
+                                                        const v = Number(e.target.value) || 1;
+                                                        setCartItems((prev) =>
+                                                            prev.map((c) =>
+                                                                c.listing.listSellerId === item.listing.listSellerId
+                                                                    ? {
+                                                                          ...c,
+                                                                          quantity: Math.max(
+                                                                              1,
+                                                                              Math.min(v, item.listing.quantity),
+                                                                          ),
+                                                                      }
+                                                                    : c,
+                                                            ),
+                                                        );
+                                                    }}
+                                                    className="w-16 px-2 py-1 rounded bg-white/5 border border-white/10 text-center text-xs"
+                                                />
+                                            </td>
+                                            <td className="px-2 py-1 text-right">
+                                                {formatCurrencyVND(item.listing.price * item.quantity)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            <div className="pt-2 border-t border-white/10 space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Tổng tiền hàng</span>
+                                    <span className="font-semibold">
+                                        {formatCurrencyVND(
+                                            cartItems.reduce(
+                                                (sum, i) => sum + i.listing.price * i.quantity,
+                                                0,
+                                            ),
+                                        )}
+                                    </span>
+                                </div>
+                                <div className="flex gap-2 text-xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentMethod('WALLET')}
+                                        className={`flex-1 px-3 py-2 rounded border ${
+                                            paymentMethod === 'WALLET'
+                                                ? 'border-yellow-400 bg-yellow-500/10 text-yellow-200'
+                                                : 'border-white/10 text-muted-foreground hover:border-yellow-400'
+                                        }`}
+                                    >
+                                        Ví MystiCard
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentMethod('MOMO')}
+                                        className={`flex-1 px-3 py-2 rounded border ${
+                                            paymentMethod === 'MOMO'
+                                                ? 'border-pink-400 bg-pink-500/10 text-pink-200'
+                                                : 'border-white/10 text-muted-foreground hover:border-pink-400'
+                                        }`}
+                                    >
+                                        MoMo
+                                    </button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Phí ship được tính riêng cho từng người bán sau khi tạo đơn, tương tự như khi mua 1 offer.
+                                </p>
+                                <Button
+                                    variant="premium"
+                                    className="w-full"
+                                    disabled={orderLoading}
+                                    onClick={handleCheckoutCart}
+                                >
+                                    {orderLoading ? 'Đang thanh toán...' : 'Thanh toán giỏ hàng'}
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    className="w-full"
+                                    type="button"
+                                    onClick={() => setCartOpen(false)}
+                                >
+                                    Đóng
+                                </Button>
+                            </div>
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>
@@ -626,6 +1025,7 @@ function ListingOffersModal({
     product,
     onClose,
     onSelectOffer,
+    onAddToCart,
     formatRarity,
     rarityClass,
     placeholderImg,
@@ -633,6 +1033,7 @@ function ListingOffersModal({
     product: CardProduct | null;
     onClose: () => void;
     onSelectOffer: (offer: ListingItem) => void;
+    onAddToCart: (offer: ListingItem) => void;
     formatRarity: (r: string) => string;
     rarityClass: Record<string, string>;
     placeholderImg: string;
@@ -643,12 +1044,16 @@ function ListingOffersModal({
         return null;
     }
 
-    const prices = product.offers.map((o) => o.price);
-    const quantities = product.offers.map((o) => o.quantity);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-    const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
-    const totalQuantity = quantities.reduce((sum, q) => sum + q, 0);
+    const activeOffers = product.offers.filter((o) => (o.quantity ?? 0) > 0);
+
+    const prices = activeOffers.map((o) => o.price);
+    const quantities = activeOffers.map((o) => o.quantity);
+    const minPrice = prices.length ? Math.min(...prices) : 0;
+    const maxPrice = prices.length ? Math.max(...prices) : 0;
+    const avgPrice = prices.length
+        ? prices.reduce((sum, p) => sum + p, 0) / prices.length
+        : 0;
+    const totalQuantity = quantities.reduce((sum, q) => sum + (q ?? 0), 0);
 
     return (
         <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -673,9 +1078,15 @@ function ListingOffersModal({
                                 )}
                             </div>
                             <div className="text-2xl font-semibold">{product.cardName}</div>
-                            <div className="text-xs text-muted-foreground">
-                                Tổng {product.offers.length} đề nghị · {totalQuantity} bản có sẵn
-                            </div>
+                            {activeOffers.length > 0 ? (
+                                <div className="text-xs text-muted-foreground">
+                                    Tổng {activeOffers.length} đề nghị · {totalQuantity} bản có sẵn
+                                </div>
+                            ) : (
+                                <div className="text-xs text-muted-foreground">
+                                    Hiện không còn đề nghị nào còn hàng
+                                </div>
+                            )}
                         </div>
                     </DialogTitle>
                 </DialogHeader>
@@ -686,63 +1097,77 @@ function ListingOffersModal({
                             <DollarSign className="h-3 w-3" />
                             Giá thấp nhất
                         </div>
-                        <div className="text-lg font-bold text-accent-400">${minPrice.toFixed(2)}</div>
+                        <div className="text-lg font-bold text-accent-400">{formatCurrencyVND(minPrice)}</div>
                     </div>
                     <div className="p-3 rounded-lg bg-white/5">
                         <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                             <DollarSign className="h-3 w-3" />
                             Giá trung bình
                         </div>
-                        <div className="text-lg font-bold">${avgPrice.toFixed(2)}</div>
+                        <div className="text-lg font-bold">{formatCurrencyVND(avgPrice)}</div>
                     </div>
                     <div className="p-3 rounded-lg bg-white/5">
                         <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                             <DollarSign className="h-3 w-3" />
                             Giá cao nhất
                         </div>
-                        <div className="text-lg font-bold">${maxPrice.toFixed(2)}</div>
+                        <div className="text-lg font-bold">{formatCurrencyVND(maxPrice)}</div>
                     </div>
                 </div>
 
-                <div className="mt-6">
-                    <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-                        Danh sách người bán
-                    </div>
-                    <div className="rounded-lg border border-white/10 overflow-hidden">
-                        <table className="w-full text-sm">
-                            <thead className="bg-white/5 text-muted-foreground">
-                                <tr>
-                                    <th className="px-4 py-2 text-left">Người bán</th>
-                                    <th className="px-4 py-2 text-right">Giá</th>
-                                    <th className="px-4 py-2 text-center">Số lượng</th>
-                                    <th className="px-4 py-2 text-right">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {product.offers.map((offer) => (
-                                    <tr key={offer.listSellerId} className="border-t border-white/5">
-                                        <td className="px-4 py-2 text-sm text-muted-foreground">
-                                            {offer.sellerName || '—'}
-                                        </td>
-                                        <td className="px-4 py-2 text-right font-semibold text-accent-400">
-                                            ${offer.price.toFixed(2)}
-                                        </td>
-                                        <td className="px-4 py-2 text-center">{offer.quantity}</td>
-                                        <td className="px-4 py-2 text-right">
-                                            <Button
-                                                variant="premium"
-                                                size="sm"
-                                                onClick={() => onSelectOffer(offer)}
-                                            >
-                                                Xem chi tiết
-                                            </Button>
-                                        </td>
+                {activeOffers.length > 0 && (
+                    <div className="mt-6">
+                        <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                            Danh sách người bán
+                        </div>
+                        <div className="rounded-lg border border-white/10 overflow-hidden">
+                            <table className="w-full text-sm">
+                                <thead className="bg-white/5 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left">Người bán</th>
+                                        <th className="px-4 py-2 text-right">Giá</th>
+                                        <th className="px-4 py-2 text-center">Số lượng</th>
+                                        <th className="px-4 py-2 text-right">Thao tác</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {activeOffers.map((offer) => (
+                                        <tr key={offer.listSellerId} className="border-t border-white/5">
+                                            <td className="px-4 py-2 text-sm text-muted-foreground">
+                                                {offer.sellerName || '—'}
+                                            </td>
+                                            <td className="px-4 py-2 text-right font-semibold text-accent-400">
+                                                {formatCurrencyVND(offer.price)}
+                                            </td>
+                                            <td className="px-4 py-2 text-center">
+                                                {offer.quantity}
+                                            </td>
+                                            <td className="px-4 py-2 text-right flex gap-2 justify-end">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onAddToCart(offer);
+                                                    }}
+                                                >
+                                                    Thêm vào giỏ
+                                                </Button>
+                                                <Button
+                                                    variant="premium"
+                                                    size="sm"
+                                                    onClick={() => onSelectOffer(offer)}
+                                                >
+                                                    Xem chi tiết
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <Button variant="ghost" className="w-full mt-4" onClick={onClose}>
                     Đóng

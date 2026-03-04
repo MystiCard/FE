@@ -28,8 +28,7 @@ export const Footer: React.FC = () => {
                         <ul className="space-y-1 text-xs">
                             <li><Link to="/" className="text-muted-foreground hover:text-primary-400">Trang chủ</Link></li>
                             <li><Link to="/about" className="text-muted-foreground hover:text-primary-400">Giới thiệu</Link></li>
-                            <li><Link to="/shop" className="text-muted-foreground hover:text-primary-400">Cửa hàng</Link></li>
-                            <li><Link to="/products" className="text-muted-foreground hover:text-primary-400">Sản phẩm</Link></li>
+                            <li><Link to="/mystery-box" className="text-muted-foreground hover:text-primary-400">Hộp bí ẩn</Link></li>
                             <li><Link to="/marketplace" className="text-muted-foreground hover:text-primary-400">Sàn giao dịch</Link></li>
                             <li><Link to="/portfolio" className="text-muted-foreground hover:text-primary-400">Bộ sưu tập</Link></li>
                         </ul>

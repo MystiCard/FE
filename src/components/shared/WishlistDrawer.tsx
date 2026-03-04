@@ -116,7 +116,7 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
                             </div>
                             <p className="text-muted-foreground font-medium">Chưa có mục nào</p>
                             <p className="text-sm text-muted-foreground mt-1 text-center">
-                                Thêm thẻ từ Bộ sưu tập hoặc Cửa hàng vào danh sách yêu thích
+                                Thêm thẻ từ Bộ sưu tập hoặc Hộp bí ẩn vào danh sách yêu thích
                             </p>
                             <Button variant="outline" className="mt-6" onClick={onClose}>
                                 Đóng

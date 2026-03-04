@@ -38,6 +38,12 @@ export const AdminCardsPage: React.FC = () => {
         return rarity ? rarity.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown';
     };
 
+    // Helper to format price in VND
+    const formatCurrencyVND = (value: number) => {
+        const safe = Number.isFinite(value) ? value : 0;
+        return safe.toLocaleString('vi-VN') + ' đ';
+    };
+
     const getFilteredCards = () => {
         return cards.filter(card => {
             const matchesSearch = card.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -94,6 +100,9 @@ export const AdminCardsPage: React.FC = () => {
         }
     };
 
+    const totalValue = cards.reduce((sum, card) => sum + (card.basePrice || 0), 0);
+    const avgValue = cards.length > 0 ? totalValue / cards.length : 0;
+
     const stats = [
         {
             title: 'Tổng thẻ',
@@ -104,14 +113,14 @@ export const AdminCardsPage: React.FC = () => {
         },
         {
             title: 'Tổng giá trị',
-            value: `$${cards.reduce((sum, card) => sum + (card.basePrice || 0), 0).toFixed(2)}`,
+            value: formatCurrencyVND(totalValue),
             icon: DollarSign,
             color: 'from-accent-500 to-accent-300',
             change: 'Kho'
         },
         {
             title: 'Giá trung bình',
-            value: cards.length > 0 ? `$${(cards.reduce((sum, card) => sum + (card.basePrice || 0), 0) / cards.length).toFixed(2)}` : '$0',
+            value: cards.length > 0 ? formatCurrencyVND(avgValue) : '0 đ',
             icon: TrendingUp,
             color: 'from-secondary-500 to-secondary-300',
             change: 'Mỗi thẻ'
@@ -429,10 +438,7 @@ export const AdminCardsPage: React.FC = () => {
                                                             e.currentTarget.src = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=100&q=80';
                                                         }}
                                                     />
-                                                    <div>
-                                                        <div className="font-medium">{card.name}</div>
-                                                        <div className="text-xs text-muted-foreground">ID: {card.cardId.substring(0, 8)}</div>
-                                                    </div>
+                                                    <div className="font-medium">{card.name}</div>
                                                 </div>
                                             </td>
                                             <td className="p-4 text-sm">{card.categoryName || 'N/A'}</td>
@@ -448,7 +454,7 @@ export const AdminCardsPage: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className="p-4 text-right font-semibold text-accent-400">
-                                                ${card.basePrice.toFixed(2)}
+                                                {formatCurrencyVND(card.basePrice)}
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex items-center justify-end gap-2">
@@ -693,15 +699,21 @@ export const AdminCardsPage: React.FC = () => {
                                         <div className="grid grid-cols-3 gap-4 pt-2 border-t border-white/10">
                                             <div>
                                                 <div className="text-xs text-muted-foreground mb-1">Giá gốc</div>
-                                                <div className="text-accent-400 font-semibold">${detailCard.basePrice.toFixed(2)}</div>
+                                                <div className="text-accent-400 font-semibold">
+                                                    {formatCurrencyVND(detailCard.basePrice)}
+                                                </div>
                                             </div>
                                             <div>
                                                 <div className="text-xs text-muted-foreground mb-1">Giá thấp nhất</div>
-                                                <div className="text-sm">${detailCard.minPrice.toFixed(2)}</div>
+                                                <div className="text-sm">
+                                                    {formatCurrencyVND(detailCard.minPrice)}
+                                                </div>
                                             </div>
                                             <div>
                                                 <div className="text-xs text-muted-foreground mb-1">Giá cao nhất</div>
-                                                <div className="text-sm">${detailCard.maxPrice.toFixed(2)}</div>
+                                                <div className="text-sm">
+                                                    {formatCurrencyVND(detailCard.maxPrice)}
+                                                </div>
                                             </div>
                                         </div>
                                         <div>
