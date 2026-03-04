@@ -13,8 +13,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
     const menuItems = [
         { icon: Home, label: 'Trang chủ', path: '/' },
         { icon: Info, label: 'Giới thiệu', path: '/about' },
-        { icon: ShoppingBag, label: 'Cửa hàng', path: '/shop' },
-        { icon: Package, label: 'Sản phẩm', path: '/products' },
+        { icon: ShoppingBag, label: 'Hộp bí ẩn', path: '/mystery-box' },
         { icon: TrendingUp, label: 'Sàn giao dịch', path: '/marketplace' },
         { icon: User, label: 'Hồ sơ', path: '/profile' },
         { icon: Settings, label: 'Quản trị', path: '/admin' },
@@ -69,22 +68,6 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                         );
                     })}
                 </nav>
-
-                {/* Shop Submenu */}
-                <div className="px-4 py-2">
-                    <div className="text-xs font-semibold text-muted-foreground mb-2 px-4">CỬA HÀNG</div>
-                    <div className="space-y-1">
-                        <Link to="/products" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
-                            Tất cả sản phẩm
-                        </Link>
-                        <Link to="/booster-boxes" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
-                            Hộp Booster
-                        </Link>
-                        <Link to="/mystery-box" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
-                            Hộp bí ẩn
-                        </Link>
-                    </div>
-                </div>
 
                 {/* Portfolio Submenu */}
                 <div className="px-4 py-2">

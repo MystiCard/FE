@@ -355,9 +355,6 @@ export const AdminCategoriesPage: React.FC = () => {
                                                 {category.description}
                                             </p>
                                         )}
-                                        <p className="text-xs text-muted-foreground mt-2">
-                                            ID: {category.categoryId.substring(0, 8)}...
-                                        </p>
                                     </div>
 
                                     {/* Actions */}

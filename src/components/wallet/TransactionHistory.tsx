@@ -147,7 +147,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             ) : (
                 <div className="space-y-3">
                     {transactions.map((transaction) => (
-                        <Card key={transaction.transactionId} className="glass-card p-4 hover:bg-white/5 transition-colors">
+                        <Card key={transaction.walletTransactionId} className="glass-card p-4 hover:bg-white/5 transition-colors">
                             <div className="flex items-center justify-between gap-4">
                                 {/* Icon and Info */}
                                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -161,9 +161,11 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                                         <div className="text-xs text-muted-foreground">
                                             {formatDate(transaction.createAt)}
                                         </div>
-                                        <div className="text-xs text-muted-foreground truncate">
-                                            ID: {transaction.transactionId}
-                                        </div>
+                                        {transaction.walletTransactionId && (
+                                            <div className="text-xs text-muted-foreground truncate">
+                                                ID: {transaction.walletTransactionId}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

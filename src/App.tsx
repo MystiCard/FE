@@ -4,9 +4,10 @@ import { MainLayout } from '@/layouts/MainLayout';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ShipmentLayout } from '@/layouts/ShipmentLayout';
 import { HomePage } from '@/pages/HomePage';
-import { ProductsPage } from '@/pages/ProductsPage';
-import { BoosterBoxesPage } from '@/pages/BoosterBoxesPage';
 import { MysteryBoxPage } from '@/pages/MysteryBoxPage';
+import { MysteryBoxHistoryPage } from '@/pages/MysteryBoxHistoryPage';
+import { MysteryBoxCheckoutPage } from '@/pages/MysteryBoxCheckoutPage';
+import { WalletWithdrawPage } from '@/pages/WalletWithdrawPage';
 import { MarketplacePage } from '@/pages/MarketplacePage';
 import { PortfolioPage } from '@/pages/PortfolioPage';
 import { ProfilePage } from '@/pages/ProfilePage';
@@ -19,6 +20,8 @@ import { AboutPage } from '@/pages/AboutPage';
 import { AdminCardsPage } from '@/pages/AdminCardsPage';
 import { AdminCategoriesPage } from '@/pages/AdminCategoriesPage';
 import { AdminUsersPage } from '@/pages/AdminUsersPage';
+import { AdminTransactionsPage } from '@/pages/AdminTransactionsPage';
+import { AdminOrdersPage } from '@/pages/AdminOrdersPage';
 import { AdminBlindBoxesPage } from '@/pages/AdminBlindBoxesPage';
 import { AdminRateConfigPage } from '@/pages/AdminRateConfigPage';
 import { CartPage } from '@/pages/CartPage';
@@ -31,24 +34,11 @@ import { TermsPage } from '@/pages/TermsPage';
 import { PrivacyPage } from '@/pages/PrivacyPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ShipmentPage } from '@/pages/ShipmentPage';
+import { OrdersPage } from '@/pages/OrdersPage';
 
 // Placeholder pages
 const ShopPage = () => {
     const categories = [
-        {
-            title: "Tất cả sản phẩm",
-            description: "Xem toàn bộ thẻ và bộ sưu tập",
-            href: "/products",
-            icon: "🛍️",
-            color: "from-blue-500 to-cyan-500"
-        },
-        {
-            title: "Hộp Booster",
-            description: "Hộp niêm phong cho trải nghiệm mở hộp đỉnh cao",
-            href: "/booster-boxes",
-            icon: "📦",
-            color: "from-purple-500 to-pink-500"
-        },
         {
             title: "Hộp bí ẩn",
             description: "Thử vận may với các gói bí ẩn độc quyền",
@@ -61,8 +51,8 @@ const ShopPage = () => {
     return (
         <div className="py-12 ">
             <div className="text-center mb-12">
-                <h1 className="text-4xl font-bold font-serif mb-4 gradient-text">Danh mục cửa hàng</h1>
-                <p className="text-muted-foreground text-lg">Chọn danh mục để bắt đầu xem</p>
+                <h1 className="text-4xl font-bold font-serif mb-4 gradient-text">Danh mục Hộp bí ẩn</h1>
+                <p className="text-muted-foreground text-lg">Khám phá Hộp bí ẩn và nhận thẻ ngẫu nhiên</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto px-4">
@@ -104,16 +94,18 @@ function App() {
                         <Route path="shop" element={<ShopPage />} />
                         <Route path="cart" element={<CartPage />} />
                         <Route path="checkout" element={<CheckoutPage />} />
-                        <Route path="products" element={<ProductsPage />} />
-                        <Route path="booster-boxes" element={<BoosterBoxesPage />} />
-                        <Route path="special-items" element={<ProductsPage />} />
+                        {/* Các route sản phẩm chi tiết từ dropdown cũ được thay thế bởi Hộp bí ẩn */}
                         <Route path="mystery-box" element={<MysteryBoxPage />} />
+                        <Route path="mystery-box/history" element={<MysteryBoxHistoryPage />} />
+                        <Route path="mystery-box/checkout" element={<MysteryBoxCheckoutPage />} />
                         <Route path="marketplace" element={<MarketplacePage />} />
                         <Route path="portfolio" element={<PortfolioPage />} />
                         <Route path="trends" element={<TrendsPage />} />
                         <Route path="post-listing" element={<PostListingPage />} />
                         <Route path="profile" element={<ProfilePage />} />
+                        <Route path="orders" element={<OrdersPage />} />
                         <Route path="wallet" element={<WalletPage />} />
+                        <Route path="wallet/withdraw" element={<WalletWithdrawPage />} />
                         <Route path="payment/callback" element={<PaymentCallbackPage />} />
                         <Route path="settings" element={<ProfilePage />} />
                         <Route path="compare" element={<ComparisonPage />} />
@@ -136,6 +128,9 @@ function App() {
                         <Route path="blind-boxes" element={<AdminBlindBoxesPage />} />
                         <Route path="rate-configs" element={<AdminRateConfigPage />} />
                         <Route path="users" element={<AdminUsersPage />} />
+                        <Route path="wallet" element={<WalletPage />} />
+                        <Route path="transactions" element={<AdminTransactionsPage />} />
+                        <Route path="orders" element={<AdminOrdersPage />} />
                     </Route>
 
                     {/* Shipment Routes (standalone like Admin) */}

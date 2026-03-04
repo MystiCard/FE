@@ -18,8 +18,7 @@ import {
     Check,
     AlertCircle
 } from 'lucide-react';
-import { blindBoxApi, cardApi, categoryApi, BlindBox, Card as CardType, BlindBoxProbability, Category } from '@/utils/api';
-import { parse } from 'node:path';
+import { blindBoxApi, cardApi, categoryApi, rateConfigApi, BlindBox, Card as CardType, BlindBoxProbability, Category, RateConfig } from '@/utils/api';
 
 export const AdminBlindBoxesPage: React.FC = () => {
     // --- State: List View ---
@@ -34,8 +33,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
     const [newBox, setNewBox] = useState({
         name: '',
         description: '',
-        price: '',
-        drawPrice: '',
+        imageUrl: '',
         cardIds: [] as string[],
     });
 
@@ -45,12 +43,18 @@ export const AdminBlindBoxesPage: React.FC = () => {
     const [cardSearchQuery, setCardSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [selectedRarity, setSelectedRarity] = useState<string>('all');
+    const [rateConfigs, setRateConfigs] = useState<RateConfig[]>([]);
 
     // --- State: Details View ---
     const [viewingBox, setViewingBox] = useState<BlindBox | null>(null);
     const [boxCards, setBoxCards] = useState<CardType[]>([]);
     const [boxProbabilities, setBoxProbabilities] = useState<BlindBoxProbability[]>([]);
     const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+    const formatCurrencyVND = (value: number) => {
+        const safe = Number.isFinite(value) ? value : 0;
+        return safe.toLocaleString('vi-VN') + ' đ';
+    };
 
     // --- Load Data ---
     useEffect(() => {
@@ -60,13 +64,13 @@ export const AdminBlindBoxesPage: React.FC = () => {
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [boxes, cards, cats] = await Promise.all([
+            const [boxes, cards, cats, configs] = await Promise.all([
                 blindBoxApi.getAllBlindBoxes(),
                 cardApi.getAllCards(),
-                categoryApi.getAllCategories()
+                categoryApi.getAllCategories(),
+                rateConfigApi.getAllRateConfigs().catch(() => []),
             ]);
 
-            // Map 'id' to 'blindBoxId' if needed
             const mappedBoxes = boxes.map((item: any) => ({
                 ...item,
                 blindBoxId: item.blindBoxId || item.id
@@ -75,6 +79,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
             setBlindBoxes(mappedBoxes);
             setAvailableCards(cards);
             setCategories(cats);
+            setRateConfigs(Array.isArray(configs) ? configs : []);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load data');
         } finally {
@@ -84,16 +89,9 @@ export const AdminBlindBoxesPage: React.FC = () => {
 
     // --- Handlers: Create Box ---
     const handleCreateBox = async () => {
-        const price = parseFloat(newBox.price);
-        const  drawPrice = parseFloat(newBox.drawPrice);
-
         // Validation
         if (!newBox.name.trim()) {
             alert('Please enter a name for the Blind Box.');
-            return;
-        }
-        if (isNaN(price) || price <= 0) {
-            alert('Please enter a valid price greater than 0.');
             return;
         }
         if (newBox.cardIds.length === 0) {
@@ -106,9 +104,8 @@ export const AdminBlindBoxesPage: React.FC = () => {
             const payload = {
                 name: newBox.name,
                 description: newBox.description,
-                price: price,
-                drawPrice: drawPrice,
-                cardIds: newBox.cardIds
+                imageUrl: newBox.imageUrl || undefined,
+                cardIds: newBox.cardIds,
             };
 
             await blindBoxApi.createBlindBox(payload);
@@ -117,8 +114,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
             setNewBox({
                 name: '',
                 description: '',
-                price: '',
-                drawPrice: '',
+                imageUrl: '',
                 cardIds: [],
             });
             setIsCreating(false);
@@ -215,8 +211,14 @@ export const AdminBlindBoxesPage: React.FC = () => {
 
     // --- UI Helpers ---
     const getBoxPrice = (box: BlindBox): number => {
-        const p = box?.price;
-        const d = box?.drawPrice;
+        const p = box?.drawPrice;
+        if (p == null) return 0;
+        const n = typeof p === 'string' ? parseFloat(p) : Number(p);
+        return Number.isFinite(n) ? n : 0;
+    };
+
+    const getAllBoxPrice = (box: BlindBox): number => {
+        const p = box?.allBoxPrice;
         if (p == null) return 0;
         const n = typeof p === 'string' ? parseFloat(p) : Number(p);
         return Number.isFinite(n) ? n : 0;
@@ -232,6 +234,32 @@ export const AdminBlindBoxesPage: React.FC = () => {
             case 'SECRET_RARE': return 'text-red-400 bg-red-500/10 border-red-500/20';
             default: return 'text-muted-foreground bg-white/5 border-white/10';
         }
+    };
+
+    /** Tỷ lệ dự kiến theo Rate Config khi chọn thẻ (cùng công thức BE). */
+    const getRatePreviewFromSelection = (): { rarity: string; probability: number; cardCount: number; ratePerCard: number }[] => {
+        const selectedCards = availableCards.filter(c => newBox.cardIds.includes(c.cardId));
+        if (selectedCards.length === 0 || rateConfigs.length === 0) return [];
+        const activeRarities = new Set(selectedCards.map(c => (c.rarity || 'COMMON').toUpperCase()));
+        const totalActiveWeight = rateConfigs
+            .filter(rc => activeRarities.has((rc.rarity || '').toUpperCase()))
+            .reduce((sum, rc) => sum + (rc.rate || 0), 0);
+        if (totalActiveWeight <= 0) return [];
+        const countByRarity: Record<string, number> = {};
+        selectedCards.forEach(c => {
+            const r = (c.rarity || 'COMMON').toUpperCase();
+            countByRarity[r] = (countByRarity[r] || 0) + 1;
+        });
+        const configByRarity: Record<string, RateConfig> = {};
+        rateConfigs.forEach(rc => { configByRarity[(rc.rarity || '').toUpperCase()] = rc; });
+        return Array.from(activeRarities).map(rarity => {
+            const config = configByRarity[rarity];
+            const dropRate = config ? (config.rate || 0) : 0;
+            const probability = totalActiveWeight > 0 ? (dropRate / totalActiveWeight) * 100 : 0;
+            const cardCount = countByRarity[rarity] || 0;
+            const ratePerCard = cardCount > 0 ? probability / cardCount : 0;
+            return { rarity, probability, cardCount, ratePerCard };
+        }).filter(x => x.cardCount > 0).sort((a, b) => b.probability - a.probability);
     };
 
     return (
@@ -288,15 +316,15 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                         className="glass-card bg-black/40"
                                     />
                                 </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Price:</span>
-                                        <span className="font-bold text-accent-400">
-                                            ${availableCards
-                                                .filter(c => newBox.cardIds.includes(c.cardId))
-                                                .reduce((sum, c) => sum + (c.basePrice*1.3 || 0), 0)
-                                                .toFixed(2)}
-                                        </span>
-                                    </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-200">Image URL (optional)</label>
+                                    <Input
+                                        placeholder="https://..."
+                                        value={newBox.imageUrl}
+                                        onChange={(e) => setNewBox({ ...newBox, imageUrl: e.target.value })}
+                                        className="glass-card bg-black/40"
+                                    />
+                                </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-200">Description</label>
                                     <Textarea
@@ -306,6 +334,16 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                         onChange={(e) => setNewBox({ ...newBox, description: e.target.value })}
                                         className="glass-card bg-black/40 resize-none"
                                     />
+                                </div>
+                                <div className="mt-2 flex justify-between text-sm">
+                                    <span className="text-muted-foreground">Giá trị cơ bản ước tính:</span>
+                                    <span className="font-bold text-accent-400">
+                                        {formatCurrencyVND(
+                                            availableCards
+                                                .filter(c => newBox.cardIds.includes(c.cardId))
+                                                .reduce((sum, c) => sum + (c.basePrice || 0), 0)
+                                        )}
+                                    </span>
                                 </div>
                             </div>
 
@@ -323,14 +361,41 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Tổng giá trị ước tính:</span>
                                         <span className="font-bold text-accent-400">
-                                            ${availableCards
-                                                .filter(c => newBox.cardIds.includes(c.cardId))
-                                                .reduce((sum, c) => sum + (c.basePrice || 0), 0)
-                                                .toFixed(2)}
+                                            {formatCurrencyVND(
+                                                availableCards
+                                                    .filter(c => newBox.cardIds.includes(c.cardId))
+                                                    .reduce((sum, c) => sum + (c.basePrice || 0), 0)
+                                            )}
                                         </span>
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Tỷ lệ dự kiến (Rate Config) — tính ngay khi chọn thẻ */}
+                            {newBox.cardIds.length > 0 && (
+                                <div className="mt-4 p-4 rounded-xl bg-accent-500/10 border border-accent-500/20">
+                                    <h3 className="font-semibold text-accent-300 mb-2 flex items-center gap-2">
+                                        <Percent className="h-4 w-4" />
+                                        Tỷ lệ dự kiến (Rate Config BE)
+                                    </h3>
+                                    {rateConfigs.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">Chưa có cấu hình tỷ lệ. Vào Rate Configs để thêm.</p>
+                                    ) : getRatePreviewFromSelection().length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">Không có Rarity trùng với Rate Config. Kiểm tra card_rarity trong bảng RateConfig.</p>
+                                    ) : (
+                                        <div className="space-y-2 text-sm">
+                                            {getRatePreviewFromSelection().map(({ rarity, probability, cardCount, ratePerCard }) => (
+                                                <div key={rarity} className={`flex justify-between items-center py-1.5 px-2 rounded-lg border ${getRarityColor(rarity)}`}>
+                                                    <span className="font-medium">{rarity}</span>
+                                                    <span className="tabular-nums">
+                                                        {probability.toFixed(1)}% nhóm · {cardCount} thẻ · {ratePerCard.toFixed(2)}%/thẻ
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </CardContent>
                         <div className="p-4 border-t border-white/10 bg-white/5">
                             <Button
@@ -429,12 +494,14 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                                         alt={card.name}
                                                         className={`w-full h-full object-cover transition-opacity duration-300 ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}
                                                     />
-                                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 pt-8">
-                                                        <div className="flex justify-between items-end">
-                                                            <div className="text-white text-xs font-bold truncate pr-2">{card.name}</div>
-                                                            <div className="text-accent-400 font-mono text-xs">${card.basePrice}</div>
+                                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 pt-8">
+                                                            <div className="flex justify-between items-end">
+                                                                <div className="text-white text-xs font-bold truncate pr-2">{card.name}</div>
+                                                                <div className="text-accent-400 font-mono text-xs">
+                                                                    {formatCurrencyVND(card.basePrice)}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -524,9 +591,21 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                         <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
                                             {box.description || 'No description provided.'}
                                         </p>
-                                        <div className="flex items-center justify-between pt-4 border-t border-white/10 mt-auto">
-                                            <span className="text-2xl font-bold text-accent-400 font-mono">${getBoxPrice(box).toFixed(2)}</span>
-                                            {/* Could add a badge for number of cards if available in list view */}
+                                        <div className="flex flex-col gap-1 pt-4 border-t border-white/10 mt-auto">
+                                            <div className="flex items-center justify-between">
+                                    <span className="text-xs text-muted-foreground">Giá mở / lần</span>
+                                    <span className="text-xl font-bold text-accent-400 font-mono">
+                                        {formatCurrencyVND(getBoxPrice(box))}
+                                    </span>
+                                            </div>
+                                            {getAllBoxPrice(box) > 0 && (
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="text-muted-foreground">Tổng giá trị hộp</span>
+                                        <span className="font-mono text-primary-300">
+                                            {formatCurrencyVND(getAllBoxPrice(box))}
+                                        </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -544,7 +623,15 @@ export const AdminBlindBoxesPage: React.FC = () => {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <CardTitle className="text-2xl font-serif">{viewingBox.name}</CardTitle>
-                                    <p className="text-accent-400 font-bold text-xl mt-1">${getBoxPrice(viewingBox).toFixed(2)}</p>
+                                    <p className="text-accent-400 font-bold text-xl mt-1">
+                                        {formatCurrencyVND(getBoxPrice(viewingBox))}{' '}
+                                        <span className="text-sm font-normal text-muted-foreground">/ lần mở</span>
+                                    </p>
+                                    {getAllBoxPrice(viewingBox) > 0 && (
+                                        <p className="text-primary-300 text-sm mt-0.5">
+                                            Tổng giá trị hộp: {formatCurrencyVND(getAllBoxPrice(viewingBox))}
+                                        </p>
+                                    )}
                                 </div>
                                 <Button variant="ghost" className="hover:bg-white/10" onClick={() => setViewingBox(null)}>
                                     <X className="h-6 w-6" />

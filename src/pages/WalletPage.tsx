@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CreditCard, Activity, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
-import { userApi, UserProfile, transactionApi, TransactionResponse, PageResponse } from '@/utils/api';
+import { userApi, UserProfile, transactionApi, TransactionResponse, PageResponse, bankAccountApi, BankAccountRequest } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { TopUpModal } from '@/components/wallet/TopUpModal';
@@ -17,6 +17,10 @@ export const WalletPage: React.FC = () => {
     const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
     const [error, setError] = useState('');
     const [showTopUpModal, setShowTopUpModal] = useState(false);
+    const [showAddBankModal, setShowAddBankModal] = useState(false);
+    const [bankName, setBankName] = useState('');
+    const [accountNumber, setAccountNumber] = useState('');
+    const [accountName, setAccountName] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [statusFilter, setStatusFilter] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | undefined>(undefined);
@@ -51,7 +55,7 @@ export const WalletPage: React.FC = () => {
             try {
                 const data: PageResponse<TransactionResponse> = await transactionApi.getMyTransactions(
                     statusFilter,
-                    currentPage,
+                    currentPage - 1,
                     10
                 );
                 setTransactions(data.content);
@@ -77,7 +81,7 @@ export const WalletPage: React.FC = () => {
             const data = await userApi.getMyProfile();
             setProfile(data);
             // Refresh transactions
-            const txData = await transactionApi.getMyTransactions(statusFilter, currentPage, 10);
+            const txData = await transactionApi.getMyTransactions(statusFilter, currentPage - 1, 10);
             setTransactions(txData.content);
             setTotalPages(txData.totalPages);
         } catch (err) {
@@ -119,6 +123,9 @@ export const WalletPage: React.FC = () => {
     }
 
     const balance = profile?.walletResponse?.balance || 0;
+    const pendingWithdraws = transactions.filter(
+        (t) => t.transactionType === 'REQUEST_WITHDRAW' && t.statusTransaction === 'PENDING'
+    );
 
     return (
         <div className="min-h-screen pb-12">
@@ -157,7 +164,7 @@ export const WalletPage: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <Button
                             className="bg-green-600 hover:bg-green-700 text-white"
                             onClick={() => setShowTopUpModal(true)}
@@ -168,13 +175,18 @@ export const WalletPage: React.FC = () => {
                         <Button
                             variant="outline"
                             className="border-green-500/30 hover:bg-green-500/10"
-                            onClick={() => {
-                                // TODO: Implement withdraw functionality
-                                alert('Tính năng rút tiền đang được phát triển');
-                            }}
+                            onClick={() => navigate('/wallet/withdraw')}
                         >
                             <ArrowDownCircle className="w-4 h-4 mr-2" />
                             Rút tiền
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="border-blue-500/30 hover:bg-blue-500/10"
+                            onClick={() => setShowAddBankModal(true)}
+                        >
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Thêm tài khoản rút tiền
                         </Button>
                     </div>
 
@@ -185,6 +197,33 @@ export const WalletPage: React.FC = () => {
                     </div>
                 </div>
             </Card>
+
+            {/* Pending withdraw requests */}
+            {pendingWithdraws.length > 0 && (
+                <Card className="glass-card mb-6 p-4 border-yellow-500/40">
+                    <h2 className="text-lg font-semibold mb-2 text-yellow-300">
+                        Yêu cầu rút tiền đang chờ
+                    </h2>
+                    <ul className="space-y-1 text-sm text-muted-foreground">
+                        {pendingWithdraws.map((tx, idx) => (
+                            <li key={tx.walletTransactionId || idx} className="flex justify-between">
+                                <span>
+                                    {tx.createAt
+                                        ? new Date(tx.createAt).toLocaleString('vi-VN')
+                                        : '—'}{' '}
+                                    • Yêu cầu rút
+                                </span>
+                                <span className="font-semibold text-yellow-300">
+                                    {tx.amount.toLocaleString('vi-VN')} đ
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                        Trạng thái: Đang xử lý — vui lòng chờ Admin duyệt.
+                    </p>
+                </Card>
+            )}
 
             {/* Transaction History */}
             <div>
@@ -213,6 +252,94 @@ export const WalletPage: React.FC = () => {
                     onClose={() => setShowTopUpModal(false)}
                     onSuccess={handleTopUpSuccess}
                 />
+            )}
+
+            {/* Add Bank Account Modal */}
+            {showAddBankModal && profile && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-[#1a0a2e] rounded-lg p-6 max-w-md w-full border border-white/10">
+                        <h3 className="text-xl font-bold mb-4 text-white">Thêm tài khoản rút tiền</h3>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                                    Tên ngân hàng / ví (VD: Vietcombank, MoMo)
+                                </label>
+                                <input
+                                    className="w-full px-3 py-2 rounded-md bg-black/40 border border-white/10 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    placeholder="Nhập tên ngân hàng hoặc MoMo"
+                                    value={bankName}
+                                    onChange={e => setBankName(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                                    Số tài khoản / SĐT MoMo
+                                </label>
+                                <input
+                                    className="w-full px-3 py-2 rounded-md bg-black/40 border border-white/10 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    placeholder="Nhập số tài khoản ngân hàng hoặc số điện thoại MoMo"
+                                    value={accountNumber}
+                                    onChange={e => setAccountNumber(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                                    Tên chủ tài khoản
+                                </label>
+                                <input
+                                    className="w-full px-3 py-2 rounded-md bg-black/40 border border-white/10 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    placeholder="Nhập tên chủ tài khoản"
+                                    value={accountName}
+                                    onChange={e => setAccountName(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() => {
+                                        setShowAddBankModal(false);
+                                        setBankName('');
+                                        setAccountNumber('');
+                                        setAccountName('');
+                                    }}
+                                >
+                                    Hủy
+                                </Button>
+                                <Button
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                                    onClick={async () => {
+                                        if (!bankName.trim() || !accountNumber.trim() || !accountName.trim()) {
+                                            alert('Vui lòng nhập đầy đủ thông tin tài khoản.');
+                                            return;
+                                        }
+                                        try {
+                                            const payload: BankAccountRequest = {
+                                                bankCode: bankName.trim(),
+                                                accountNumber: accountNumber.trim(),
+                                                accountName: accountName.trim(),
+                                            };
+                                            await bankAccountApi.create(profile.userId, payload);
+                                            alert('Thêm tài khoản rút tiền thành công.');
+                                            setShowAddBankModal(false);
+                                            setBankName('');
+                                            setAccountNumber('');
+                                            setAccountName('');
+                                        } catch (e) {
+                                            alert(
+                                                e instanceof Error
+                                                    ? e.message
+                                                    : 'Không thể thêm tài khoản rút tiền.'
+                                            );
+                                        }
+                                    }}
+                                >
+                                    Lưu
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

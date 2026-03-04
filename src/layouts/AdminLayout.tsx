@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, Folder, CreditCard, Gift, Percent, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, Folder, CreditCard, Gift, Percent, LogOut, Menu, X, ShoppingBag, Wallet } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -27,6 +27,9 @@ export const AdminLayout: React.FC = () => {
         { icon: Gift, label: 'Blind Boxes', path: '/admin/blind-boxes' },
         { icon: Percent, label: 'Rate Configs', path: '/admin/rate-configs' },
         { icon: Users, label: 'Users', path: '/admin/users' },
+        { icon: Wallet, label: 'Wallet', path: '/admin/wallet' },
+        { icon: ShoppingBag, label: 'Orders', path: '/admin/orders' },
+        { icon: CreditCard, label: 'Transactions', path: '/admin/transactions' },
         { icon: Settings, label: 'Settings', path: '/admin/settings' },
     ];
 

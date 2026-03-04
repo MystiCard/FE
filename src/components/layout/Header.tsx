@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, Bell, User, ChevronDown, Menu, Heart, LogOut, Wallet } from 'lucide-react';
+import { Search, ShoppingCart, Bell, User, ChevronDown, Menu, Heart, LogOut, Wallet, Package, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/hooks/useCart';
 import { useWishlist } from '@/hooks/useWishlist';
@@ -11,7 +11,6 @@ import { userApi, cardApi } from '@/utils/api';
 
 export const Header: React.FC = () => {
     const navigate = useNavigate();
-    const [isShopOpen, setIsShopOpen] = React.useState(false);
     const [isPortfolioOpen, setIsPortfolioOpen] = React.useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
     const [isWishlistOpen, setIsWishlistOpen] = React.useState(false);
@@ -42,20 +41,35 @@ export const Header: React.FC = () => {
         return () => window.removeEventListener('wishlist-api-updated', onUpdated);
     }, [isAuthenticated]);
 
-    // Fetch wallet balance for authenticated users
+    // Fetch wallet balance for authenticated users + listen for realtime updates
     useEffect(() => {
         const fetchWalletBalance = async () => {
-            if (isAuthenticated) {
-                try {
-                    const profile = await userApi.getMyProfile();
-                    setWalletBalance(profile.walletResponse?.balance || 0);
-                } catch (err) {
-                    console.error('Failed to fetch wallet balance:', err);
-                }
+            if (!isAuthenticated) {
+                setWalletBalance(0);
+                return;
+            }
+            try {
+                const profile = await userApi.getMyProfile();
+                setWalletBalance(profile.walletResponse?.balance || 0);
+            } catch (err) {
+                console.error('Failed to fetch wallet balance:', err);
             }
         };
 
         fetchWalletBalance();
+
+        const handleWalletUpdated = (event: Event) => {
+            const custom = event as CustomEvent<{ balance?: number }>;
+            if (custom.detail && typeof custom.detail.balance === 'number') {
+                setWalletBalance(custom.detail.balance);
+            } else {
+                // Fallback: refetch from API
+                fetchWalletBalance();
+            }
+        };
+
+        window.addEventListener('wallet-balance-updated', handleWalletUpdated);
+        return () => window.removeEventListener('wallet-balance-updated', handleWalletUpdated);
     }, [isAuthenticated]);
 
     const handleLogout = async (e: React.MouseEvent) => {
@@ -107,36 +121,9 @@ export const Header: React.FC = () => {
                             Giới thiệu
                         </Link>
 
-                        {/* Shop Dropdown - pt-2 thay mt-2 để không có khe hở, chuột di xuống vẫn trong vùng hover */}
-                        <div
-                            className="relative"
-                            onMouseEnter={() => setIsShopOpen(true)}
-                            onMouseLeave={() => setIsShopOpen(false)}
-                        >
-                            <button className="flex items-center gap-1 text-sm font-medium hover:text-primary-400">
-                                <span>Cửa hàng</span>
-                                <ChevronDown className="h-4 w-4" />
-                            </button>
-
-                            {isShopOpen && (
-                                <div className="absolute top-full left-0 pt-2 w-48">
-                                    <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
-                                        <Link to="/products" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Tất cả sản phẩm
-                                        </Link>
-                                        <Link to="/booster-boxes" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Hộp Booster
-                                        </Link>
-                                        <Link to="/special-items" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Sản phẩm đặc biệt
-                                        </Link>
-                                        <Link to="/mystery-box" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Hộp bí ẩn
-                                        </Link>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        <Link to="/mystery-box" className="text-sm font-medium hover:text-primary-400">
+                            Hộp bí ẩn
+                        </Link>
 
                         <Link to="/marketplace" className="text-sm font-medium hover:text-primary-400">
                             Sàn giao dịch
@@ -260,9 +247,10 @@ export const Header: React.FC = () => {
                                         <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
                                             <Link
                                                 to="/profile"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md flex items-center gap-2"
                                             >
-                                                Hồ sơ
+                                                <User className="h-4 w-4" />
+                                                <span>Hồ sơ</span>
                                             </Link>
                                             <Link
                                                 to="/wallet"
@@ -272,22 +260,18 @@ export const Header: React.FC = () => {
                                                 <span>Ví tiền</span>
                                             </Link>
                                             <Link
+                                                to="/orders"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md flex items-center gap-2"
+                                            >
+                                                <Package className="h-4 w-4" />
+                                                <span>Đơn hàng</span>
+                                            </Link>
+                                            <Link
                                                 to="/portfolio"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md flex items-center gap-2"
                                             >
-                                                Bộ sưu tập
-                                            </Link>
-                                            <Link
-                                                to="/settings"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
-                                            >
-                                                Cài đặt
-                                            </Link>
-                                            <Link
-                                                to="/admin"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
-                                            >
-                                                Quản trị
+                                                <Layers className="h-4 w-4" />
+                                                <span>Bộ sưu tập</span>
                                             </Link>
                                             <hr className="my-2 border-white/10" />
                                             <button

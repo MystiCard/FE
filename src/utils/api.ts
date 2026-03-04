@@ -172,60 +172,11 @@ export const apiRequest = async <T>(
         headers,
     });
 
-    // If 401 Unauthorized, try to refresh token
-    if (response.status === 401 && !isRefreshing) {
-        const refreshToken = tokenManager.getRefreshToken();
-
-        if (!refreshToken) {
-            // No refresh token, redirect to login
-            tokenManager.clearTokens();
-            window.location.href = '/login';
-            throw new Error('Session expired');
-        }
-
-        isRefreshing = true;
-
-        try {
-            // Refresh the access token
-            const newAccessToken = await authApi.refreshToken(refreshToken);
-            tokenManager.setTokens(newAccessToken, refreshToken);
-
-            isRefreshing = false;
-            onTokenRefreshed(newAccessToken);
-
-            // Retry the original request with new token
-            response = await fetch(`${API_BASE_URL}${url}`, {
-                ...options,
-                headers: {
-                    ...headers,
-                    Authorization: `Bearer ${newAccessToken}`,
-                },
-            });
-        } catch (error) {
-            isRefreshing = false;
-            tokenManager.clearTokens();
-            window.location.href = '/login';
-            throw new Error('Session expired');
-        }
-    } else if (response.status === 401 && isRefreshing) {
-        // Wait for token refresh to complete
-        return new Promise((resolve, reject) => {
-            subscribeTokenRefresh(async (token: string) => {
-                try {
-                    const retryResponse = await fetch(`${API_BASE_URL}${url}`, {
-                        ...options,
-                        headers: {
-                            ...headers,
-                            Authorization: `Bearer ${token}`,
-                        },
-                    });
-                    const data = await retryResponse.json();
-                    resolve(data);
-                } catch (err) {
-                    reject(err);
-                }
-            });
-        });
+    // Nếu 401 thì coi như hết phiên, xóa token và đẩy về trang đăng nhập.
+    if (response.status === 401) {
+        tokenManager.clearTokens();
+        window.location.href = '/login';
+        throw new Error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
     }
 
     if (!response.ok) {
@@ -245,6 +196,9 @@ export interface UserProfile {
     avatarUrl?: string;
     address?: string;
     phone?: string;
+    // backend có districtId / wardId, thêm optional để FE dùng tính phí ship
+    districtId?: string;
+    wardId?: string;
     role?: string; // ADMIN, CUSTOMER, etc.
     status?: string; // ACTIVE, BANNED, etc.
     walletResponse?: {
@@ -274,6 +228,8 @@ export interface UpdateProfileRequest {
     address?: string;
     gender?: 'MALE' | 'FEMALE';
     password?: string; // optional, chỉ gửi khi đổi mật khẩu
+    districtId?: string;
+    wardId?: string;
 }
 
 export const userApi = {
@@ -353,8 +309,8 @@ export const userApi = {
                 address: data.address ?? '',
                 gender: data.gender ?? null,
                 password: data.password?.trim() || null,
-                districtId: (data as Record<string, string>).districtId ?? null,
-                wardId: (data as Record<string, string>).wardId ?? null,
+                districtId: data.districtId ?? null,
+                wardId: data.wardId ?? null,
             };
             formData.append('request', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
             if (avatar) formData.append('avatar', avatar);
@@ -362,7 +318,7 @@ export const userApi = {
         };
 
         const doPut = (accessToken: string | null) =>
-            fetch(`${API_BASE_URL}/users/my-infor`, {
+            fetch(`${API_BASE_URL}/users/${userId}`, {
                 method: 'PUT',
                 headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
                 body: buildBody(),
@@ -371,17 +327,9 @@ export const userApi = {
         let response = await doPut(tokenManager.getAccessToken());
 
         if (response.status === 401) {
-            const refreshToken = tokenManager.getRefreshToken();
-            if (!refreshToken) {
-                throw new Error('Phiên đăng nhập hết hạn. Vui lòng tải lại trang hoặc đăng nhập lại.');
-            }
-            try {
-                const newAccessToken = await authApi.refreshToken(refreshToken);
-                tokenManager.setTokens(newAccessToken, refreshToken);
-                response = await doPut(newAccessToken);
-            } catch {
-                throw new Error('Phiên đăng nhập hết hạn. Vui lòng tải lại trang (F5) hoặc đăng nhập lại.');
-            }
+            tokenManager.clearTokens();
+            window.location.href = '/login';
+            throw new Error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
         }
 
         if (!response.ok) {
@@ -778,12 +726,12 @@ export const tokenManager = {
 
 // Transaction API
 export interface TransactionResponse {
-    transactionId: string;
+    walletTransactionId: string;
     amount: number;
-    transactionType: 'DEPOSIT' | 'WITHDRAW' | 'PAYMENT';
+    // mở rộng đủ các type bên BE để admin xem được hết
+    transactionType: 'DEPOSIT' | 'DEPOSTIE' | 'WITHDRAW' | 'REQUEST_WITHDRAW' | 'TRANSFER' | 'PAYMENT';
     statusTransaction: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
     createAt: string;
-    updateAt: string;
 }
 
 export interface DepositeRequest {
@@ -798,12 +746,84 @@ export interface WithdrawRequest {
     bankId: string;
 }
 
+export interface BankAccountResponse {
+    bankAccountId: string;
+    bankCode: string;
+    accountNumber: string;
+    accountName: string;
+    defaultAccount: boolean;
+}
+
+export interface BankAccountRequest {
+    bankCode: string;
+    accountNumber: string;
+    accountName: string;
+}
+
 export interface PageResponse<T> {
     content: T[];
     totalPages: number;
     totalElements: number;
     size: number;
     number: number;
+}
+
+// OrderItem (dùng cho đơn hàng + màn Orders)
+export interface OrderItemResponse {
+    shipfee: number;
+    shipmentResponse: ShipmentResponse | null;
+    orderDetailResponseList: {
+        orderItemId: string;
+        quantity: number;
+        price: number;
+        orderItemStatus: string;
+        cardName?: string;
+        cardImageUrl?: string;
+    }[];
+}
+
+// Order (kết quả tạo đơn khi mua trên sàn / các flow khác)
+export interface OrderCardResponse {
+    orderId: string;
+    totalAmount: number;
+    status: string;
+    orderDate: string;
+    orderItems: OrderItemResponse[];
+}
+
+// Payload tạo đơn từ sàn giao dịch (match OrderCardRequest ở BE)
+export interface CreateOrderRequest {
+    buyerAddress: string;
+    toDistrictId: number;
+    toWardId: number;
+    buyerPhone: string;
+    orderItemsList: {
+        quantity: number;
+        listSellerId: string;
+    }[];
+}
+
+// Transaction report (admin dashboard)
+export interface TransactionReportRequest {
+    from: string; // yyyy-MM-dd
+    to: string;   // yyyy-MM-dd
+}
+
+export interface TransactionReportSummary {
+    localDate: string;
+    totalAmount: number;
+    totalPayment: number;
+    success: number;
+    error: number;
+}
+
+export interface TransactionReportResponse {
+    totalAmount: number;
+    totalPayment: number;
+    totalSuccess: number;
+    totalError: number;
+    totalPending: number;
+    data: TransactionReportSummary[];
 }
 
 export const transactionApi = {
@@ -887,29 +907,216 @@ export const transactionApi = {
         });
         return response.data;
     },
+
+    // Pay ship fee for Blind Box shipment by wallet (current user)
+    payBlindBoxShipWithWallet: async (shipmentId: string): Promise<TransactionResponse> => {
+        const response = await apiRequest<ApiResponse<TransactionResponse>>(
+            `/transactions/blind-box/ship/${shipmentId}/wallet`,
+            { method: 'POST' }
+        );
+        return response.data;
+    },
+
+    // Pay marketplace order (orderId) by wallet
+    payOrderWithWallet: async (orderId: string): Promise<TransactionResponse> => {
+        const response = await apiRequest<ApiResponse<TransactionResponse>>('/transactions/pay-with-wallet', {
+            method: 'POST',
+            body: JSON.stringify({
+                transactionType: 'PAYMENT',
+                orderId,
+            }),
+        });
+        return response.data;
+    },
+
+    // Admin: approve withdraw transaction
+    approveWithdraw: async (transactionId: string, provider: string): Promise<string> => {
+        const res = await apiRequest<ApiResponse<string>>('/transactions/approve', {
+            method: 'POST',
+            body: JSON.stringify({ transactionId, provider }),
+        });
+        return res.data;
+    },
+
+    // Admin: list withdraw requests (REQUEST_WITHDRAW) by status
+    getWithdrawRequests: async (
+        statusPayment: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' = 'PENDING',
+        page: number = 0,
+        size: number = 10
+    ): Promise<PageResponse<TransactionResponse>> => {
+        const pageOneBased = Math.max(1, page + 1);
+        const params = new URLSearchParams({
+            page: pageOneBased.toString(),
+            size: size.toString(),
+            statusPayment,
+        });
+        const res = await apiRequest<ApiResponse<PageResponse<TransactionResponse>>>(
+            `/transactions/withdraw-requests?${params.toString()}`,
+            { method: 'GET' }
+        );
+        return res.data;
+    },
+
+    // Admin: lấy tất cả giao dịch của mọi user
+    getAllTransactionsAdmin: async (
+        statusPayment: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | undefined,
+        page: number = 0,
+        size: number = 10
+    ): Promise<PageResponse<TransactionResponse>> => {
+        const pageOneBased = Math.max(1, page + 1);
+        const params = new URLSearchParams({
+            page: pageOneBased.toString(),
+            size: size.toString(),
+        });
+        if (statusPayment) {
+            params.append('statusPayment', statusPayment);
+        }
+        const res = await apiRequest<ApiResponse<PageResponse<TransactionResponse>>>(
+            `/transactions?${params.toString()}`,
+            { method: 'GET' }
+        );
+        return res.data;
+    },
+
+    // Admin: báo cáo giao dịch (dùng cho dashboard)
+    report: async (payload: TransactionReportRequest): Promise<TransactionReportResponse> => {
+        const res = await apiRequest<ApiResponse<TransactionReportResponse>>('/transactions/report', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return res.data;
+    },
+};
+
+// Order API (đơn hàng: lấy theo trạng thái + tạo đơn mua từ sàn)
+export const orderApi = {
+    getByShippingStatus: async (
+        shippingStatus: ShippingStatus,
+        page: number = 0,
+        size: number = 10
+    ): Promise<PageResponse<OrderItemResponse>> => {
+        const pageOneBased = Math.max(1, page + 1);
+        const params = new URLSearchParams({
+            page: pageOneBased.toString(),
+            size: size.toString(),
+        });
+        const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse>>>(
+            `/orders/status?${params.toString()}`,
+            {
+                method: 'POST',
+                body: JSON.stringify(shippingStatus),
+            }
+        );
+        return res.data;
+    },
+
+    getByShippingStatusAdmin: async (
+        shippingStatus: ShippingStatus,
+        page: number = 0,
+        size: number = 10
+    ): Promise<PageResponse<OrderItemResponse>> => {
+        const pageOneBased = Math.max(1, page + 1);
+        const params = new URLSearchParams({
+            page: pageOneBased.toString(),
+            size: size.toString(),
+        });
+        const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse>>>(
+            `/orders/status-admin?${params.toString()}`,
+            {
+                method: 'POST',
+                body: JSON.stringify(shippingStatus),
+            }
+        );
+        return res.data;
+    },
+
+    createOrder: async (payload: CreateOrderRequest): Promise<OrderCardResponse> => {
+        const res = await apiRequest<ApiResponse<OrderCardResponse>>('/orders/create', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return res.data;
+    },
+};
+
+// Bank Account API (rút tiền cần chọn tài khoản ngân hàng)
+export const bankAccountApi = {
+    getMyBankAccounts: async (userId: string, page: number = 1, size: number = 20): Promise<PageResponse<BankAccountResponse>> => {
+        const response = await apiRequest<ApiResponse<PageResponse<BankAccountResponse>>>(
+            `/bank-account/bank-user/${userId}?page=${page}&size=${size}`,
+            { method: 'GET' }
+        );
+        return response.data;
+    },
+    create: async (userId: string, data: BankAccountRequest): Promise<BankAccountResponse> => {
+        const response = await apiRequest<ApiResponse<BankAccountResponse>>(
+            `/bank-account/create/${userId}`,
+            {
+                method: 'POST',
+                body: JSON.stringify(data),
+            }
+        );
+        return response.data;
+    },
 };
 
 // Blind Box API
+// BE BlindBoxResponse: blindBoxId, name, description, imageUrl, drawPrice, allBoxPrice, blindBoxStatus
 export interface BlindBox {
     blindBoxId: string;
     name: string;
     description?: string;
-    price: number;
-    imageUrl?: string; // Optional, based on common patterns, though not in doc request body
-    cardIds?: string[]; // IDs of cards in the box
+    imageUrl?: string;
+    /** Giá mở 1 lần (EV). */
+    drawPrice: number;
+    /** Tổng giá trị toàn bộ hộp (DB price). */
+    allBoxPrice?: number | null;
+    /** ACTIVE = còn thẻ, OUT_OF_STOCK = hết hàng. */
+    blindBoxStatus?: 'ACTIVE' | 'OUT_OF_STOCK' | 'DRAFT' | 'DISABLED' | 'UPCOMING' | 'ENDED';
 }
 
+// BE BlindBoxRequest: name, description, imageUrl, cardIds, categoryId
 export interface BlindBoxRequest {
     name: string;
     description: string;
-    price: number;
-    drawPrice: number;
+    imageUrl?: string;
     cardIds: string[];
+    categoryId?: string;
 }
 
 export interface BlindBoxProbability {
     rarity: string;
     probability: number;
+}
+
+/** BE OrderResponse: sau khi mua hộp bí ẩn */
+export interface BlindBoxOrderResponse {
+    orderId: string;
+    totalAmount: number;
+    status: string;
+    orderDate: string;
+    quantity: number;
+    buyerId: string;
+    blindBoxId: string;
+}
+
+/** BE DrawResultResponse: kết quả mở 1 lần (id = orderId) */
+export interface DrawResultResponse {
+    card: Card;
+    drawPrice: number;
+    profitOrLoss: number;
+}
+
+/** BE BlindBoxHistoryItemResponse: lịch sử mở hộp bí ẩn của user */
+export interface BlindBoxHistoryItem {
+    blindBoxResultId: string;
+    openedAt: string;
+    card: Card;
+    blindBoxId?: string;
+    blindBoxName?: string;
+    drawPrice: number;
+    profitOrLoss: number;
+    shipped?: boolean;
 }
 
 export const blindBoxApi = {
@@ -967,7 +1174,40 @@ export const blindBoxApi = {
         const data = response?.data ?? response;
         const list = Array.isArray(data) ? data : (data?.probabilities ?? []);
         return Array.isArray(list) ? list : [];
-    }
+    },
+
+    /** BE: POST /blind-boxes/{blindBoxId}/buy — mua hộp, trả về order (dùng orderId để draw). */
+    buyBlindBox: async (blindBoxId: string): Promise<BlindBoxOrderResponse> => {
+        const response = await apiRequest<ApiResponse<BlindBoxOrderResponse>>(`/blind-boxes/${blindBoxId}/buy`, {
+            method: 'POST',
+        });
+        return response.data;
+    },
+
+    /** BE: GET /blind-boxes/{orderId}/draw-card — mở 1 thẻ (id là orderId từ buyBlindBox). */
+    drawCard: async (orderId: string): Promise<DrawResultResponse> => {
+        const response = await apiRequest<ApiResponse<DrawResultResponse>>(`/blind-boxes/${orderId}/draw-card`, {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    /** Lịch sử mở hộp bí ẩn của user hiện tại (mới nhất trước). */
+    getMyHistory: async (): Promise<BlindBoxHistoryItem[]> => {
+        const response = await apiRequest<ApiResponse<BlindBoxHistoryItem[]>>('/blind-boxes/me/results', {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    /** Yêu cầu ship các thẻ đã mở (BlindBoxResult) về nhà. */
+    requestShipResults: async (resultIds: string[]): Promise<ShipmentResponse> => {
+        const response = await apiRequest<ApiResponse<ShipmentResponse>>('/blind-boxes/me/ship', {
+            method: 'POST',
+            body: JSON.stringify(resultIds),
+        });
+        return response.data;
+    },
 };
 
 // Rate Config API (frontend uses id/rarity/rate; backend uses rateConfigId/cardRarity/dropRate)
@@ -1158,6 +1398,20 @@ export const shipmentApi = {
         }
         const result: ApiResponse<ShipmentResponse> = await response.json();
         return result.data;
+    },
+
+    // Tính phí ship trực tiếp (dùng cho Hộp bí ẩn)
+    calculateFeeDirect: async (params: {
+        totalAmount: number;
+        fromDistrictId: number;
+        toDistrictId: number;
+        toWardId: string;
+    }): Promise<number> => {
+        const response = await apiRequest<ApiResponse<number>>('/shipments/calculate-fee-direct', {
+            method: 'POST',
+            body: JSON.stringify(params),
+        });
+        return response.data;
     },
 };
 

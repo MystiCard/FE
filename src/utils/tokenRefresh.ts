@@ -1,5 +1,5 @@
-// Token refresh utility
-import { authApi, tokenManager } from './api';
+// Token/session utility (không gọi refresh-access-token nữa)
+import { tokenManager } from './api';
 
 // Check if token is about to expire (within 5 minutes)
 const isTokenExpiringSoon = (token: string): boolean => {
@@ -34,16 +34,10 @@ export const checkAndRefreshToken = async (): Promise<void> => {
         return;
     }
 
+    // Nếu token sắp hết hạn, coi như hết phiên: xóa token và chuyển về trang đăng nhập.
     if (isTokenExpiringSoon(accessToken)) {
-        try {
-            const newAccessToken = await authApi.refreshToken(refreshToken);
-            tokenManager.setTokens(newAccessToken, refreshToken);
-            console.log('Token refreshed successfully');
-        } catch (error) {
-            console.error('Failed to refresh token:', error);
-            tokenManager.clearTokens();
-            window.location.href = '/login';
-        }
+        tokenManager.clearTokens();
+        window.location.href = '/login';
     }
 };
 

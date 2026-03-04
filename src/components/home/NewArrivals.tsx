@@ -84,9 +84,9 @@ export const NewArrivals: React.FC = () => {
                     <h2 className="text-4xl font-bold mb-2 font-serif">Sản phẩm mới</h2>
                     <p className="text-muted-foreground">Thẻ mới vừa được thêm vào bộ sưu tập</p>
                 </div>
-                <Link to="/products">
+                <Link to="/mystery-box">
                     <Button variant="outline" className="glass-card hover:bg-white/20">
-                        Xem tất cả
+                        Khám phá Hộp bí ẩn
                     </Button>
                 </Link>
             </div>
@@ -122,7 +122,9 @@ export const NewArrivals: React.FC = () => {
                             <p className="text-sm text-muted-foreground mb-3">{product.set}</p>
 
                             <div className="flex items-center justify-between">
-                                <span className="text-xl font-bold gradient-text">${product.price}</span>
+                                <span className="text-xl font-bold gradient-text">
+                                    {Number(product.price).toLocaleString('vi-VN')} đ
+                                </span>
                                 <Button
                                     size="sm"
                                     variant="premium"
