@@ -3,9 +3,73 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DollarSign, Layers, Heart, Loader2 } from 'lucide-react';
-import { Card as CardType, Category, cardApi } from '@/utils/api';
+import { Card as CardType, Category, cardApi, getCardImageUrl } from '@/utils/api';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
+
+/** Modal nhỏ nhập giá mong muốn khi thêm wishlist */
+function ExpectPriceModal({
+    isOpen,
+    onClose,
+    cardName,
+    onSubmit,
+    loading,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    cardName: string;
+    onSubmit: (expectPrice: number | undefined) => void;
+    loading: boolean;
+}) {
+    const [value, setValue] = useState<string>('');
+    React.useEffect(() => {
+        if (isOpen) setValue('');
+    }, [isOpen]);
+    const handleSubmit = () => {
+        const num = value.trim() ? Number(value.trim()) : undefined;
+        if (num !== undefined && (Number.isNaN(num) || num < 0)) return;
+        onSubmit(num);
+        setValue('');
+        onClose();
+    };
+    return (
+        <Dialog open={isOpen} onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="max-w-sm glass-card-strong border-white/10">
+                <DialogHeader>
+                    <DialogTitle className="text-lg">Thêm vào wishlist</DialogTitle>
+                    <DialogDescription>
+                        Nhập giá mong muốn (VNĐ) cho thẻ <strong>{cardName}</strong>. Khi có người bán dưới giá này, bạn sẽ được thông báo.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="mt-4 space-y-3">
+                    <input
+                        type="number"
+                        min={0}
+                        step={1000}
+                        placeholder="Ví dụ: 50000 (để trống = không đặt giá)"
+                        value={value}
+                        onChange={(e) => setValue(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm"
+                    />
+                    <div className="flex gap-2 justify-end">
+                        <Button
+                            variant="ghost"
+                            onClick={() => {
+                                onSubmit(undefined);
+                                onClose();
+                            }}
+                        >
+                            Bỏ qua (vẫn thêm wishlist)
+                        </Button>
+                        <Button variant="premium" onClick={handleSubmit} disabled={loading}>
+                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Thêm wishlist'}
+                        </Button>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
 
@@ -21,6 +85,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
     const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
     const [inWishlist, setInWishlist] = useState(false);
     const [wishlistLoading, setWishlistLoading] = useState(false);
+    const [showExpectPriceModal, setShowExpectPriceModal] = useState(false);
 
     useEffect(() => {
         if (!card?.cardId || !isOpen) return;
@@ -42,9 +107,36 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
 
     if (!card) return null;
 
-    const toggleWishlist = async () => {
+    const handleAddWishlistWithPrice = async (expectPrice?: number) => {
+        if (!card) return;
         setWishlistLoading(true);
+        setShowExpectPriceModal(false);
+        addToWishlistLocal({
+            id: card.cardId,
+            name: card.name,
+            price: card.basePrice,
+            image: getCardImageUrl(card) || PLACEHOLDER_IMG,
+            rarity: card.rarity,
+        });
+        setInWishlist(true);
+
+        if (isAuthenticated) {
+            try {
+                await cardApi.addToWishlist(card.cardId, expectPrice);
+                window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+            } catch {
+                setInWishlist(false);
+                removeFromWishlistLocal(card.cardId);
+            }
+        }
+        setWishlistLoading(false);
+    };
+
+    const toggleWishlist = async () => {
+        if (!card) return;
+        // Nếu đã trong wishlist -> xoá
         if (inWishlist) {
+            setWishlistLoading(true);
             removeFromWishlistLocal(card.cardId);
             setInWishlist(false);
             if (isAuthenticated) {
@@ -55,31 +147,18 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
                     // Đã bỏ khỏi wishlist trên máy
                 }
             }
+            setWishlistLoading(false);
         } else {
-            addToWishlistLocal({
-                id: card.cardId,
-                name: card.name,
-                price: card.basePrice,
-                image: card.imageUrl || PLACEHOLDER_IMG,
-                rarity: card.rarity,
-            });
-            setInWishlist(true);
-            if (isAuthenticated) {
-                try {
-                    await cardApi.addToWishlist(card.cardId);
-                    window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
-                } catch {
-                    // Đã thêm vào wishlist trên máy
-                }
-            }
+            // Chưa có trong wishlist -> mở modal nhập giá mong muốn
+            setShowExpectPriceModal(true);
         }
-        setWishlistLoading(false);
     };
 
     const formatRarity = (rarity: string) =>
         rarity ? rarity.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
 
     return (
+    <>
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto glass-card-strong border-white/10 text-white backdrop-blur-xl">
                 <DialogHeader>
@@ -97,11 +176,11 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)] gap-8 mt-4">
                     <div className="flex justify-center">
                         <div className="relative group w-full max-w-sm">
                             <img
-                                src={card.imageUrl || PLACEHOLDER_IMG}
+                                src={getCardImageUrl(card) || PLACEHOLDER_IMG}
                                 alt={card.name}
                                 className="w-full h-auto rounded-xl shadow-2xl object-contain"
                                 onError={(e) => {
@@ -112,24 +191,30 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
                     </div>
 
                     <div className="space-y-6">
-                        <Card className="bg-black/20 border-white/10">
-                            <CardContent className="p-4">
+                        <Card className="bg-black/20 border-white/10 min-w-0">
+                            <CardContent className="p-4 md:p-5">
                                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                                     <DollarSign className="h-4 w-4 text-accent-400" />
-                                    Giá
+                                    Giá tham khảo (VNĐ)
                                 </h3>
-                                <div className="grid grid-cols-3 gap-2 text-center">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 min-w-0">
                                     <div className="p-2 rounded bg-white/5">
                                         <p className="text-[10px] text-muted-foreground">Gốc</p>
-                                        <p className="font-bold text-accent-400">${card.basePrice.toFixed(2)}</p>
+                                        <p className="text-sm font-semibold text-accent-400 whitespace-nowrap">
+                                            {Number(card.basePrice).toLocaleString('vi-VN')} đ
+                                        </p>
                                     </div>
                                     <div className="p-2 rounded bg-white/5">
                                         <p className="text-[10px] text-muted-foreground">Thấp nhất</p>
-                                        <p className="font-bold">${card.minPrice.toFixed(2)}</p>
+                                        <p className="text-sm font-semibold whitespace-nowrap">
+                                            {Number(card.minPrice).toLocaleString('vi-VN')} đ
+                                        </p>
                                     </div>
                                     <div className="p-2 rounded bg-white/5">
                                         <p className="text-[10px] text-muted-foreground">Cao nhất</p>
-                                        <p className="font-bold">${card.maxPrice.toFixed(2)}</p>
+                                        <p className="text-sm font-semibold whitespace-nowrap">
+                                            {Number(card.maxPrice).toLocaleString('vi-VN')} đ
+                                        </p>
                                     </div>
                                 </div>
                             </CardContent>
@@ -167,5 +252,13 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
                 </div>
             </DialogContent>
         </Dialog>
+        <ExpectPriceModal
+            isOpen={showExpectPriceModal}
+            onClose={() => setShowExpectPriceModal(false)}
+            cardName={card.name}
+            onSubmit={handleAddWishlistWithPrice}
+            loading={wishlistLoading}
+        />
+    </>
     );
 };

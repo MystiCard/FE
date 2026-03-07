@@ -13,11 +13,12 @@ import {
     ChevronDown,
     Users,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { listSellerApi, ListingItem, categoryApi, Category, cardApi, userApi, orderApi, transactionApi } from '@/utils/api';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { listSellerApi, ListingItem, categoryApi, Category, cardApi } from '@/utils/api';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
-import { Heart, Loader2 } from 'lucide-react';
+import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
+import { Heart, Loader2, Trash2, Star } from 'lucide-react';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
 
@@ -96,12 +97,13 @@ export const Marketplace: React.FC = () => {
     const [orderQuantity, setOrderQuantity] = useState<number>(1);
     const [orderLoading, setOrderLoading] = useState(false);
     const [orderError, setOrderError] = useState<string | null>(null);
-    const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'MOMO'>('WALLET');
+    const [paymentMethod] = useState<'WALLET'>('WALLET');
     const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
-    const [cartItems, setCartItems] = useState<{ listing: ListingItem; quantity: number }[]>([]);
     const [cartOpen, setCartOpen] = useState(false);
+    const { items: cartItems, addCard, setSelectedListing: setCartSelectedListing, updateQuantity: updateCartQuantity, removeCard: removeCartCard } = useMarketplaceCart();
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
     const [wishlistCardIds, setWishlistCardIds] = useState<Set<string>>(new Set());
     const [wishlistLoadingCardId, setWishlistLoadingCardId] = useState<string | null>(null);
@@ -109,6 +111,18 @@ export const Marketplace: React.FC = () => {
     useEffect(() => {
         loadListings(currentPage);
     }, [currentPage]);
+
+    // Mở giỏ hàng khi vào trang với ?openCart=1 (vd: từ icon giỏ trên header)
+    useEffect(() => {
+        if (searchParams.get('openCart') === '1') {
+            setCartOpen(true);
+            setSearchParams((prev) => {
+                const p = new URLSearchParams(prev);
+                p.delete('openCart');
+                return p;
+            }, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
 
     useEffect(() => {
         const load = async () => {
@@ -233,23 +247,28 @@ export const Marketplace: React.FC = () => {
         }
     };
 
-    const addToCart = (offer: ListingItem, e?: React.MouseEvent) => {
+    /** Thêm thẻ vào giỏ (cả thẻ với list seller); trong giỏ user chọn seller và số lượng */
+    const addCardToCart = (product: CardProduct, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        setCartItems((prev) => {
-            const existing = prev.find((c) => c.listing.listSellerId === offer.listSellerId);
-            if (existing) {
-                const nextQty = Math.min(existing.quantity + 1, offer.quantity);
-                return prev.map((c) =>
-                    c.listing.listSellerId === offer.listSellerId ? { ...c, quantity: nextQty } : c,
-                );
-            }
-            return [...prev, { listing: offer, quantity: 1 }];
+        const activeOffers = product.offers.filter((o) => (o.quantity ?? 0) > 0);
+        if (activeOffers.length === 0) return;
+        addCard({
+            cardId: product.cardId,
+            cardName: product.cardName,
+            imageUrl: product.imageUrl,
+            rarity: product.rarity,
+            offers: activeOffers,
+            quantity: 1,
         });
         setCartOpen(true);
     };
 
     const handleCheckoutCart = async () => {
-        if (!cartItems.length) return;
+        const readyItems = cartItems.filter((c) => c.selectedListing != null);
+        if (!readyItems.length) {
+            setOrderError('Vui lòng chọn người bán cho từng thẻ trong giỏ trước khi thanh toán.');
+            return;
+        }
         if (!isAuthenticated) {
             navigate('/login');
             return;
@@ -257,72 +276,30 @@ export const Marketplace: React.FC = () => {
         setOrderError(null);
         setOrderLoading(true);
         try {
-            const profile = await userApi.getMyProfile();
-            if (!profile.address || !profile.phone) {
-                setOrderError('Vui lòng cập nhật địa chỉ và số điện thoại trong Hồ sơ trước khi mua.');
-                return;
-            }
-
-            const toDistrictId = profile.districtId ? Number(profile.districtId) : 3695;
-            const toWardId = profile.wardId ? Number(profile.wardId) : 90752;
-
-            const orderItemsList = cartItems.map((c) => ({
-                listSellerId: c.listing.listSellerId,
-                quantity: Math.max(1, Math.min(c.quantity, c.listing.quantity)),
-            }));
-
-            const order = await orderApi.createOrder({
-                buyerAddress: profile.address,
-                buyerPhone: profile.phone,
-                toDistrictId,
-                toWardId,
-                orderItemsList,
+            const checkoutItems = readyItems.map((c) => {
+                const listing = c.selectedListing!;
+                const quantity = Math.max(1, Math.min(c.quantity, listing.quantity ?? 1));
+                return {
+                    listSellerId: listing.listSellerId,
+                    quantity,
+                    cardId: c.cardId,
+                    cardName: c.cardName,
+                    imageUrl: c.imageUrl,
+                    sellerId: listing.sellerId,
+                    sellerName: listing.sellerName,
+                    unitPrice: listing.price,
+                };
             });
 
-            const totalShipFee =
-                order.orderItems?.reduce((sum, oi) => sum + (oi.shipfee ?? 0), 0) ?? 0;
-            const totalItems =
-                order.orderItems?.reduce(
-                    (sum, oi) =>
-                        sum +
-                        oi.orderDetailResponseList.reduce(
-                            (s, d) => s + d.quantity * d.price,
-                            0,
-                        ),
-                    0,
-                ) ?? 0;
-
-            if (paymentMethod === 'WALLET') {
-                await transactionApi.payOrderWithWallet(order.orderId);
-                window.dispatchEvent(new CustomEvent('wallet-updated'));
-                alert(
-                    [
-                        'Đã đặt mua & thanh toán các thẻ trong giỏ bằng Ví MystiCard.',
-                        `Mã đơn: ${order.orderId.slice(0, 8)}`,
-                        `Tiền hàng: ${totalItems.toLocaleString('vi-VN')}đ`,
-                        `Phí ship: ${totalShipFee.toLocaleString('vi-VN')}đ`,
-                        `Tổng thanh toán: ${order.totalAmount.toLocaleString('vi-VN')}đ`,
-                    ].join('\n'),
-                );
-            } else {
-                alert(
-                    [
-                        'Đã tạo đơn mua cho các thẻ trong giỏ (thanh toán MoMo sẽ được bổ sung sau).',
-                        `Mã đơn: ${order.orderId.slice(0, 8)}`,
-                        `Tiền hàng: ${totalItems.toLocaleString('vi-VN')}đ`,
-                        `Phí ship: ${totalShipFee.toLocaleString('vi-VN')}đ`,
-                        `Tổng tiền đơn: ${order.totalAmount.toLocaleString('vi-VN')}đ`,
-                    ].join('\n'),
-                );
-            }
-
-            setCartItems([]);
+            // Chuyển sang trang checkout để user xem phí ship + đổi địa chỉ trước khi thanh toán (giống Shopee).
             setCartOpen(false);
-            navigate('/orders');
-        } catch (e) {
-            setOrderError(
-                e instanceof Error ? e.message : 'Thanh toán giỏ hàng thất bại. Vui lòng thử lại.',
-            );
+            navigate('/marketplace/checkout', {
+                state: {
+                    items: checkoutItems,
+                    paymentMethod,
+                    fromCart: true,
+                },
+            });
         } finally {
             setOrderLoading(false);
         }
@@ -336,76 +313,33 @@ export const Marketplace: React.FC = () => {
         setOrderError(null);
         setOrderLoading(true);
         try {
-            const profile = await userApi.getMyProfile();
-            if (!profile.address || !profile.phone) {
-                setOrderError('Vui lòng cập nhật địa chỉ và số điện thoại trong Hồ sơ trước khi mua.');
-                return;
-            }
-
-            const toDistrictId = profile.districtId ? Number(profile.districtId) : 3695;
-            const toWardId = profile.wardId ? Number(profile.wardId) : 90752;
             const safeQuantity = Math.max(
                 1,
                 Math.min(orderQuantity || 1, selectedListing.quantity ?? 1),
             );
 
-            const order = await orderApi.createOrder({
-                buyerAddress: profile.address,
-                buyerPhone: profile.phone,
-                toDistrictId,
-                toWardId,
-                orderItemsList: [
-                    {
-                        listSellerId: selectedListing.listSellerId,
-                        quantity: safeQuantity,
-                    },
-                ],
-            });
-
-            // Tính tổng tiền hàng và phí ship từ order trả về
-            const totalShipFee =
-                order.orderItems?.reduce((sum, oi) => sum + (oi.shipfee ?? 0), 0) ?? 0;
-            const totalItems =
-                order.orderItems?.reduce(
-                    (sum, oi) =>
-                        sum +
-                        oi.orderDetailResponseList.reduce(
-                            (s, d) => s + d.quantity * d.price,
-                            0,
-                        ),
-                    0,
-                ) ?? 0;
-
-            if (paymentMethod === 'WALLET') {
-                // Thanh toán đơn bằng ví
-                await transactionApi.payOrderWithWallet(order.orderId);
-                window.dispatchEvent(new CustomEvent('wallet-updated'));
-                alert(
-                    [
-                        'Đặt mua & thanh toán bằng Ví MystiCard thành công.',
-                        `Mã đơn: ${order.orderId.slice(0, 8)}`,
-                        `Tiền hàng: ${totalItems.toLocaleString('vi-VN')}đ`,
-                        `Phí ship: ${totalShipFee.toLocaleString('vi-VN')}đ`,
-                        `Tổng thanh toán: ${order.totalAmount.toLocaleString('vi-VN')}đ`,
-                    ].join('\n'),
-                );
-            } else {
-                // Chưa tích hợp MoMo cho đơn marketplace: chỉ hiển thị thông tin
-                alert(
-                    [
-                        'Đã tạo đơn mua thẻ (thanh toán qua MoMo sẽ được bổ sung sau).',
-                        `Mã đơn: ${order.orderId.slice(0, 8)}`,
-                        `Tiền hàng: ${totalItems.toLocaleString('vi-VN')}đ`,
-                        `Phí ship (tính theo từng người bán): ${totalShipFee.toLocaleString('vi-VN')}đ`,
-                        `Tổng tiền đơn: ${order.totalAmount.toLocaleString('vi-VN')}đ`,
-                    ].join('\n'),
-                );
-            }
-
+            // Chuyển sang trang checkout để user xem phí ship + đổi địa chỉ trước khi thanh toán.
             setSelectedListing(null);
             setSelectedProduct(null);
             setOrderQuantity(1);
-            navigate('/orders');
+            navigate('/marketplace/checkout', {
+                state: {
+                    items: [
+                        {
+                            listSellerId: selectedListing.listSellerId,
+                            quantity: safeQuantity,
+                            cardId: selectedProduct!.cardId,
+                            cardName: selectedProduct!.cardName,
+                            imageUrl: selectedProduct!.imageUrl,
+                            sellerId: selectedListing.sellerId,
+                            sellerName: selectedListing.sellerName,
+                            unitPrice: selectedListing.price,
+                        },
+                    ],
+                    paymentMethod,
+                    fromCart: false,
+                },
+            });
         } catch (e) {
             setOrderError(
                 e instanceof Error ? e.message : 'Đặt mua thất bại. Vui lòng thử lại.',
@@ -630,20 +564,30 @@ export const Marketplace: React.FC = () => {
                                                                 {formatCurrencyVND(minPrice)}
                                                             </span>
                                                         </td>
-                                                        <td className="p-4">
-                                                            <div className="flex items-center justify-end gap-2">
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="gap-1"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setSelectedProduct(product);
-                                                                    }}
-                                                                >
-                                                                    Xem đề nghị
-                                                                    <ChevronDown className="h-4 w-4" />
-                                                                </Button>
+                                                                    <td className="p-4">
+                                                                        <div className="flex items-center justify-end gap-2">
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    addCardToCart(product, e);
+                                                                                }}
+                                                                            >
+                                                                                Thêm thẻ vào giỏ
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="gap-1"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setSelectedProduct(product);
+                                                                                }}
+                                                                            >
+                                                                                Xem đề nghị
+                                                                                <ChevronDown className="h-4 w-4" />
+                                                                            </Button>
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="icon"
@@ -696,7 +640,14 @@ export const Marketplace: React.FC = () => {
                                                                                     </td>
                                                                                     <td className="py-2">{offer.quantity}</td>
                                                                                     <td className="py-2 text-muted-foreground">
-                                                                                        {offer.sellerName || '—'}
+                                                                                        <span>{offer.sellerName || '—'}</span>
+                                                                                        {(offer.sellerFeedbackCount != null && offer.sellerFeedbackCount > 0) && (
+                                                                                            <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90 text-xs">
+                                                                                                <Star className="h-3 w-3 fill-amber-400 shrink-0" />
+                                                                                                {Number(offer.sellerAverageRating ?? 0).toFixed(1)}
+                                                                                                <span className="text-muted-foreground">({offer.sellerFeedbackCount} đánh giá)</span>
+                                                                                            </span>
+                                                                                        )}
                                                                                     </td>
                                                                                     <td className="py-2 text-right">
                                                                                         <Button
@@ -778,7 +729,7 @@ export const Marketplace: React.FC = () => {
                     setSelectedListing(offer);
                     setSelectedProduct(null);
                 }}
-                onAddToCart={(offer) => addToCart(offer)}
+                onAddCardToCart={(product) => addCardToCart(product)}
                 formatRarity={formatRarity}
                 rarityClass={rarityClass}
                 placeholderImg={PLACEHOLDER_IMG}
@@ -817,7 +768,16 @@ export const Marketplace: React.FC = () => {
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Người bán</span>
-                                            <span>{selectedListing.sellerName || '—'}</span>
+                                            <span>
+                                                {selectedListing.sellerName || '—'}
+                                                {(selectedListing.sellerFeedbackCount != null && selectedListing.sellerFeedbackCount > 0) && (
+                                                    <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90">
+                                                        <Star className="h-3 w-3 fill-amber-400 shrink-0" />
+                                                        {Number(selectedListing.sellerAverageRating ?? 0).toFixed(1)}
+                                                        <span className="text-muted-foreground">({selectedListing.sellerFeedbackCount} đánh giá)</span>
+                                                    </span>
+                                                )}
+                                            </span>
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Giá gốc thẻ</span>
@@ -846,28 +806,9 @@ export const Marketplace: React.FC = () => {
                                             />
                                         </div>
                                         <div className="flex gap-2 text-xs">
-                                            <button
-                                                type="button"
-                                                onClick={() => setPaymentMethod('WALLET')}
-                                                className={`flex-1 px-3 py-2 rounded border ${
-                                                    paymentMethod === 'WALLET'
-                                                        ? 'border-yellow-400 bg-yellow-500/10 text-yellow-200'
-                                                        : 'border-white/10 text-muted-foreground hover:border-yellow-400'
-                                                }`}
-                                            >
+                                            <span className="flex-1 px-3 py-2 rounded border border-yellow-400 bg-yellow-500/10 text-yellow-200">
                                                 Ví MystiCard
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setPaymentMethod('MOMO')}
-                                                className={`flex-1 px-3 py-2 rounded border ${
-                                                    paymentMethod === 'MOMO'
-                                                        ? 'border-pink-400 bg-pink-500/10 text-pink-200'
-                                                        : 'border-white/10 text-muted-foreground hover:border-pink-400'
-                                                }`}
-                                            >
-                                                MoMo
-                                            </button>
+                                            </span>
                                         </div>
                                         <p className="text-xs text-muted-foreground">
                                             Địa chỉ và số điện thoại sẽ dùng thông tin trong mục Hồ sơ của bạn.
@@ -892,114 +833,108 @@ export const Marketplace: React.FC = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* Giỏ hàng nhiều offer */}
+            {/* Giỏ hàng: mỗi thẻ chọn 1 seller + số lượng */}
             <Dialog open={cartOpen} onOpenChange={(o) => setCartOpen(o)}>
-                <DialogContent className="max-w-lg glass-card-strong border-white/10">
+                <DialogContent className="max-w-xl glass-card-strong border-white/10">
                     <DialogHeader>
                         <DialogTitle className="text-lg">Giỏ hàng sàn giao dịch</DialogTitle>
                     </DialogHeader>
                     {cartItems.length === 0 ? (
                         <p className="text-sm text-muted-foreground mt-4">
-                            Giỏ hàng đang trống. Hãy thêm thẻ từ Sàn giao dịch.
+                            Giỏ hàng đang trống. Thêm thẻ từ Sàn giao dịch, sau đó chọn người bán cho từng thẻ.
                         </p>
                     ) : (
-                        <div className="mt-4 space-y-3 text-sm">
-                            <table className="w-full text-sm">
-                                <thead className="text-muted-foreground">
-                                    <tr>
-                                        <th className="text-left px-2 py-1">Thẻ</th>
-                                        <th className="text-right px-2 py-1">Giá</th>
-                                        <th className="text-center px-2 py-1">SL</th>
-                                        <th className="text-right px-2 py-1">Tạm tính</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {cartItems.map((item) => (
-                                        <tr key={item.listing.listSellerId} className="border-t border-white/5">
-                                            <td className="px-2 py-1">
-                                                <div className="line-clamp-2">{item.listing.cardName}</div>
-                                                <div className="text-[11px] text-muted-foreground">
-                                                    {item.listing.sellerName || '—'}
-                                                </div>
-                                            </td>
-                                            <td className="px-2 py-1 text-right">
-                                                {formatCurrencyVND(item.listing.price)}
-                                            </td>
-                                            <td className="px-2 py-1 text-center">
-                                                <input
-                                                    type="number"
-                                                    min={1}
-                                                    max={item.listing.quantity}
-                                                    value={item.quantity}
-                                                    onChange={(e) => {
-                                                        const v = Number(e.target.value) || 1;
-                                                        setCartItems((prev) =>
-                                                            prev.map((c) =>
-                                                                c.listing.listSellerId === item.listing.listSellerId
-                                                                    ? {
-                                                                          ...c,
-                                                                          quantity: Math.max(
-                                                                              1,
-                                                                              Math.min(v, item.listing.quantity),
-                                                                          ),
-                                                                      }
-                                                                    : c,
-                                                            ),
-                                                        );
-                                                    }}
-                                                    className="w-16 px-2 py-1 rounded bg-white/5 border border-white/10 text-center text-xs"
-                                                />
-                                            </td>
-                                            <td className="px-2 py-1 text-right">
-                                                {formatCurrencyVND(item.listing.price * item.quantity)}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div className="mt-4 space-y-4 text-sm">
+                            {cartItems.map((item) => (
+                                <div key={item.cardId} className="p-3 rounded-lg border border-white/10 space-y-2">
+                                    <div className="flex items-center gap-3">
+                                        <img
+                                            src={item.imageUrl || PLACEHOLDER_IMG}
+                                            alt={item.cardName}
+                                            className="w-12 h-16 object-cover rounded shrink-0"
+                                            onError={(e) => { e.currentTarget.src = PLACEHOLDER_IMG; }}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-medium line-clamp-1">{item.cardName}</div>
+                                            <div className="text-xs text-muted-foreground mt-0.5">Chọn người bán</div>
+                                            <select
+                                                value={item.selectedListing?.listSellerId ?? ''}
+                                                onChange={(e) => {
+                                                    const id = e.target.value;
+                                                    const offer = item.offers.find((o) => o.listSellerId === id) ?? null;
+                                                    setCartSelectedListing(item.cardId, offer);
+                                                }}
+                                                className="mt-1 w-full px-2 py-1.5 rounded bg-white/5 border border-white/10 text-xs"
+                                            >
+                                                <option value="">-- Chọn seller --</option>
+                                                {item.offers.map((o) => (
+                                                    <option key={o.listSellerId} value={o.listSellerId}>
+                                                        {o.sellerName || 'Seller'}
+                                                        {(o.sellerFeedbackCount != null && o.sellerFeedbackCount > 0)
+                                                            ? ` · ⭐ ${Number(o.sellerAverageRating ?? 0).toFixed(1)} (${o.sellerFeedbackCount})`
+                                                            : ''}
+                                                        {' · '}{formatCurrencyVND(o.price)} · SL: {o.quantity}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <span className="text-xs text-muted-foreground">SL:</span>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={item.selectedListing?.quantity ?? 1}
+                                                value={item.quantity}
+                                                onChange={(e) => {
+                                                    const v = Math.max(1, Math.min(Number(e.target.value) || 1, item.selectedListing?.quantity ?? 1));
+                                                    updateCartQuantity(item.cardId, v);
+                                                }}
+                                                className="w-14 px-2 py-1 rounded bg-white/5 border border-white/10 text-center text-xs"
+                                            />
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-red-400 hover:text-red-300 shrink-0"
+                                            onClick={() => removeCartCard(item.cardId)}
+                                            aria-label="Xóa khỏi giỏ"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    {item.selectedListing && (
+                                        <div className="text-xs text-muted-foreground pl-[3.25rem]">
+                                            Tạm tính: {formatCurrencyVND(item.selectedListing.price * item.quantity)}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                             <div className="pt-2 border-t border-white/10 space-y-2 text-sm">
                                 <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Tổng tiền hàng</span>
+                                    <span className="text-muted-foreground">Tổng tiền hàng (đã chọn seller)</span>
                                     <span className="font-semibold">
                                         {formatCurrencyVND(
-                                            cartItems.reduce(
-                                                (sum, i) => sum + i.listing.price * i.quantity,
-                                                0,
-                                            ),
+                                            cartItems
+                                                .filter((i) => i.selectedListing != null)
+                                                .reduce((sum, i) => sum + i.selectedListing!.price * i.quantity, 0),
                                         )}
                                     </span>
                                 </div>
                                 <div className="flex gap-2 text-xs">
-                                    <button
-                                        type="button"
-                                        onClick={() => setPaymentMethod('WALLET')}
-                                        className={`flex-1 px-3 py-2 rounded border ${
-                                            paymentMethod === 'WALLET'
-                                                ? 'border-yellow-400 bg-yellow-500/10 text-yellow-200'
-                                                : 'border-white/10 text-muted-foreground hover:border-yellow-400'
-                                        }`}
-                                    >
+                                    <span className="flex-1 px-3 py-2 rounded border border-yellow-400 bg-yellow-500/10 text-yellow-200">
                                         Ví MystiCard
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setPaymentMethod('MOMO')}
-                                        className={`flex-1 px-3 py-2 rounded border ${
-                                            paymentMethod === 'MOMO'
-                                                ? 'border-pink-400 bg-pink-500/10 text-pink-200'
-                                                : 'border-white/10 text-muted-foreground hover:border-pink-400'
-                                        }`}
-                                    >
-                                        MoMo
-                                    </button>
+                                    </span>
                                 </div>
                                 <p className="text-xs text-muted-foreground">
                                     Phí ship được tính riêng cho từng người bán sau khi tạo đơn, tương tự như khi mua 1 offer.
                                 </p>
+                                {cartItems.some((c) => !c.selectedListing) && (
+                                    <p className="text-xs text-amber-400">Chọn người bán cho tất cả thẻ trước khi thanh toán.</p>
+                                )}
                                 <Button
                                     variant="premium"
                                     className="w-full"
-                                    disabled={orderLoading}
+                                    disabled={orderLoading || cartItems.some((c) => !c.selectedListing)}
                                     onClick={handleCheckoutCart}
                                 >
                                     {orderLoading ? 'Đang thanh toán...' : 'Thanh toán giỏ hàng'}
@@ -1025,7 +960,7 @@ function ListingOffersModal({
     product,
     onClose,
     onSelectOffer,
-    onAddToCart,
+    onAddCardToCart,
     formatRarity,
     rarityClass,
     placeholderImg,
@@ -1033,7 +968,7 @@ function ListingOffersModal({
     product: CardProduct | null;
     onClose: () => void;
     onSelectOffer: (offer: ListingItem) => void;
-    onAddToCart: (offer: ListingItem) => void;
+    onAddCardToCart: (product: CardProduct) => void;
     formatRarity: (r: string) => string;
     rarityClass: Record<string, string>;
     placeholderImg: string;
@@ -1057,7 +992,7 @@ function ListingOffersModal({
 
     return (
         <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto glass-card-strong border-white/10">
+            <DialogContent className="w-[96vw] max-w-[1400px] max-h-[90vh] overflow-y-auto glass-card-strong border-white/10">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-4">
                         <img
@@ -1120,21 +1055,28 @@ function ListingOffersModal({
                         <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
                             Danh sách người bán
                         </div>
-                        <div className="rounded-lg border border-white/10 overflow-hidden">
-                            <table className="w-full text-sm">
+                        <div className="rounded-lg border border-white/10 overflow-x-auto">
+                            <table className="w-full min-w-[600px] text-sm">
                                 <thead className="bg-white/5 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-2 text-left">Người bán</th>
-                                        <th className="px-4 py-2 text-right">Giá</th>
-                                        <th className="px-4 py-2 text-center">Số lượng</th>
-                                        <th className="px-4 py-2 text-right">Thao tác</th>
+                                        <th className="px-4 py-2 text-left whitespace-nowrap">Người bán</th>
+                                        <th className="px-4 py-2 text-right whitespace-nowrap">Giá</th>
+                                        <th className="px-4 py-2 text-center whitespace-nowrap">Số lượng</th>
+                                        <th className="px-4 py-2 text-right whitespace-nowrap">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {activeOffers.map((offer) => (
                                         <tr key={offer.listSellerId} className="border-t border-white/5">
                                             <td className="px-4 py-2 text-sm text-muted-foreground">
-                                                {offer.sellerName || '—'}
+                                                <span>{offer.sellerName || '—'}</span>
+                                                {(offer.sellerFeedbackCount != null && offer.sellerFeedbackCount > 0) && (
+                                                    <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90 text-xs">
+                                                        <Star className="h-3 w-3 fill-amber-400 shrink-0" />
+                                                        {Number(offer.sellerAverageRating ?? 0).toFixed(1)}
+                                                        <span className="text-muted-foreground">({offer.sellerFeedbackCount} đánh giá)</span>
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-2 text-right font-semibold text-accent-400">
                                                 {formatCurrencyVND(offer.price)}
@@ -1148,10 +1090,10 @@ function ListingOffersModal({
                                                     size="sm"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onAddToCart(offer);
+                                                        onAddCardToCart(product);
                                                     }}
                                                 >
-                                                    Thêm vào giỏ
+                                                    Thêm thẻ vào giỏ
                                                 </Button>
                                                 <Button
                                                     variant="premium"

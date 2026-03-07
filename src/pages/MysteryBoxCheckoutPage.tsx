@@ -1,13 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { blindBoxApi, BlindBoxHistoryItem, userApi, UserProfile, shipmentApi, transactionApi } from '@/utils/api';
+import { blindBoxApi, BlindBoxHistoryItem, userApi, UserProfile, shipmentApi, transactionApi, getCardImageUrl } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MapPin, Phone, User, Package, ArrowLeft } from 'lucide-react';
 
+const STORAGE_KEY = 'mysteryCheckoutResultIds';
+
 interface LocationState {
     resultIds?: string[];
+}
+
+function getResultIds(state: LocationState): string[] {
+    const fromState = state.resultIds ?? [];
+    if (fromState.length > 0) return fromState;
+    try {
+        const raw = sessionStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw) as string[];
+            return Array.isArray(parsed) ? parsed : [];
+        }
+    } catch {
+        // ignore
+    }
+    return [];
 }
 
 export const MysteryBoxCheckoutPage: React.FC = () => {
@@ -16,7 +33,7 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
     const navigate = useNavigate();
 
     const state = (location.state || {}) as LocationState;
-    const resultIds = state.resultIds ?? [];
+    const resultIds = getResultIds(state);
 
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [items, setItems] = useState<BlindBoxHistoryItem[]>([]);
@@ -44,7 +61,9 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
                     blindBoxApi.getMyHistory(),
                 ]);
                 setProfile(p);
-                const selected = history.filter((h) => resultIds.includes(h.blindBoxResultId));
+                const selected = history.filter((h) =>
+                    resultIds.includes(h.blindBoxResultId) || resultIds.includes(String(h.blindBoxResultId))
+                );
                 setItems(selected);
                 if (!selected.length) {
                     setError('Không tìm thấy thẻ nào khớp với lựa chọn. Vui lòng thử lại từ lịch sử.');
@@ -98,30 +117,33 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
         setError(null);
         try {
             const shipment = await blindBoxApi.requestShipResults(resultIds);
+            const shipmentIdStr = typeof shipment.shipmentId === 'string' ? shipment.shipmentId : String(shipment.shipmentId);
 
             if (paymentMethod === 'WALLET') {
-                await transactionApi.payBlindBoxShipWithWallet(shipment.shipmentId);
+                await transactionApi.payBlindBoxShipWithWallet(shipmentIdStr);
                 // Thông báo UI + thông báo ví thay đổi để các màn hình khác (Profile, Wallet, ...) reload số dư.
                 window.dispatchEvent(new CustomEvent('wallet-updated'));
                 alert(
                     [
                         `Đã tạo đơn giao ${resultIds.length} thẻ về nhà.`,
-                        `Mã đơn: ${shipment.shipmentId.slice(0, 8)}`,
-                        `Phí vận chuyển: ${shipment.shipmentFee?.toLocaleString('vi-VN')}đ`,
+                        `Mã đơn: ${shipmentIdStr.slice(0, 8)}`,
+                        `Phí vận chuyển: ${(shipment.shipmentFee ?? 0).toLocaleString('vi-VN')} VND`,
                         `Thanh toán bằng: Ví MystiCard (đã trừ tiền trong ví).`,
                     ].join('\n'),
                 );
+                sessionStorage.removeItem(STORAGE_KEY);
                 navigate('/orders');
                 return;
             } else {
                 alert(
                     [
                         `Đã tạo đơn giao ${resultIds.length} thẻ về nhà.`,
-                        `Mã đơn: ${shipment.shipmentId.slice(0, 8)}`,
-                        `Phí vận chuyển (thanh toán qua MoMo sau): ${shipment.shipmentFee?.toLocaleString('vi-VN')}đ`,
+                        `Mã đơn: ${shipmentIdStr.slice(0, 8)}`,
+                        `Phí vận chuyển (thanh toán qua MoMo sau): ${(shipment.shipmentFee ?? 0).toLocaleString('vi-VN')} VND`,
                         `Phương thức thanh toán: MoMo (chưa implement redirect).`,
                     ].join('\n'),
                 );
+                sessionStorage.removeItem(STORAGE_KEY);
                 navigate('/orders');
                 return;
             }
@@ -162,7 +184,10 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => navigate('/mystery-box/history')}
+                    onClick={() => {
+                        sessionStorage.removeItem(STORAGE_KEY);
+                        navigate('/mystery-box/history');
+                    }}
                     className="flex items-center gap-2"
                 >
                     <ArrowLeft className="w-4 h-4" />
@@ -244,9 +269,9 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
                                         className="flex gap-3 items-center border-b border-white/5 pb-3 last:border-b-0 last:pb-0"
                                     >
                                         <div className="w-16 h-24 rounded-md overflow-hidden bg-white/5 flex items-center justify-center">
-                                            {item.card.imageUrl ? (
+                                            {getCardImageUrl(item.card) ? (
                                                 <img
-                                                    src={item.card.imageUrl}
+                                                    src={getCardImageUrl(item.card)}
                                                     alt={item.card.name}
                                                     className="w-full h-full object-cover"
                                                 />
@@ -264,7 +289,7 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
                                         </div>
                                         <div className="text-right text-sm">
                                             <p className="font-semibold text-yellow-300">
-                                                {item.card.basePrice.toLocaleString('vi-VN')}đ
+                                                {item.card.basePrice.toLocaleString('vi-VN')} VND
                                             </p>
                                         </div>
                                     </div>
@@ -288,13 +313,13 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Tổng giá trị thẻ (tham khảo)</span>
                                 <span className="font-semibold">
-                                    {totalCardValue.toLocaleString('vi-VN')}đ
+                                    {totalCardValue.toLocaleString('vi-VN')} VND
                                 </span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Phí vận chuyển</span>
                                 <span className="font-semibold">
-                                    {shippingFee.toLocaleString('vi-VN')}đ
+                                    {shippingFee.toLocaleString('vi-VN')} VND
                                 </span>
                             </div>
                             <div className="pt-2 border-t border-white/10 space-y-2">
@@ -329,7 +354,7 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
                             <div className="pt-2 border-t border-white/10 flex justify-between items-center">
                                 <span className="text-sm font-semibold">Tổng thanh toán</span>
                                 <span className="text-lg font-bold text-green-300">
-                                    {grandTotal.toLocaleString('vi-VN')}đ
+                                    {grandTotal.toLocaleString('vi-VN')} VND
                                 </span>
                             </div>
                         </CardContent>

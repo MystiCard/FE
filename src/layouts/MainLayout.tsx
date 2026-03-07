@@ -4,9 +4,11 @@ import { Header } from '@/components/layout/Header';
 import { NewsSidebar } from '@/components/layout/NewsSidebar';
 import { Footer } from '@/components/layout/Footer';
 import { FloatingWidgets } from '@/components/shared/FloatingWidgets';
+import { MarketplaceCartProvider } from '@/contexts/MarketplaceCartContext';
 
 export const MainLayout: React.FC = () => {
     return (
+        <MarketplaceCartProvider>
         <div className="min-h-screen">
             <Header />
             <NewsSidebar />
@@ -18,5 +20,6 @@ export const MainLayout: React.FC = () => {
             <Footer />
             <FloatingWidgets />
         </div>
+        </MarketplaceCartProvider>
     );
 };

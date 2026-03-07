@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { X, Heart, Trash2, Loader2 } from 'lucide-react';
+import { X, Heart, Trash2, Loader2, Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { cardApi } from '@/utils/api';
-import type { WishlistItem } from '@/utils/api';
+import { cardApi, getCardImageUrl } from '@/utils/api';
+import type { WishlistItem, WishlistPriceAlert } from '@/utils/api';
 import type { Card as CardType } from '@/utils/api';
 import { useWishlist } from '@/hooks/useWishlist';
 
@@ -18,6 +18,7 @@ interface WishlistDrawerProps {
 export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose }) => {
     const { removeItem: removeFromWishlistLocal } = useWishlist();
     const [rows, setRows] = useState<{ item: WishlistItem; card: CardType | null }[]>([]);
+    const [alerts, setAlerts] = useState<WishlistPriceAlert[]>([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -25,8 +26,12 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
         const load = async () => {
             setLoading(true);
             try {
-                const res = await cardApi.getUserWishlist(0, 50);
+                const [res, alertsRes] = await Promise.all([
+                    cardApi.getUserWishlist(0, 50),
+                    cardApi.getWishlistPriceAlerts().catch(() => []),
+                ]);
                 const list = res.content ?? [];
+                setAlerts(Array.isArray(alertsRes) ? alertsRes : []);
                 const withCards = await Promise.all(
                     list.map(async (item) => {
                         try {
@@ -132,7 +137,7 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
                                     <div className="flex gap-4 p-3">
                                         <div className="relative w-16 h-[88px] shrink-0 rounded-lg overflow-hidden bg-white/5 aspect-[2.5/3.5]">
                                             <img
-                                                src={card?.imageUrl || PLACEHOLDER_IMG}
+                                                src={getCardImageUrl(card) || PLACEHOLDER_IMG}
                                                 alt={card?.name || 'Thẻ'}
                                                 className="w-full h-full object-cover"
                                                 onError={(e) => {
@@ -149,9 +154,28 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
                                                     {formatRarity(card.rarity)}
                                                 </p>
                                             )}
+                                            {item.expectPrice != null && (
+                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                    Giá mong muốn: {(item.expectPrice ?? 0).toLocaleString('vi-VN')} đ
+                                                </p>
+                                            )}
                                             <p className="text-base font-bold text-accent-400 mt-1">
                                                 {(card?.basePrice ?? 0).toLocaleString('vi-VN')} đ
                                             </p>
+                                            {(() => {
+                                                const alert = alerts.find((a) => a.wishListId === item.wishListId);
+                                                const count = alert?.matchingListings?.length ?? 0;
+                                                return count > 0 ? (
+                                                    <Link
+                                                        to="/marketplace"
+                                                        onClick={onClose}
+                                                        className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-md bg-green-500/20 text-green-400 text-xs font-medium"
+                                                    >
+                                                        <Bell className="h-3 w-3" />
+                                                        Có {count} tin bán ≤ giá mong muốn — Xem sàn
+                                                    </Link>
+                                                ) : null;
+                                            })()}
                                             <div className="flex items-center gap-2 mt-2">
                                                 <Link
                                                     to="/portfolio"
@@ -159,6 +183,13 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
                                                     className="text-xs text-primary-400 hover:underline"
                                                 >
                                                     Xem trong Bộ sưu tập
+                                                </Link>
+                                                <Link
+                                                    to="/marketplace"
+                                                    onClick={onClose}
+                                                    className="text-xs text-primary-400 hover:underline"
+                                                >
+                                                    Sàn giao dịch
                                                 </Link>
                                                 <button
                                                     type="button"

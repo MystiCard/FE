@@ -42,7 +42,7 @@ export const AdminRateConfigPage: React.FC = () => {
             const data = await rateConfigApi.getAllRateConfigs();
             setRateConfigs(Array.isArray(data) ? data : []);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load rate configs');
+            setError(err instanceof Error ? err.message : 'Không tải được cấu hình tỷ lệ');
         } finally {
             setIsLoading(false);
         }
@@ -50,7 +50,7 @@ export const AdminRateConfigPage: React.FC = () => {
 
     const handleCreateConfig = async () => {
         if (!newConfig.rarity || newConfig.rate < 0) {
-            alert('Please select a rarity and set a valid rate');
+            alert('Vui lòng chọn độ hiếm và nhập tỷ lệ hợp lệ');
             return;
         }
 
@@ -59,9 +59,9 @@ export const AdminRateConfigPage: React.FC = () => {
             await loadRateConfigs();
             setIsAddModalOpen(false);
             resetForm();
-            alert('Rate config created successfully!');
+            alert('Đã tạo cấu hình tỷ lệ thành công!');
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to create rate config');
+            alert(err instanceof Error ? err.message : 'Tạo cấu hình tỷ lệ thất bại');
         }
     };
 
@@ -69,40 +69,40 @@ export const AdminRateConfigPage: React.FC = () => {
         if (!editingConfig) return;
 
         if (!newConfig.rarity || newConfig.rate < 0) {
-            alert('Please select a rarity and set a valid rate');
+            alert('Vui lòng chọn độ hiếm và nhập tỷ lệ hợp lệ');
             return;
         }
 
         try {
             const id = editingConfig.id;
             if (!id) {
-                alert('Invalid config id');
+                alert('Mã cấu hình không hợp lệ');
                 return;
             }
             await rateConfigApi.updateRateConfig(id, newConfig);
             await loadRateConfigs();
             setEditingConfig(null);
             resetForm();
-            alert('Rate config updated successfully!');
+            alert('Đã cập nhật cấu hình tỷ lệ thành công!');
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to update rate config');
+            alert(err instanceof Error ? err.message : 'Cập nhật cấu hình tỷ lệ thất bại');
         }
     };
 
     const handleDeleteConfig = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this rate config?')) return;
+        if (!confirm('Bạn có chắc muốn xóa cấu hình tỷ lệ này?')) return;
 
         try {
             await rateConfigApi.deleteRateConfig(id);
             await loadRateConfigs();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete rate config');
+            alert(err instanceof Error ? err.message : 'Xóa cấu hình tỷ lệ thất bại');
         }
     };
 
     const handleImportConfigs = async () => {
         if (!importFile) {
-            alert('Please select a file to import');
+            alert('Vui lòng chọn file để nhập');
             return;
         }
 
@@ -112,9 +112,9 @@ export const AdminRateConfigPage: React.FC = () => {
             await loadRateConfigs();
             setIsImportModalOpen(false);
             setImportFile(null);
-            alert('Rate configs imported successfully!');
+            alert('Đã nhập cấu hình tỷ lệ thành công!');
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to import rate configs');
+            alert(err instanceof Error ? err.message : 'Nhập cấu hình tỷ lệ thất bại');
         } finally {
             setIsImporting(false);
         }

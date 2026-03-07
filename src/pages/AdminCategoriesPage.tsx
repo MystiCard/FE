@@ -85,7 +85,7 @@ export const AdminCategoriesPage: React.FC = () => {
 
             setError('');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load categories');
+            setError(err instanceof Error ? err.message : 'Không tải được danh mục');
             setCategories([]);
         } finally {
             setIsLoading(false);
@@ -98,17 +98,17 @@ export const AdminCategoriesPage: React.FC = () => {
             value: categories.length.toString(),
             icon: Folder,
             color: 'from-blue-500 to-cyan-500',
-            change: `${categories.length} categories`
+            change: `${categories.length} danh mục`
         },
         {
-            title: 'With Images',
+            title: 'Có ảnh',
             value: categories.filter(c => c.imageUrl).length.toString(),
             icon: ImageIcon,
             color: 'from-purple-500 to-pink-500',
-            change: 'Have images'
+            change: 'Có ảnh'
         },
         {
-            title: 'Recently Added',
+            title: 'Mới thêm',
             value: categories.filter(c => {
                 if (!c.createdAt) return false;
                 const created = new Date(c.createdAt);
@@ -118,7 +118,7 @@ export const AdminCategoriesPage: React.FC = () => {
             }).length.toString(),
             icon: Calendar,
             color: 'from-green-500 to-emerald-500',
-            change: 'Last 7 days'
+            change: '7 ngày qua'
         },
     ];
 
@@ -129,7 +129,7 @@ export const AdminCategoriesPage: React.FC = () => {
 
     const handleAddCategory = async () => {
         if (!newCategory.name.trim()) {
-            alert('Please enter category name');
+            alert('Vui lòng nhập tên danh mục');
             return;
         }
 
@@ -149,20 +149,26 @@ export const AdminCategoriesPage: React.FC = () => {
                 imageUrl: '',
             });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to add category');
+            alert(err instanceof Error ? err.message : 'Thêm danh mục thất bại');
         }
     };
 
     const handleEditCategory = async () => {
         if (!editingCategory) return;
 
+        const categoryId = editingCategory.categoryId;
+        if (!categoryId) {
+            alert('Không có mã danh mục. Vui lòng thử lại.');
+            return;
+        }
+
         if (!newCategory.name.trim()) {
-            alert('Please enter category name');
+            alert('Vui lòng nhập tên danh mục');
             return;
         }
 
         try {
-            await categoryApi.updateCategory(editingCategory.categoryId, {
+            await categoryApi.updateCategory(categoryId, {
                 categoryName: newCategory.name.trim(),
                 description: newCategory.description.trim() || undefined,
                 imageUrl: newCategory.imageUrl.trim() || undefined,
@@ -177,7 +183,7 @@ export const AdminCategoriesPage: React.FC = () => {
                 imageUrl: '',
             });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to update category');
+            alert(err instanceof Error ? err.message : 'Cập nhật danh mục thất bại');
         }
     };
 
@@ -188,13 +194,13 @@ export const AdminCategoriesPage: React.FC = () => {
             await categoryApi.deleteCategory(categoryId);
             await loadCategories();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete category');
+            alert(err instanceof Error ? err.message : 'Xóa danh mục thất bại');
         }
     };
 
     const handleImportCategories = async () => {
         if (!importFile) {
-            alert('Please select a file to import');
+            alert('Vui lòng chọn file để nhập');
             return;
         }
 
@@ -206,7 +212,7 @@ export const AdminCategoriesPage: React.FC = () => {
             setImportFile(null);
             alert('Categories imported successfully!');
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to import categories');
+            alert(err instanceof Error ? err.message : 'Nhập danh mục thất bại');
         } finally {
             setIsImporting(false);
         }
@@ -324,9 +330,9 @@ export const AdminCategoriesPage: React.FC = () => {
                                     {/* Category Image */}
                                     {/* Category Image */}
                                     <div className="w-full h-40 bg-white/5 rounded-lg mb-4 overflow-hidden relative group flex items-center justify-center p-4">
-                                        {category.imageUrl ? (
+                                        {(category.imageUrl || getCategoryImage(category.categoryName || '')) ? (
                                             <img
-                                                src={category.imageUrl}
+                                                src={category.imageUrl || getCategoryImage(category.categoryName || '')}
                                                 alt={category.categoryName}
                                                 className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-110"
                                                 onError={(e) => {
@@ -396,7 +402,7 @@ export const AdminCategoriesPage: React.FC = () => {
                             <CardHeader className="border-b border-white/10">
                                 <div className="flex items-center justify-between">
                                     <CardTitle className="text-2xl gradient-text">
-                                        {editingCategory ? 'Edit Category' : 'Add New Category'}
+                                        {editingCategory ? 'Chỉnh sửa danh mục' : 'Thêm danh mục mới'}
                                     </CardTitle>
                                     <button
                                         onClick={() => {
@@ -454,7 +460,7 @@ export const AdminCategoriesPage: React.FC = () => {
                                             className="flex-1"
                                             onClick={editingCategory ? handleEditCategory : handleAddCategory}
                                         >
-                                            {editingCategory ? 'Update Category' : 'Add Category'}
+                                            {editingCategory ? 'Cập nhật' : 'Thêm danh mục'}
                                         </Button>
                                         <Button
                                             variant="ghost"
@@ -542,7 +548,7 @@ export const AdminCategoriesPage: React.FC = () => {
                                             onClick={handleImportCategories}
                                             disabled={!importFile || isImporting}
                                         >
-                                            {isImporting ? 'Importing...' : 'Import Categories'}
+                                            {isImporting ? 'Đang nhập...' : 'Nhập danh mục'}
                                         </Button>
                                         <Button
                                             variant="ghost"
