@@ -28,6 +28,11 @@ export const CartPage: React.FC = () => {
     const [voucherInput, setVoucherInput] = useState('');
     const [voucherError, setVoucherError] = useState('');
 
+    const formatCurrencyVND = (value: number) => {
+        const safe = Number.isFinite(value) ? value : 0;
+        return safe.toLocaleString('vi-VN') + ' đ';
+    };
+
     const handleApplyVoucher = () => {
         if (!voucherInput.trim()) {
             setVoucherError('Vui lòng nhập mã giảm giá');
@@ -63,7 +68,7 @@ export const CartPage: React.FC = () => {
                     <Button
                         variant="premium"
                         size="lg"
-                        onClick={() => navigate('/products')}
+                        onClick={() => navigate('/mystery-box')}
                         className="gap-2"
                     >
                         <ShoppingBag className="h-5 w-5" />
@@ -153,7 +158,7 @@ export const CartPage: React.FC = () => {
                                             </p>
                                         )}
                                         <div className="text-2xl font-bold gradient-text mb-4">
-                                            ${item.price.toFixed(2)}
+                                            {formatCurrencyVND(item.price)}
                                         </div>
 
                                         {/* Quantity Controls */}
@@ -242,7 +247,7 @@ export const CartPage: React.FC = () => {
                                                 {voucher.code}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                Giảm {voucher.type === 'percentage' ? `${voucher.value}%` : `$${voucher.value}`}
+                                                Giảm {voucher.type === 'percentage' ? `${voucher.value}%` : formatCurrencyVND(voucher.value)}
                                             </p>
                                         </div>
                                     </div>
@@ -263,12 +268,12 @@ export const CartPage: React.FC = () => {
                             <div className="space-y-3 mb-4">
                                 <div className="flex items-center justify-between text-muted-foreground">
                                     <span>Tạm tính ({selectedItemCount} sản phẩm)</span>
-                                    <span className="font-medium">${subtotal.toFixed(2)}</span>
+                                    <span className="font-medium">{formatCurrencyVND(subtotal)}</span>
                                 </div>
                                 {discountAmount > 0 && (
                                     <div className="flex items-center justify-between text-green-500">
                                         <span>Giảm giá</span>
-                                        <span className="font-medium">-${discountAmount.toFixed(2)}</span>
+                                        <span className="font-medium">- {formatCurrencyVND(discountAmount)}</span>
                                     </div>
                                 )}
                             </div>
@@ -278,7 +283,7 @@ export const CartPage: React.FC = () => {
                             <div className="flex items-center justify-between text-xl mb-6">
                                 <span className="font-bold">Tổng cộng</span>
                                 <span className="text-2xl font-bold gradient-text">
-                                    ${total.toFixed(2)}
+                                    {formatCurrencyVND(total)}
                                 </span>
                             </div>
 

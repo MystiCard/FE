@@ -15,7 +15,7 @@ import {
     FileSpreadsheet,
     Eye
 } from 'lucide-react';
-import { cardApi, categoryApi, Card as CardType, Category } from '@/utils/api';
+import { cardApi, categoryApi, Card as CardType, Category, getCardImageUrl } from '@/utils/api';
 
 export const AdminCardsPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = React.useState('');
@@ -36,6 +36,12 @@ export const AdminCardsPage: React.FC = () => {
     // Helper to format rarity for display
     const formatRarity = (rarity: string) => {
         return rarity ? rarity.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown';
+    };
+
+    // Helper to format price in VND
+    const formatCurrencyVND = (value: number) => {
+        const safe = Number.isFinite(value) ? value : 0;
+        return safe.toLocaleString('vi-VN') + ' đ';
     };
 
     const getFilteredCards = () => {
@@ -79,7 +85,7 @@ export const AdminCardsPage: React.FC = () => {
             console.log('Loaded cards data:', data); // DEBUG: Check data structure
             setCards(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load cards');
+            setError(err instanceof Error ? err.message : 'Không tải được danh sách thẻ');
         } finally {
             setIsLoading(false);
         }
@@ -94,6 +100,9 @@ export const AdminCardsPage: React.FC = () => {
         }
     };
 
+    const totalValue = cards.reduce((sum, card) => sum + (card.basePrice || 0), 0);
+    const avgValue = cards.length > 0 ? totalValue / cards.length : 0;
+
     const stats = [
         {
             title: 'Tổng thẻ',
@@ -104,14 +113,14 @@ export const AdminCardsPage: React.FC = () => {
         },
         {
             title: 'Tổng giá trị',
-            value: `$${cards.reduce((sum, card) => sum + (card.basePrice || 0), 0).toFixed(2)}`,
+            value: formatCurrencyVND(totalValue),
             icon: DollarSign,
             color: 'from-accent-500 to-accent-300',
             change: 'Kho'
         },
         {
             title: 'Giá trung bình',
-            value: cards.length > 0 ? `$${(cards.reduce((sum, card) => sum + (card.basePrice || 0), 0) / cards.length).toFixed(2)}` : '$0',
+            value: cards.length > 0 ? formatCurrencyVND(avgValue) : '0 đ',
             icon: TrendingUp,
             color: 'from-secondary-500 to-secondary-300',
             change: 'Mỗi thẻ'
@@ -132,7 +141,7 @@ export const AdminCardsPage: React.FC = () => {
         const price = parseFloat(normalizedPrice);
 
         if (!newCard.name || isNaN(price)) {
-            alert('Please fill in card name and a valid price');
+            alert('Vui lòng nhập tên thẻ và giá hợp lệ');
             return;
         }
 
@@ -160,7 +169,7 @@ export const AdminCardsPage: React.FC = () => {
                 rarity: 'COMMON',
             });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to add card');
+            alert(err instanceof Error ? err.message : 'Thêm thẻ thất bại');
         }
     };
 
@@ -171,7 +180,7 @@ export const AdminCardsPage: React.FC = () => {
         const price = parseFloat(normalizedPrice);
 
         if (!newCard.name || isNaN(price)) {
-            alert('Please fill in card name and a valid price');
+            alert('Vui lòng nhập tên thẻ và giá hợp lệ');
             return;
         }
 
@@ -211,7 +220,7 @@ export const AdminCardsPage: React.FC = () => {
             });
         } catch (err) {
             console.error('Update failed:', err);
-            alert(err instanceof Error ? err.message : 'Failed to update card');
+            alert(err instanceof Error ? err.message : 'Cập nhật thẻ thất bại');
         }
     };
 
@@ -222,13 +231,13 @@ export const AdminCardsPage: React.FC = () => {
             await cardApi.deleteCard(cardId);
             await loadCards();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete card');
+            alert(err instanceof Error ? err.message : 'Xóa thẻ thất bại');
         }
     };
 
     const handleImportCards = async () => {
         if (!importFile) {
-            alert('Please select a file to import');
+            alert('Vui lòng chọn file để nhập');
             return;
         }
 
@@ -240,7 +249,7 @@ export const AdminCardsPage: React.FC = () => {
             setImportFile(null);
             alert('Cards imported successfully!');
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to import cards');
+            alert(err instanceof Error ? err.message : 'Nhập thẻ thất bại');
         } finally {
             setIsImporting(false);
         }
@@ -260,7 +269,7 @@ export const AdminCardsPage: React.FC = () => {
             name: card.name,
             description: card.description || '',
             price: card.basePrice.toString(),
-            imageUrl: card.imageUrl || '',
+            imageUrl: getCardImageUrl(card) || '',
             categoryId: catId,
             rarity: card.rarity,
         });
@@ -301,7 +310,7 @@ export const AdminCardsPage: React.FC = () => {
                         onClick={() => setIsImportModalOpen(true)}
                     >
                         <Upload className="h-4 w-4" />
-                        Import Cards
+                        Nhập thẻ
                     </Button>
                     <Button
                         variant="premium"
@@ -365,7 +374,7 @@ export const AdminCardsPage: React.FC = () => {
                             onChange={(e) => setFilterCategory(e.target.value)}
                             className="glass-card px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer bg-black/60"
                         >
-                            <option value="all">All Categories</option>
+                            <option value="all">Tất cả danh mục</option>
                             {categories.map((category) => (
                                 <option key={category.categoryId} value={category.categoryId}>
                                     {category.categoryName}
@@ -377,13 +386,13 @@ export const AdminCardsPage: React.FC = () => {
                             onChange={(e) => setFilterRarity(e.target.value)}
                             className="glass-card px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer bg-black/60"
                         >
-                            <option value="all">All Rarities</option>
-                            <option value="COMMON">Common</option>
-                            <option value="UNCOMMON">Uncommon</option>
-                            <option value="RARE">Rare</option>
-                            <option value="ULTRA_RARE">Ultra Rare</option>
-                            <option value="SUPER_RARE">Super Rare</option>
-                            <option value="SECRET_RARE">Secret Rare</option>
+                            <option value="all">Tất cả độ hiếm</option>
+                            <option value="COMMON">Thường</option>
+                            <option value="UNCOMMON">Hiếm nhẹ</option>
+                            <option value="RARE">Hiếm</option>
+                            <option value="ULTRA_RARE">Cực hiếm</option>
+                            <option value="SUPER_RARE">Siêu hiếm</option>
+                            <option value="SECRET_RARE">Bí mật</option>
                         </select>
                     </div>
                 </CardContent>
@@ -392,7 +401,7 @@ export const AdminCardsPage: React.FC = () => {
             {/* Products Table */}
             <Card className="glass-card-strong">
                 <CardHeader>
-                    <CardTitle>Cards ({getFilteredCards().length})</CardTitle>
+                    <CardTitle>Thẻ ({getFilteredCards().length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
@@ -422,17 +431,14 @@ export const AdminCardsPage: React.FC = () => {
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
                                                     <img
-                                                        src={card.imageUrl || 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=100&q=80'}
+                                                        src={getCardImageUrl(card) || 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=100&q=80'}
                                                         alt={card.name}
                                                         className="w-12 h-12 rounded-lg object-cover"
                                                         onError={(e) => {
                                                             e.currentTarget.src = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=100&q=80';
                                                         }}
                                                     />
-                                                    <div>
-                                                        <div className="font-medium">{card.name}</div>
-                                                        <div className="text-xs text-muted-foreground">ID: {card.cardId.substring(0, 8)}</div>
-                                                    </div>
+                                                    <div className="font-medium">{card.name}</div>
                                                 </div>
                                             </td>
                                             <td className="p-4 text-sm">{card.categoryName || 'N/A'}</td>
@@ -448,7 +454,7 @@ export const AdminCardsPage: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className="p-4 text-right font-semibold text-accent-400">
-                                                ${card.basePrice.toFixed(2)}
+                                                {formatCurrencyVND(card.basePrice)}
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex items-center justify-end gap-2">
@@ -574,7 +580,7 @@ export const AdminCardsPage: React.FC = () => {
 
                                     {/* Price */}
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Giá ($) *</label>
+                                        <label className="block text-sm font-medium mb-2">Giá (VND) *</label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -654,7 +660,7 @@ export const AdminCardsPage: React.FC = () => {
                                     <div className="space-y-5">
                                         <div className="flex justify-center">
                                             <img
-                                                src={detailCard.imageUrl || 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80'}
+                                                src={getCardImageUrl(detailCard) || 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80'}
                                                 alt={detailCard.name}
                                                 className="w-48 h-64 rounded-xl object-cover border border-white/10"
                                                 onError={(e) => {
@@ -693,15 +699,21 @@ export const AdminCardsPage: React.FC = () => {
                                         <div className="grid grid-cols-3 gap-4 pt-2 border-t border-white/10">
                                             <div>
                                                 <div className="text-xs text-muted-foreground mb-1">Giá gốc</div>
-                                                <div className="text-accent-400 font-semibold">${detailCard.basePrice.toFixed(2)}</div>
+                                                <div className="text-accent-400 font-semibold">
+                                                    {formatCurrencyVND(detailCard.basePrice)}
+                                                </div>
                                             </div>
                                             <div>
                                                 <div className="text-xs text-muted-foreground mb-1">Giá thấp nhất</div>
-                                                <div className="text-sm">${detailCard.minPrice.toFixed(2)}</div>
+                                                <div className="text-sm">
+                                                    {formatCurrencyVND(detailCard.minPrice)}
+                                                </div>
                                             </div>
                                             <div>
                                                 <div className="text-xs text-muted-foreground mb-1">Giá cao nhất</div>
-                                                <div className="text-sm">${detailCard.maxPrice.toFixed(2)}</div>
+                                                <div className="text-sm">
+                                                    {formatCurrencyVND(detailCard.maxPrice)}
+                                                </div>
                                             </div>
                                         </div>
                                         <div>

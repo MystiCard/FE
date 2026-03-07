@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Heart } from 'lucide-react';
-import { categoryApi, Category, Card as CardType, cardApi } from '@/utils/api';
+import { categoryApi, Category, Card as CardType, cardApi, getCardImageUrl } from '@/utils/api';
 import { getCategoryImage } from '@/utils/categoryImages';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
@@ -130,7 +130,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
                         >
                             <div className="relative aspect-[2.5/3.5] overflow-hidden rounded-xl">
                                 <img
-                                    src={card.imageUrl || PLACEHOLDER_IMG}
+                                    src={getCardImageUrl(card) || PLACEHOLDER_IMG}
                                     alt={card.name}
                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                                     loading="lazy"
@@ -163,7 +163,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
                                                 id: card.cardId,
                                                 name: card.name,
                                                 price: card.basePrice,
-                                                image: card.imageUrl || PLACEHOLDER_IMG,
+                                                image: getCardImageUrl(card) || PLACEHOLDER_IMG,
                                                 rarity: card.rarity,
                                             });
                                             setWishlistCardIds((prev) => new Set(prev).add(card.cardId));
@@ -185,7 +185,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
                             <div className="p-3 text-center">
                                 <h3 className="font-semibold text-sm truncate">{card.name}</h3>
                                 <p className="text-xs text-muted-foreground">
-                                    {formatRarity(card.rarity)} • ${card.basePrice.toFixed(2)}
+                                    {formatRarity(card.rarity)} • {Number(card.basePrice).toLocaleString('vi-VN')} đ
                                 </p>
                             </div>
                         </Card>

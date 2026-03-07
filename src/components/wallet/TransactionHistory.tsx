@@ -147,7 +147,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             ) : (
                 <div className="space-y-3">
                     {transactions.map((transaction) => (
-                        <Card key={transaction.transactionId} className="glass-card p-4 hover:bg-white/5 transition-colors">
+                        <Card key={transaction.walletTransactionId} className="glass-card p-4 hover:bg-white/5 transition-colors">
                             <div className="flex items-center justify-between gap-4">
                                 {/* Icon and Info */}
                                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -161,23 +161,33 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                                         <div className="text-xs text-muted-foreground">
                                             {formatDate(transaction.createAt)}
                                         </div>
-                                        <div className="text-xs text-muted-foreground truncate">
-                                            ID: {transaction.transactionId}
-                                        </div>
                                     </div>
                                 </div>
 
                                 {/* Amount and Status */}
                                 <div className="text-right flex-shrink-0">
-                                    <div className={`font-bold mb-1 ${transaction.transactionType === 'DEPOSTIE' || transaction.transactionType === 'DEPOSIT'
+                                    {(() => {
+                                        const isIncoming =
+                                            typeof transaction.incoming === 'boolean'
+                                                ? transaction.incoming
+                                                : transaction.transactionType === 'DEPOSTIE' ||
+                                                  transaction.transactionType === 'DEPOSIT';
+
+                                        const amountClass = isIncoming
                                             ? 'text-green-400'
-                                            : transaction.transactionType === 'WITHDRAW' || transaction.transactionType === 'REQUEST_WITHDRAW'
-                                                ? 'text-red-400'
-                                                : 'text-blue-400'
-                                        }`}>
-                                        {(transaction.transactionType === 'DEPOSTIE' || transaction.transactionType === 'DEPOSIT') ? '+' : '-'}
-                                        {transaction.amount.toLocaleString('vi-VN')} đ
-                                    </div>
+                                            : transaction.transactionType === 'REQUEST_WITHDRAW'
+                                            ? 'text-yellow-400'
+                                            : 'text-red-400';
+
+                                        const sign = isIncoming ? '+' : '-';
+
+                                        return (
+                                            <div className={`font-bold mb-1 ${amountClass}`}>
+                                                {sign}
+                                                {transaction.amount.toLocaleString('vi-VN')} đ
+                                            </div>
+                                        );
+                                    })()}
                                     {getStatusBadge(transaction.statusTransaction)}
                                 </div>
                             </div>

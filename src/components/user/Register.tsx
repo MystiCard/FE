@@ -12,11 +12,13 @@ export const Register: React.FC = () => {
         name: '',
         email: '',
         phone: '',
+        address: '',
         password: '',
         confirmPassword: '',
-        address: '',
         gender: 'MALE' as 'MALE' | 'FEMALE',
     });
+    const [districtId, setDistrictId] = React.useState<string>('');
+    const [wardId, setWardId] = React.useState<string>('');
     const [avatar, setAvatar] = React.useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = React.useState<string>('');
     const [isLoading, setIsLoading] = React.useState(false);
@@ -65,6 +67,16 @@ export const Register: React.FC = () => {
             return;
         }
 
+        // Validate address + codes (BE requires districtId/wardId)
+        if (!formData.address || formData.address.trim().length < 5) {
+            setError('Please select your address (province/district/ward) and provide details if needed');
+            return;
+        }
+        if (!districtId || !wardId) {
+            setError('Please choose District and Ward');
+            return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -72,9 +84,11 @@ export const Register: React.FC = () => {
                 email: formData.email,
                 password: formData.password,
                 gender: formData.gender,
-                address: formData.address,
+                address: formData.address.trim(),
                 name: formData.name,
                 phone: formData.phone,
+                districtId,
+                wardId,
             };
 
             await userApi.register(registerData, avatar || undefined);
@@ -198,19 +212,6 @@ export const Register: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Address - Tỉnh/Thành + Xã/Phường */}
-                        <div>
-                            <label className="block text-sm font-medium mb-2">
-                                Địa chỉ
-                            </label>
-                            <AddressSelect
-                                value={formData.address}
-                                onChange={(address) => setFormData((prev) => ({ ...prev, address }))}
-                                showDetailInput={true}
-                                required
-                            />
-                        </div>
-
                         {/* Gender */}
                         <div>
                             <label htmlFor="gender" className="block text-sm font-medium mb-2">
@@ -227,6 +228,24 @@ export const Register: React.FC = () => {
                                 <option value="MALE">Male</option>
                                 <option value="FEMALE">Female</option>
                             </select>
+                        </div>
+
+                        {/* Address (Province/District/Ward) */}
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Address</label>
+                            <AddressSelect
+                                value={formData.address}
+                                onChange={(address) => setFormData((prev) => ({ ...prev, address }))}
+                                required
+                                showDetailInput
+                                onCodesChange={(codes) => {
+                                    setDistrictId(codes.districtId != null ? String(codes.districtId) : '');
+                                    setWardId(codes.wardCode ?? '');
+                                }}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Please select Province → District → Ward. (This is required for shipping.)
+                            </p>
                         </div>
 
                         {/* Password */}

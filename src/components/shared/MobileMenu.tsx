@@ -1,6 +1,6 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { X, Home, ShoppingBag, TrendingUp, User, Package, Info, Settings } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { X, Home, ShoppingBag, TrendingUp, User, Info, Settings } from 'lucide-react';
 
 interface MobileMenuProps {
     isOpen: boolean;
@@ -8,16 +8,18 @@ interface MobileMenuProps {
 }
 
 export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
+    const location = useLocation();
+    const pathname = location.pathname;
+
     if (!isOpen) return null;
 
     const menuItems = [
-        { icon: Home, label: 'Trang chủ', path: '/' },
-        { icon: Info, label: 'Giới thiệu', path: '/about' },
-        { icon: ShoppingBag, label: 'Cửa hàng', path: '/shop' },
-        { icon: Package, label: 'Sản phẩm', path: '/products' },
-        { icon: TrendingUp, label: 'Sàn giao dịch', path: '/marketplace' },
-        { icon: User, label: 'Hồ sơ', path: '/profile' },
-        { icon: Settings, label: 'Quản trị', path: '/admin' },
+        { icon: Home, label: 'Trang chủ', path: '/', exact: true },
+        { icon: Info, label: 'Giới thiệu', path: '/about', exact: true },
+        { icon: ShoppingBag, label: 'Hộp bí ẩn', path: '/mystery-box', exact: true },
+        { icon: TrendingUp, label: 'Sàn giao dịch', path: '/marketplace', exact: true },
+        { icon: User, label: 'Hồ sơ', path: '/profile', exact: false },
+        { icon: Settings, label: 'Quản trị', path: '/admin', exact: false },
     ];
 
     return (
@@ -56,12 +58,13 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                 <nav className="p-4 space-y-2">
                     {menuItems.map((item) => {
                         const Icon = item.icon;
+                        const isActive = item.exact ? pathname === item.path : pathname === item.path || pathname.startsWith(item.path + '/');
                         return (
                             <Link
                                 key={item.path}
                                 to={item.path}
                                 onClick={onClose}
-                                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 "
+                                className={`flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 ${isActive ? 'text-primary-400 bg-white/5' : ''}`}
                             >
                                 <Icon className="h-5 w-5" />
                                 <span className="font-medium">{item.label}</span>
@@ -70,30 +73,22 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                     })}
                 </nav>
 
-                {/* Shop Submenu */}
-                <div className="px-4 py-2">
-                    <div className="text-xs font-semibold text-muted-foreground mb-2 px-4">CỬA HÀNG</div>
-                    <div className="space-y-1">
-                        <Link to="/products" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
-                            Tất cả sản phẩm
-                        </Link>
-                        <Link to="/booster-boxes" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
-                            Hộp Booster
-                        </Link>
-                        <Link to="/mystery-box" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
-                            Hộp bí ẩn
-                        </Link>
-                    </div>
-                </div>
-
                 {/* Portfolio Submenu */}
                 <div className="px-4 py-2">
                     <div className="text-xs font-semibold text-muted-foreground mb-2 px-4">BỘ SƯU TẬP</div>
                     <div className="space-y-1">
-                        <Link to="/portfolio" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
+                        <Link
+                            to="/portfolio"
+                            onClick={onClose}
+                            className={`block px-4 py-2 rounded-lg hover:bg-white/10 text-sm ${pathname === '/portfolio' || pathname.startsWith('/portfolio/') ? 'text-primary-400 bg-white/5' : ''}`}
+                        >
                             Bộ sưu tập của tôi
                         </Link>
-                        <Link to="/trends" onClick={onClose} className="block px-4 py-2 rounded-lg hover:bg-white/10 text-sm">
+                        <Link
+                            to="/trends"
+                            onClick={onClose}
+                            className={`block px-4 py-2 rounded-lg hover:bg-white/10 text-sm ${pathname === '/trends' || pathname.startsWith('/trends/') ? 'text-primary-400 bg-white/5' : ''}`}
+                        >
                             Xu hướng thị trường
                         </Link>
                     </div>

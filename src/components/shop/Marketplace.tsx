@@ -13,8 +13,12 @@ import {
     ChevronDown,
     Users,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { listSellerApi, ListingItem, categoryApi, Category } from '@/utils/api';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { listSellerApi, ListingItem, categoryApi, Category, cardApi } from '@/utils/api';
+import { useWishlist } from '@/hooks/useWishlist';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
+import { Heart, Loader2, Trash2, Star } from 'lucide-react';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
 
@@ -25,6 +29,11 @@ const formatRarity = (rarity: string) =>
               .replace(/_/g, ' ')
               .replace(/\b\w/g, c => c.toUpperCase())
         : '';
+
+const formatCurrencyVND = (value: number) => {
+    const safe = Number.isFinite(value) ? value : 0;
+    return safe.toLocaleString('vi-VN') + ' đ';
+};
 
 const rarityClass: Record<string, string> = {
     SECRET_RARE: 'bg-purple-500/20 text-purple-400',
@@ -78,18 +87,42 @@ export const Marketplace: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [priceRange, setPriceRange] = useState<[number, number]>([0, 5000]);
+    const [priceRange, setPriceRange] = useState<[number, number]>([0, 5_000_000]);
     const [sortBy, setSortBy] = useState<'price-asc' | 'price-desc' | 'name'>('price-asc');
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [filterRarity, setFilterRarity] = useState<string>('all');
     const [categories, setCategories] = useState<Category[]>([]);
     const [selectedProduct, setSelectedProduct] = useState<CardProduct | null>(null);
     const [selectedListing, setSelectedListing] = useState<ListingItem | null>(null);
+    const [orderQuantity, setOrderQuantity] = useState<number>(1);
+    const [orderLoading, setOrderLoading] = useState(false);
+    const [orderError, setOrderError] = useState<string | null>(null);
+    const [paymentMethod] = useState<'WALLET'>('WALLET');
     const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+    const [cartOpen, setCartOpen] = useState(false);
+    const { items: cartItems, addCard, setSelectedListing: setCartSelectedListing, updateQuantity: updateCartQuantity, removeCard: removeCartCard } = useMarketplaceCart();
+    const { isAuthenticated } = useAuth();
+    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
+    const [wishlistCardIds, setWishlistCardIds] = useState<Set<string>>(new Set());
+    const [wishlistLoadingCardId, setWishlistLoadingCardId] = useState<string | null>(null);
 
     useEffect(() => {
         loadListings(currentPage);
     }, [currentPage]);
+
+    // Mở giỏ hàng khi vào trang với ?openCart=1 (vd: từ icon giỏ trên header)
+    useEffect(() => {
+        if (searchParams.get('openCart') === '1') {
+            setCartOpen(true);
+            setSearchParams((prev) => {
+                const p = new URLSearchParams(prev);
+                p.delete('openCart');
+                return p;
+            }, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
 
     useEffect(() => {
         const load = async () => {
@@ -102,6 +135,24 @@ export const Marketplace: React.FC = () => {
         };
         load();
     }, []);
+
+    // Load danh sách card trong wishlist từ BE (khi đã đăng nhập)
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setWishlistCardIds(new Set());
+            return;
+        }
+        const loadWishlist = async () => {
+            try {
+                const res = await cardApi.getUserWishlist(0, 500);
+                const ids = new Set((res.content ?? []).map((w) => w.cardId));
+                setWishlistCardIds(ids);
+            } catch {
+                setWishlistCardIds(new Set());
+            }
+        };
+        loadWishlist();
+    }, [isAuthenticated]);
 
     const loadListings = async (page: number) => {
         try {
@@ -124,25 +175,179 @@ export const Marketplace: React.FC = () => {
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             list = list.filter(
-                item =>
+                (item) =>
                     item.cardName.toLowerCase().includes(q) ||
-                    (item.categoryName && item.categoryName.toLowerCase().includes(q))
+                    (item.categoryName && item.categoryName.toLowerCase().includes(q)),
             );
         }
-        list = list.filter(item => item.price >= priceRange[0] && item.price <= priceRange[1]);
+        list = list.filter(
+            (item) => item.price >= priceRange[0] && item.price <= priceRange[1],
+        );
         if (filterCategory !== 'all') {
-            const cat = categories.find(c => c.categoryId === filterCategory);
+            const cat = categories.find((c) => c.categoryId === filterCategory);
             if (cat?.categoryName) {
                 const name = cat.categoryName.toLowerCase();
-                list = list.filter(item => item.categoryName?.toLowerCase() === name);
+                list = list.filter((item) => item.categoryName?.toLowerCase() === name);
             }
         }
-        if (filterRarity !== 'all') list = list.filter(item => item.rarity === filterRarity);
+        if (filterRarity !== 'all') list = list.filter((item) => item.rarity === filterRarity);
+
+        // Chỉ giữ lại các offer còn hàng (quantity >= 1)
+        list = list.filter((item) => item.quantity && item.quantity > 0);
+
         if (sortBy === 'price-asc') list.sort((a, b) => a.price - b.price);
         else if (sortBy === 'price-desc') list.sort((a, b) => b.price - a.price);
         else list.sort((a, b) => a.cardName.localeCompare(b.cardName));
         return list;
     }, [listings, searchQuery, priceRange, sortBy, filterCategory, filterRarity, categories]);
+
+    const toggleWishlistForCard = async (product: CardProduct, e?: React.MouseEvent) => {
+        if (e) {
+            e.stopPropagation();
+        }
+        const cardId = product.cardId;
+        const inList = wishlistCardIds.has(cardId) || isInWishlist(cardId);
+        setWishlistLoadingCardId(cardId);
+        try {
+            if (inList) {
+                removeFromWishlistLocal(cardId);
+                setWishlistCardIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(cardId);
+                    return next;
+                });
+                if (isAuthenticated) {
+                    try {
+                        await cardApi.removeFromWishlistByCardId(cardId);
+                        window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+                    } catch {
+                        // ignore, đã cập nhật local
+                    }
+                }
+            } else {
+                addToWishlistLocal({
+                    id: cardId,
+                    name: product.cardName,
+                    price: product.basePrice,
+                    image: product.imageUrl || PLACEHOLDER_IMG,
+                    rarity: product.rarity,
+                });
+                setWishlistCardIds((prev) => new Set(prev).add(cardId));
+                if (isAuthenticated) {
+                    try {
+                        await cardApi.addToWishlist(cardId);
+                        window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+                    } catch {
+                        // ignore, đã cập nhật local
+                    }
+                }
+            }
+        } finally {
+            setWishlistLoadingCardId(null);
+        }
+    };
+
+    /** Thêm thẻ vào giỏ (cả thẻ với list seller); trong giỏ user chọn seller và số lượng */
+    const addCardToCart = (product: CardProduct, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        const activeOffers = product.offers.filter((o) => (o.quantity ?? 0) > 0);
+        if (activeOffers.length === 0) return;
+        addCard({
+            cardId: product.cardId,
+            cardName: product.cardName,
+            imageUrl: product.imageUrl,
+            rarity: product.rarity,
+            offers: activeOffers,
+            quantity: 1,
+        });
+        setCartOpen(true);
+    };
+
+    const handleCheckoutCart = async () => {
+        const readyItems = cartItems.filter((c) => c.selectedListing != null);
+        if (!readyItems.length) {
+            setOrderError('Vui lòng chọn người bán cho từng thẻ trong giỏ trước khi thanh toán.');
+            return;
+        }
+        if (!isAuthenticated) {
+            navigate('/login');
+            return;
+        }
+        setOrderError(null);
+        setOrderLoading(true);
+        try {
+            const checkoutItems = readyItems.map((c) => {
+                const listing = c.selectedListing!;
+                const quantity = Math.max(1, Math.min(c.quantity, listing.quantity ?? 1));
+                return {
+                    listSellerId: listing.listSellerId,
+                    quantity,
+                    cardId: c.cardId,
+                    cardName: c.cardName,
+                    imageUrl: c.imageUrl,
+                    sellerId: listing.sellerId,
+                    sellerName: listing.sellerName,
+                    unitPrice: listing.price,
+                };
+            });
+
+            // Chuyển sang trang checkout để user xem phí ship + đổi địa chỉ trước khi thanh toán (giống Shopee).
+            setCartOpen(false);
+            navigate('/marketplace/checkout', {
+                state: {
+                    items: checkoutItems,
+                    paymentMethod,
+                    fromCart: true,
+                },
+            });
+        } finally {
+            setOrderLoading(false);
+        }
+    };
+    const handleBuyNow = async () => {
+        if (!selectedListing) return;
+        if (!isAuthenticated) {
+            navigate('/login');
+            return;
+        }
+        setOrderError(null);
+        setOrderLoading(true);
+        try {
+            const safeQuantity = Math.max(
+                1,
+                Math.min(orderQuantity || 1, selectedListing.quantity ?? 1),
+            );
+
+            // Chuyển sang trang checkout để user xem phí ship + đổi địa chỉ trước khi thanh toán.
+            setSelectedListing(null);
+            setSelectedProduct(null);
+            setOrderQuantity(1);
+            navigate('/marketplace/checkout', {
+                state: {
+                    items: [
+                        {
+                            listSellerId: selectedListing.listSellerId,
+                            quantity: safeQuantity,
+                            cardId: selectedProduct!.cardId,
+                            cardName: selectedProduct!.cardName,
+                            imageUrl: selectedProduct!.imageUrl,
+                            sellerId: selectedListing.sellerId,
+                            sellerName: selectedListing.sellerName,
+                            unitPrice: selectedListing.price,
+                        },
+                    ],
+                    paymentMethod,
+                    fromCart: false,
+                },
+            });
+        } catch (e) {
+            setOrderError(
+                e instanceof Error ? e.message : 'Đặt mua thất bại. Vui lòng thử lại.',
+            );
+        } finally {
+            setOrderLoading(false);
+        }
+    };
 
     const products = useMemo(() => {
         const grouped = groupListingsByCard(filteredListings);
@@ -190,6 +395,20 @@ export const Marketplace: React.FC = () => {
                 </div>
             </div>
 
+            {/* Nút nổi mở giỏ hàng */}
+            {cartItems.length > 0 && (
+                <div className="fixed bottom-6 right-6 z-40">
+                    <Button
+                        variant="premium"
+                        className="shadow-lg flex items-center gap-2"
+                        onClick={() => setCartOpen(true)}
+                    >
+                        <Package className="h-4 w-4" />
+                        Giỏ hàng ({cartItems.length})
+                    </Button>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Sidebar bộ lọc */}
                 <div className="lg:col-span-1">
@@ -202,7 +421,7 @@ export const Marketplace: React.FC = () => {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Giá ($)</label>
+                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Giá (đ)</label>
                                 <div className="flex gap-2">
                                     <input
                                         type="number"
@@ -342,22 +561,58 @@ export const Marketplace: React.FC = () => {
                                                         </td>
                                                         <td className="p-4 text-right">
                                                             <span className="font-semibold text-accent-400">
-                                                                ${minPrice.toFixed(2)}
+                                                                {formatCurrencyVND(minPrice)}
                                                             </span>
                                                         </td>
-                                                        <td className="p-4">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="gap-1"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setSelectedProduct(product);
-                                                                }}
-                                                            >
-                                                                Xem đề nghị
-                                                                <ChevronDown className="h-4 w-4" />
-                                                            </Button>
+                                                                    <td className="p-4">
+                                                                        <div className="flex items-center justify-end gap-2">
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    addCardToCart(product, e);
+                                                                                }}
+                                                                            >
+                                                                                Thêm thẻ vào giỏ
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="gap-1"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setSelectedProduct(product);
+                                                                                }}
+                                                                            >
+                                                                                Xem đề nghị
+                                                                                <ChevronDown className="h-4 w-4" />
+                                                                            </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="rounded-full"
+                                                                    onClick={(e) => toggleWishlistForCard(product, e)}
+                                                                    disabled={wishlistLoadingCardId === product.cardId}
+                                                                    aria-label={
+                                                                        wishlistCardIds.has(product.cardId) || isInWishlist(product.cardId)
+                                                                            ? 'Bỏ khỏi wishlist'
+                                                                            : 'Thêm vào wishlist'
+                                                                    }
+                                                                >
+                                                                    {wishlistLoadingCardId === product.cardId ? (
+                                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    ) : (
+                                                                        <Heart
+                                                                            className={`h-4 w-4 ${
+                                                                                wishlistCardIds.has(product.cardId) || isInWishlist(product.cardId)
+                                                                                    ? 'fill-red-500 text-red-500'
+                                                                                    : ''
+                                                                            }`}
+                                                                        />
+                                                                    )}
+                                                                </Button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                     {/* Hàng mở rộng: bảng offer bên dưới thẻ */}
@@ -381,11 +636,18 @@ export const Marketplace: React.FC = () => {
                                                                             {product.offers.map((offer) => (
                                                                                 <tr key={offer.listSellerId} className="border-t border-white/5">
                                                                                     <td className="py-2 font-medium text-accent-400">
-                                                                                        ${offer.price.toFixed(2)}
+                                                                                        {formatCurrencyVND(offer.price)}
                                                                                     </td>
                                                                                     <td className="py-2">{offer.quantity}</td>
                                                                                     <td className="py-2 text-muted-foreground">
-                                                                                        {offer.sellerName || '—'}
+                                                                                        <span>{offer.sellerName || '—'}</span>
+                                                                                        {(offer.sellerFeedbackCount != null && offer.sellerFeedbackCount > 0) && (
+                                                                                            <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90 text-xs">
+                                                                                                <Star className="h-3 w-3 fill-amber-400 shrink-0" />
+                                                                                                {Number(offer.sellerAverageRating ?? 0).toFixed(1)}
+                                                                                                <span className="text-muted-foreground">({offer.sellerFeedbackCount} đánh giá)</span>
+                                                                                            </span>
+                                                                                        )}
                                                                                     </td>
                                                                                     <td className="py-2 text-right">
                                                                                         <Button
@@ -467,6 +729,7 @@ export const Marketplace: React.FC = () => {
                     setSelectedListing(offer);
                     setSelectedProduct(null);
                 }}
+                onAddCardToCart={(product) => addCardToCart(product)}
                 formatRarity={formatRarity}
                 rarityClass={rarityClass}
                 placeholderImg={PLACEHOLDER_IMG}
@@ -497,7 +760,7 @@ export const Marketplace: React.FC = () => {
                                     <div className="pt-2 border-t border-white/10">
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Giá bán</span>
-                                            <span className="font-bold text-accent-400">${selectedListing.price.toFixed(2)}</span>
+                                            <span className="font-bold text-accent-400">{formatCurrencyVND(selectedListing.price)}</span>
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Số lượng</span>
@@ -505,12 +768,60 @@ export const Marketplace: React.FC = () => {
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Người bán</span>
-                                            <span>{selectedListing.sellerName || '—'}</span>
+                                            <span>
+                                                {selectedListing.sellerName || '—'}
+                                                {(selectedListing.sellerFeedbackCount != null && selectedListing.sellerFeedbackCount > 0) && (
+                                                    <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90">
+                                                        <Star className="h-3 w-3 fill-amber-400 shrink-0" />
+                                                        {Number(selectedListing.sellerAverageRating ?? 0).toFixed(1)}
+                                                        <span className="text-muted-foreground">({selectedListing.sellerFeedbackCount} đánh giá)</span>
+                                                    </span>
+                                                )}
+                                            </span>
                                         </div>
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Giá gốc thẻ</span>
-                                            <span>${selectedListing.basePrice.toFixed(2)}</span>
+                                            <span>{formatCurrencyVND(selectedListing.basePrice)}</span>
                                         </div>
+                                    </div>
+                                    {orderError && (
+                                        <p className="text-xs text-red-400 mt-2">{orderError}</p>
+                                    )}
+                                    <div className="pt-3 border-t border-white/10 space-y-2">
+                                        <div className="flex items-center justify-between gap-3 text-sm">
+                                            <span className="text-muted-foreground">Số lượng mua</span>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={selectedListing.quantity}
+                                                value={orderQuantity}
+                                                onChange={(e) =>
+                                                    setOrderQuantity(
+                                                        Number.isNaN(Number(e.target.value))
+                                                            ? 1
+                                                            : Number(e.target.value),
+                                                    )
+                                                }
+                                                className="w-24 px-2 py-1 rounded bg-white/5 border border-white/10 text-right text-sm"
+                                            />
+                                        </div>
+                                        <div className="flex gap-2 text-xs">
+                                            <span className="flex-1 px-3 py-2 rounded border border-yellow-400 bg-yellow-500/10 text-yellow-200">
+                                                Ví MystiCard
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Địa chỉ và số điện thoại sẽ dùng thông tin trong mục Hồ sơ của bạn.
+                                            Nếu cần thay đổi, hãy cập nhật Hồ sơ trước khi mua.
+                                        </p>
+                                        <Button
+                                            variant="premium"
+                                            className="w-full"
+                                            disabled={orderLoading}
+                                            onClick={handleBuyNow}
+                                        >
+                                            {orderLoading ? 'Đang đặt mua...' : 'Mua ngay'}
+                                        </Button>
                                     </div>
                                     <Button variant="ghost" className="w-full mt-2" onClick={() => setSelectedListing(null)}>
                                         Đóng
@@ -518,6 +829,126 @@ export const Marketplace: React.FC = () => {
                                 </div>
                             </div>
                         </>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Giỏ hàng: mỗi thẻ chọn 1 seller + số lượng */}
+            <Dialog open={cartOpen} onOpenChange={(o) => setCartOpen(o)}>
+                <DialogContent className="max-w-xl glass-card-strong border-white/10">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg">Giỏ hàng sàn giao dịch</DialogTitle>
+                    </DialogHeader>
+                    {cartItems.length === 0 ? (
+                        <p className="text-sm text-muted-foreground mt-4">
+                            Giỏ hàng đang trống. Thêm thẻ từ Sàn giao dịch, sau đó chọn người bán cho từng thẻ.
+                        </p>
+                    ) : (
+                        <div className="mt-4 space-y-4 text-sm">
+                            {cartItems.map((item) => (
+                                <div key={item.cardId} className="p-3 rounded-lg border border-white/10 space-y-2">
+                                    <div className="flex items-center gap-3">
+                                        <img
+                                            src={item.imageUrl || PLACEHOLDER_IMG}
+                                            alt={item.cardName}
+                                            className="w-12 h-16 object-cover rounded shrink-0"
+                                            onError={(e) => { e.currentTarget.src = PLACEHOLDER_IMG; }}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-medium line-clamp-1">{item.cardName}</div>
+                                            <div className="text-xs text-muted-foreground mt-0.5">Chọn người bán</div>
+                                            <select
+                                                value={item.selectedListing?.listSellerId ?? ''}
+                                                onChange={(e) => {
+                                                    const id = e.target.value;
+                                                    const offer = item.offers.find((o) => o.listSellerId === id) ?? null;
+                                                    setCartSelectedListing(item.cardId, offer);
+                                                }}
+                                                className="mt-1 w-full px-2 py-1.5 rounded bg-white/5 border border-white/10 text-xs"
+                                            >
+                                                <option value="">-- Chọn seller --</option>
+                                                {item.offers.map((o) => (
+                                                    <option key={o.listSellerId} value={o.listSellerId}>
+                                                        {o.sellerName || 'Seller'}
+                                                        {(o.sellerFeedbackCount != null && o.sellerFeedbackCount > 0)
+                                                            ? ` · ⭐ ${Number(o.sellerAverageRating ?? 0).toFixed(1)} (${o.sellerFeedbackCount})`
+                                                            : ''}
+                                                        {' · '}{formatCurrencyVND(o.price)} · SL: {o.quantity}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <span className="text-xs text-muted-foreground">SL:</span>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={item.selectedListing?.quantity ?? 1}
+                                                value={item.quantity}
+                                                onChange={(e) => {
+                                                    const v = Math.max(1, Math.min(Number(e.target.value) || 1, item.selectedListing?.quantity ?? 1));
+                                                    updateCartQuantity(item.cardId, v);
+                                                }}
+                                                className="w-14 px-2 py-1 rounded bg-white/5 border border-white/10 text-center text-xs"
+                                            />
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-red-400 hover:text-red-300 shrink-0"
+                                            onClick={() => removeCartCard(item.cardId)}
+                                            aria-label="Xóa khỏi giỏ"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    {item.selectedListing && (
+                                        <div className="text-xs text-muted-foreground pl-[3.25rem]">
+                                            Tạm tính: {formatCurrencyVND(item.selectedListing.price * item.quantity)}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            <div className="pt-2 border-t border-white/10 space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Tổng tiền hàng (đã chọn seller)</span>
+                                    <span className="font-semibold">
+                                        {formatCurrencyVND(
+                                            cartItems
+                                                .filter((i) => i.selectedListing != null)
+                                                .reduce((sum, i) => sum + i.selectedListing!.price * i.quantity, 0),
+                                        )}
+                                    </span>
+                                </div>
+                                <div className="flex gap-2 text-xs">
+                                    <span className="flex-1 px-3 py-2 rounded border border-yellow-400 bg-yellow-500/10 text-yellow-200">
+                                        Ví MystiCard
+                                    </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Phí ship được tính riêng cho từng người bán sau khi tạo đơn, tương tự như khi mua 1 offer.
+                                </p>
+                                {cartItems.some((c) => !c.selectedListing) && (
+                                    <p className="text-xs text-amber-400">Chọn người bán cho tất cả thẻ trước khi thanh toán.</p>
+                                )}
+                                <Button
+                                    variant="premium"
+                                    className="w-full"
+                                    disabled={orderLoading || cartItems.some((c) => !c.selectedListing)}
+                                    onClick={handleCheckoutCart}
+                                >
+                                    {orderLoading ? 'Đang thanh toán...' : 'Thanh toán giỏ hàng'}
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    className="w-full"
+                                    type="button"
+                                    onClick={() => setCartOpen(false)}
+                                >
+                                    Đóng
+                                </Button>
+                            </div>
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>
@@ -529,6 +960,7 @@ function ListingOffersModal({
     product,
     onClose,
     onSelectOffer,
+    onAddCardToCart,
     formatRarity,
     rarityClass,
     placeholderImg,
@@ -536,69 +968,152 @@ function ListingOffersModal({
     product: CardProduct | null;
     onClose: () => void;
     onSelectOffer: (offer: ListingItem) => void;
+    onAddCardToCart: (product: CardProduct) => void;
     formatRarity: (r: string) => string;
     rarityClass: Record<string, string>;
     placeholderImg: string;
 }) {
     const open = !!product;
+
+    if (!product) {
+        return null;
+    }
+
+    const activeOffers = product.offers.filter((o) => (o.quantity ?? 0) > 0);
+
+    const prices = activeOffers.map((o) => o.price);
+    const quantities = activeOffers.map((o) => o.quantity);
+    const minPrice = prices.length ? Math.min(...prices) : 0;
+    const maxPrice = prices.length ? Math.max(...prices) : 0;
+    const avgPrice = prices.length
+        ? prices.reduce((sum, p) => sum + p, 0) / prices.length
+        : 0;
+    const totalQuantity = quantities.reduce((sum, q) => sum + (q ?? 0), 0);
+
     return (
         <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-card-strong border-white/10">
-                {product && (
-                    <>
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-3">
-                                <img
-                                    src={product.imageUrl || placeholderImg}
-                                    alt={product.cardName}
-                                    className="w-14 h-20 object-cover rounded-lg"
-                                    onError={(e) => {
-                                        e.currentTarget.src = placeholderImg;
-                                    }}
-                                />
-                                <div className="text-left">
-                                    <div className="font-semibold text-lg">{product.cardName}</div>
-                                    <div className="text-sm text-muted-foreground">
-                                        {product.categoryName || '—'} · {formatRarity(product.rarity)}
-                                    </div>
-                                </div>
-                            </DialogTitle>
-                        </DialogHeader>
-                        <div className="mt-4">
-                            <div className="text-xs font-medium text-muted-foreground mb-2 uppercase">Các đề nghị</div>
-                            <div className="space-y-2 max-h-80 overflow-y-auto">
-                                {product.offers.map((offer) => (
-                                    <div
-                                        key={offer.listSellerId}
-                                        className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10"
-                                    >
-                                        <div className="flex items-center gap-4 flex-wrap">
-                                            <span className="font-semibold text-accent-400 text-lg">
-                                                ${offer.price.toFixed(2)}
-                                            </span>
-                                            <span className="text-sm text-muted-foreground">
-                                                Số lượng: {offer.quantity}
-                                            </span>
-                                            <span className="text-sm text-muted-foreground">
-                                                Người bán: {offer.sellerName || '—'}
-                                            </span>
-                                        </div>
-                                        <Button
-                                            variant="premium"
-                                            size="sm"
-                                            onClick={() => onSelectOffer(offer)}
-                                        >
-                                            Xem chi tiết
-                                        </Button>
-                                    </div>
-                                ))}
+            <DialogContent className="w-[96vw] max-w-[1400px] max-h-[90vh] overflow-y-auto glass-card-strong border-white/10">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-4">
+                        <img
+                            src={product.imageUrl || placeholderImg}
+                            alt={product.cardName}
+                            className="w-20 h-28 object-cover rounded-lg shadow-lg"
+                            onError={(e) => {
+                                e.currentTarget.src = placeholderImg;
+                            }}
+                        />
+                        <div className="text-left space-y-1">
+                            <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded bg-white/10 text-[10px] uppercase tracking-wider">
+                                    {formatRarity(product.rarity)}
+                                </span>
+                                {product.categoryName && (
+                                    <span className="text-xs text-muted-foreground">{product.categoryName}</span>
+                                )}
                             </div>
+                            <div className="text-2xl font-semibold">{product.cardName}</div>
+                            {activeOffers.length > 0 ? (
+                                <div className="text-xs text-muted-foreground">
+                                    Tổng {activeOffers.length} đề nghị · {totalQuantity} bản có sẵn
+                                </div>
+                            ) : (
+                                <div className="text-xs text-muted-foreground">
+                                    Hiện không còn đề nghị nào còn hàng
+                                </div>
+                            )}
                         </div>
-                        <Button variant="ghost" className="w-full mt-4" onClick={onClose}>
-                            Đóng
-                        </Button>
-                    </>
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3 rounded-lg bg-white/5">
+                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            Giá thấp nhất
+                        </div>
+                        <div className="text-lg font-bold text-accent-400">{formatCurrencyVND(minPrice)}</div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/5">
+                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            Giá trung bình
+                        </div>
+                        <div className="text-lg font-bold">{formatCurrencyVND(avgPrice)}</div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-white/5">
+                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            Giá cao nhất
+                        </div>
+                        <div className="text-lg font-bold">{formatCurrencyVND(maxPrice)}</div>
+                    </div>
+                </div>
+
+                {activeOffers.length > 0 && (
+                    <div className="mt-6">
+                        <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                            Danh sách người bán
+                        </div>
+                        <div className="rounded-lg border border-white/10 overflow-x-auto">
+                            <table className="w-full min-w-[600px] text-sm">
+                                <thead className="bg-white/5 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left whitespace-nowrap">Người bán</th>
+                                        <th className="px-4 py-2 text-right whitespace-nowrap">Giá</th>
+                                        <th className="px-4 py-2 text-center whitespace-nowrap">Số lượng</th>
+                                        <th className="px-4 py-2 text-right whitespace-nowrap">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activeOffers.map((offer) => (
+                                        <tr key={offer.listSellerId} className="border-t border-white/5">
+                                            <td className="px-4 py-2 text-sm text-muted-foreground">
+                                                <span>{offer.sellerName || '—'}</span>
+                                                {(offer.sellerFeedbackCount != null && offer.sellerFeedbackCount > 0) && (
+                                                    <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90 text-xs">
+                                                        <Star className="h-3 w-3 fill-amber-400 shrink-0" />
+                                                        {Number(offer.sellerAverageRating ?? 0).toFixed(1)}
+                                                        <span className="text-muted-foreground">({offer.sellerFeedbackCount} đánh giá)</span>
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-2 text-right font-semibold text-accent-400">
+                                                {formatCurrencyVND(offer.price)}
+                                            </td>
+                                            <td className="px-4 py-2 text-center">
+                                                {offer.quantity}
+                                            </td>
+                                            <td className="px-4 py-2 text-right flex gap-2 justify-end">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onAddCardToCart(product);
+                                                    }}
+                                                >
+                                                    Thêm thẻ vào giỏ
+                                                </Button>
+                                                <Button
+                                                    variant="premium"
+                                                    size="sm"
+                                                    onClick={() => onSelectOffer(offer)}
+                                                >
+                                                    Xem chi tiết
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 )}
+
+                <Button variant="ghost" className="w-full mt-4" onClick={onClose}>
+                    Đóng
+                </Button>
             </DialogContent>
         </Dialog>
     );

@@ -1,22 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, Bell, User, ChevronDown, Menu, Heart, LogOut, Wallet } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Search, ShoppingCart, Bell, User, ChevronDown, Menu, Heart, LogOut, Wallet, Package, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCart } from '@/hooks/useCart';
 import { useWishlist } from '@/hooks/useWishlist';
+import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { WishlistDrawer } from '@/components/shared/WishlistDrawer';
 import { MobileMenu } from '@/components/shared/MobileMenu';
-import { userApi, cardApi } from '@/utils/api';
+import { userApi, cardApi, WishlistPriceAlert } from '@/utils/api';
 
 export const Header: React.FC = () => {
     const navigate = useNavigate();
-    const [isShopOpen, setIsShopOpen] = React.useState(false);
+    const location = useLocation();
+    const pathname = location.pathname;
+
+    const navLinkClass = (path: string, exact = true) =>
+        `text-sm font-medium hover:text-primary-400 transition-colors ${(exact ? pathname === path : pathname.startsWith(path)) ? 'text-primary-400' : ''}`;
     const [isPortfolioOpen, setIsPortfolioOpen] = React.useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
     const [isWishlistOpen, setIsWishlistOpen] = React.useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-    const { itemCount } = useCart();
+    const [isAlertsOpen, setIsAlertsOpen] = React.useState(false);
+    const [priceAlerts, setPriceAlerts] = React.useState<WishlistPriceAlert[]>([]);
+    const { itemCount: marketplaceCartCount } = useMarketplaceCart();
     const { itemCount: wishlistLocalCount } = useWishlist();
     const { user, isAuthenticated, logout } = useAuth();
     const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -42,20 +48,55 @@ export const Header: React.FC = () => {
         return () => window.removeEventListener('wishlist-api-updated', onUpdated);
     }, [isAuthenticated]);
 
-    // Fetch wallet balance for authenticated users
+    const fetchPriceAlerts = async () => {
+        if (!isAuthenticated) return;
+        try {
+            const list = await cardApi.getWishlistPriceAlerts();
+            setPriceAlerts(list.filter((a) => a.matchingListings && a.matchingListings.length > 0));
+        } catch {
+            setPriceAlerts([]);
+        }
+    };
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setPriceAlerts([]);
+            return;
+        }
+        fetchPriceAlerts();
+        const onUpdated = () => fetchPriceAlerts();
+        window.addEventListener('wishlist-api-updated', onUpdated);
+        return () => window.removeEventListener('wishlist-api-updated', onUpdated);
+    }, [isAuthenticated]);
+
+    // Fetch wallet balance for authenticated users + listen for realtime updates
     useEffect(() => {
         const fetchWalletBalance = async () => {
-            if (isAuthenticated) {
-                try {
-                    const profile = await userApi.getMyProfile();
-                    setWalletBalance(profile.walletResponse?.balance || 0);
-                } catch (err) {
-                    console.error('Failed to fetch wallet balance:', err);
-                }
+            if (!isAuthenticated) {
+                setWalletBalance(0);
+                return;
+            }
+            try {
+                const profile = await userApi.getMyProfile();
+                setWalletBalance(profile.walletResponse?.balance || 0);
+            } catch (err) {
+                console.error('Failed to fetch wallet balance:', err);
             }
         };
 
         fetchWalletBalance();
+
+        const handleWalletUpdated = (event: Event) => {
+            const custom = event as CustomEvent<{ balance?: number }>;
+            if (custom.detail && typeof custom.detail.balance === 'number') {
+                setWalletBalance(custom.detail.balance);
+            } else {
+                // Fallback: refetch from API
+                fetchWalletBalance();
+            }
+        };
+
+        window.addEventListener('wallet-balance-updated', handleWalletUpdated);
+        return () => window.removeEventListener('wallet-balance-updated', handleWalletUpdated);
     }, [isAuthenticated]);
 
     const handleLogout = async (e: React.MouseEvent) => {
@@ -99,46 +140,19 @@ export const Header: React.FC = () => {
 
                     {/* Navigation */}
                     <nav className="hidden md:flex items-center gap-5 lg:gap-6">
-                        <Link to="/" className="text-sm font-medium hover:text-primary-400">
+                        <Link to="/" className={navLinkClass('/', true)}>
                             Trang chủ
                         </Link>
 
-                        <Link to="/about" className="text-sm font-medium hover:text-primary-400">
+                        <Link to="/about" className={navLinkClass('/about')}>
                             Giới thiệu
                         </Link>
 
-                        {/* Shop Dropdown - pt-2 thay mt-2 để không có khe hở, chuột di xuống vẫn trong vùng hover */}
-                        <div
-                            className="relative"
-                            onMouseEnter={() => setIsShopOpen(true)}
-                            onMouseLeave={() => setIsShopOpen(false)}
-                        >
-                            <button className="flex items-center gap-1 text-sm font-medium hover:text-primary-400">
-                                <span>Cửa hàng</span>
-                                <ChevronDown className="h-4 w-4" />
-                            </button>
+                        <Link to="/mystery-box" className={navLinkClass('/mystery-box')}>
+                            Hộp bí ẩn
+                        </Link>
 
-                            {isShopOpen && (
-                                <div className="absolute top-full left-0 pt-2 w-48">
-                                    <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
-                                        <Link to="/products" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Tất cả sản phẩm
-                                        </Link>
-                                        <Link to="/booster-boxes" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Hộp Booster
-                                        </Link>
-                                        <Link to="/special-items" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Sản phẩm đặc biệt
-                                        </Link>
-                                        <Link to="/mystery-box" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Hộp bí ẩn
-                                        </Link>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <Link to="/marketplace" className="text-sm font-medium hover:text-primary-400">
+                        <Link to="/marketplace" className={navLinkClass('/marketplace')}>
                             Sàn giao dịch
                         </Link>
 
@@ -148,7 +162,13 @@ export const Header: React.FC = () => {
                             onMouseEnter={() => setIsPortfolioOpen(true)}
                             onMouseLeave={() => setIsPortfolioOpen(false)}
                         >
-                            <button className="flex items-center gap-1 text-sm font-medium hover:text-primary-400">
+                            <button
+                                className={`flex items-center gap-1 text-sm font-medium hover:text-primary-400 transition-colors ${
+                                    ['/portfolio', '/trends', '/post-listing'].some((p) => pathname === p || pathname.startsWith(p + '/'))
+                                        ? 'text-primary-400'
+                                        : ''
+                                }`}
+                            >
                                 <span>Bộ sưu tập</span>
                                 <ChevronDown className="h-4 w-4" />
                             </button>
@@ -217,18 +237,56 @@ export const Header: React.FC = () => {
                             variant="ghost"
                             size="icon"
                             className="relative"
-                            onClick={() => navigate('/cart')}
+                            onClick={() => navigate('/marketplace' + (marketplaceCartCount > 0 ? '?openCart=1' : ''))}
                         >
                             <ShoppingCart className="h-5 w-5" />
-                            {itemCount > 0 && (
+                            {marketplaceCartCount > 0 && (
                                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent-500 rounded-full text-xs font-bold flex items-center justify-center text-black">
-                                    {itemCount}
+                                    {marketplaceCartCount}
                                 </span>
                             )}
                         </Button>
-                        <Button variant="ghost" size="icon" className="">
-                            <Bell className="h-5 w-5" />
-                        </Button>
+                        <div
+                            className="relative"
+                            onMouseEnter={() => isAuthenticated && setIsAlertsOpen(true)}
+                            onMouseLeave={() => setIsAlertsOpen(false)}
+                        >
+                            <Button variant="ghost" size="icon" className="relative">
+                                <Bell className="h-5 w-5" />
+                                {isAuthenticated && priceAlerts.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full text-xs font-bold flex items-center justify-center text-black">
+                                        {priceAlerts.length}
+                                    </span>
+                                )}
+                            </Button>
+                            {isAuthenticated && isAlertsOpen && (
+                                <div className="absolute top-full right-0 pt-2 w-80 max-h-96 overflow-auto z-50">
+                                    <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
+                                        <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                            Thông báo giá wishlist
+                                        </div>
+                                        {priceAlerts.length === 0 ? (
+                                            <p className="px-3 py-4 text-sm text-muted-foreground">Chưa có tin bán nào dưới giá mong muốn.</p>
+                                        ) : (
+                                            priceAlerts.map((alert) => (
+                                                <Link
+                                                    key={alert.wishListId}
+                                                    to="/marketplace"
+                                                    className="block px-3 py-2 text-sm hover:bg-white/10 rounded-md border-l-2 border-amber-500/50"
+                                                    onClick={() => setIsAlertsOpen(false)}
+                                                >
+                                                    <span className="font-medium text-white">{alert.cardName}</span>
+                                                    <br />
+                                                    <span className="text-xs text-muted-foreground">
+                                                        Có {alert.matchingListings.length} tin bán ≤ {alert.expectPrice?.toLocaleString('vi-VN')}đ
+                                                    </span>
+                                                </Link>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         {/* User Menu */}
                         {isAuthenticated && user ? (
@@ -260,9 +318,10 @@ export const Header: React.FC = () => {
                                         <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
                                             <Link
                                                 to="/profile"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md flex items-center gap-2"
                                             >
-                                                Hồ sơ
+                                                <User className="h-4 w-4" />
+                                                <span>Hồ sơ</span>
                                             </Link>
                                             <Link
                                                 to="/wallet"
@@ -272,22 +331,18 @@ export const Header: React.FC = () => {
                                                 <span>Ví tiền</span>
                                             </Link>
                                             <Link
+                                                to="/orders"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md flex items-center gap-2"
+                                            >
+                                                <Package className="h-4 w-4" />
+                                                <span>Đơn hàng</span>
+                                            </Link>
+                                            <Link
                                                 to="/portfolio"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
+                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md flex items-center gap-2"
                                             >
-                                                Bộ sưu tập
-                                            </Link>
-                                            <Link
-                                                to="/settings"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
-                                            >
-                                                Cài đặt
-                                            </Link>
-                                            <Link
-                                                to="/admin"
-                                                className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
-                                            >
-                                                Quản trị
+                                                <Layers className="h-4 w-4" />
+                                                <span>Bộ sưu tập</span>
                                             </Link>
                                             <hr className="my-2 border-white/10" />
                                             <button

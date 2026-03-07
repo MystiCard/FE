@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import {
     User, Mail, Edit, Share2, Layers, Award, TrendingUp,
     Settings, Image as ImageIcon, LifeBuoy, CreditCard,
-    Briefcase, Activity, Heart, Trash2, Package
+    Briefcase, Activity, Heart, Trash2, Package, Star
 } from 'lucide-react';
-import { userApi, UserProfile, transactionApi, cardApi, listSellerApi, ListingItem, UpdateProfileRequest, WishlistItem, Card as CardType } from '@/utils/api';
+import { userApi, UserProfile, transactionApi, cardApi, listSellerApi, ListingItem, UpdateProfileRequest, WishlistItem, Card as CardType, getCardImageUrl } from '@/utils/api';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -97,6 +97,13 @@ export const Profile: React.FC = () => {
 
     useEffect(() => {
         fetchProfile();
+
+        const handler = () => {
+            fetchProfile();
+            fetchStats();
+        };
+        window.addEventListener('wallet-updated', handler);
+        return () => window.removeEventListener('wallet-updated', handler);
     }, [isAuthenticated]);
 
     useEffect(() => {
@@ -171,6 +178,9 @@ export const Profile: React.FC = () => {
             phone: profile.phone ?? '',
             address: profile.address ?? '',
             gender: (profile.gender as 'MALE' | 'FEMALE') || undefined,
+            // Giữ lại districtId / wardId hiện tại để gửi lên BE, tránh bị null
+            districtId: (profile as any).districtId,
+            wardId: (profile as any).wardId,
         });
         setAvatarFile(null);
         setAvatarPreview(null);
@@ -203,6 +213,8 @@ export const Profile: React.FC = () => {
                 phone: editForm.phone?.trim() || '',
                 address: editForm.address?.trim() || '',
                 gender: editForm.gender,
+                districtId: editForm.districtId,
+                wardId: editForm.wardId,
             };
             if (editForm.password?.trim()) payload.password = editForm.password.trim();
             const updated = await userApi.updateProfile(profile.userId, payload, avatarFile ?? undefined);
@@ -564,6 +576,13 @@ export const Profile: React.FC = () => {
                                                     {Number(item.price).toLocaleString('vi-VN')} đ
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">SL: {item.quantity}</p>
+                                                {(item.sellerFeedbackCount != null && item.sellerFeedbackCount > 0) && (
+                                                    <p className="text-xs text-amber-400/90 mt-0.5 flex items-center gap-0.5">
+                                                        <Star className="h-3 w-3 fill-amber-400 shrink-0" />
+                                                        {Number(item.sellerAverageRating ?? 0).toFixed(1)}
+                                                        <span className="text-muted-foreground">({item.sellerFeedbackCount} đánh giá)</span>
+                                                    </p>
+                                                )}
                                             </CardContent>
                                         </Link>
                                     </Card>
@@ -599,9 +618,9 @@ export const Profile: React.FC = () => {
                                 <Heart className="w-8 h-8 text-pink-400" />
                             </div>
                             <p className="text-muted-foreground">Chưa có thẻ nào trong wishlist</p>
-                            <p className="text-sm text-muted-foreground mt-1">Thêm thẻ yêu thích từ Shop hoặc My Collection</p>
-                            <Button variant="outline" className="mt-4" onClick={() => navigate('/shop')}>
-                                Đến Shop
+                            <p className="text-sm text-muted-foreground mt-1">Thêm thẻ yêu thích từ Hộp bí ẩn hoặc Bộ sưu tập</p>
+                            <Button variant="outline" className="mt-4" onClick={() => navigate('/mystery-box')}>
+                                Đến Hộp bí ẩn
                             </Button>
                         </Card>
                     ) : (
@@ -615,7 +634,7 @@ export const Profile: React.FC = () => {
                                         <Link to={card ? `/portfolio?card=${card.cardId}` : '/portfolio'} className="block">
                                             <div className="relative aspect-[2.5/3.5] rounded-t-lg overflow-hidden bg-white/5">
                                                 <img
-                                                    src={card?.imageUrl || PLACEHOLDER_IMG}
+                                                    src={getCardImageUrl(card) || PLACEHOLDER_IMG}
                                                     alt={card?.name || 'Thẻ'}
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
@@ -766,6 +785,14 @@ export const Profile: React.FC = () => {
                                     value={editForm.address}
                                     onChange={(address) => setEditForm((f) => ({ ...f, address }))}
                                     showDetailInput={true}
+                                    onCodesChange={({ provinceId, districtId, wardCode }) =>
+                                        setEditForm((f) => ({
+                                            ...f,
+                                            // Lưu districtId/wardId dạng string để gửi lên BE
+                                            districtId: districtId ? String(districtId) : f.districtId,
+                                            wardId: wardCode ?? f.wardId,
+                                        }))
+                                    }
                                 />
                             </div>
                             <div>

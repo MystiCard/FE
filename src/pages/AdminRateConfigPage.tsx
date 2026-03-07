@@ -38,10 +38,11 @@ export const AdminRateConfigPage: React.FC = () => {
     const loadRateConfigs = async () => {
         try {
             setIsLoading(true);
+            setError('');
             const data = await rateConfigApi.getAllRateConfigs();
-            setRateConfigs(data);
+            setRateConfigs(Array.isArray(data) ? data : []);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load rate configs');
+            setError(err instanceof Error ? err.message : 'Không tải được cấu hình tỷ lệ');
         } finally {
             setIsLoading(false);
         }
@@ -49,7 +50,7 @@ export const AdminRateConfigPage: React.FC = () => {
 
     const handleCreateConfig = async () => {
         if (!newConfig.rarity || newConfig.rate < 0) {
-            alert('Please select a rarity and set a valid rate');
+            alert('Vui lòng chọn độ hiếm và nhập tỷ lệ hợp lệ');
             return;
         }
 
@@ -58,9 +59,9 @@ export const AdminRateConfigPage: React.FC = () => {
             await loadRateConfigs();
             setIsAddModalOpen(false);
             resetForm();
-            alert('Rate config created successfully!');
+            alert('Đã tạo cấu hình tỷ lệ thành công!');
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to create rate config');
+            alert(err instanceof Error ? err.message : 'Tạo cấu hình tỷ lệ thất bại');
         }
     };
 
@@ -68,35 +69,40 @@ export const AdminRateConfigPage: React.FC = () => {
         if (!editingConfig) return;
 
         if (!newConfig.rarity || newConfig.rate < 0) {
-            alert('Please select a rarity and set a valid rate');
+            alert('Vui lòng chọn độ hiếm và nhập tỷ lệ hợp lệ');
             return;
         }
 
         try {
-            await rateConfigApi.updateRateConfig(editingConfig.id, newConfig);
+            const id = editingConfig.id;
+            if (!id) {
+                alert('Mã cấu hình không hợp lệ');
+                return;
+            }
+            await rateConfigApi.updateRateConfig(id, newConfig);
             await loadRateConfigs();
             setEditingConfig(null);
             resetForm();
-            alert('Rate config updated successfully!');
+            alert('Đã cập nhật cấu hình tỷ lệ thành công!');
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to update rate config');
+            alert(err instanceof Error ? err.message : 'Cập nhật cấu hình tỷ lệ thất bại');
         }
     };
 
     const handleDeleteConfig = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this rate config?')) return;
+        if (!confirm('Bạn có chắc muốn xóa cấu hình tỷ lệ này?')) return;
 
         try {
             await rateConfigApi.deleteRateConfig(id);
             await loadRateConfigs();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete rate config');
+            alert(err instanceof Error ? err.message : 'Xóa cấu hình tỷ lệ thất bại');
         }
     };
 
     const handleImportConfigs = async () => {
         if (!importFile) {
-            alert('Please select a file to import');
+            alert('Vui lòng chọn file để nhập');
             return;
         }
 
@@ -106,9 +112,9 @@ export const AdminRateConfigPage: React.FC = () => {
             await loadRateConfigs();
             setIsImportModalOpen(false);
             setImportFile(null);
-            alert('Rate configs imported successfully!');
+            alert('Đã nhập cấu hình tỷ lệ thành công!');
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to import rate configs');
+            alert(err instanceof Error ? err.message : 'Nhập cấu hình tỷ lệ thất bại');
         } finally {
             setIsImporting(false);
         }
@@ -125,14 +131,14 @@ export const AdminRateConfigPage: React.FC = () => {
     const openEditModal = (config: RateConfig) => {
         setEditingConfig(config);
         setNewConfig({
-            rarity: config.rarity,
-            rate: config.rate,
-            variancePercent: config.variancePercent || 0
+            rarity: config.rarity ?? 'COMMON',
+            rate: config.rate ?? 0,
+            variancePercent: config.variancePercent ?? 0
         });
     };
 
     const filteredConfigs = rateConfigs.filter(config =>
-        config.rarity.toLowerCase().includes(searchQuery.toLowerCase())
+        (config.rarity ?? '').toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const rarities = ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SUPER_RARE', 'SECRET_RARE'];
@@ -228,10 +234,10 @@ export const AdminRateConfigPage: React.FC = () => {
                                 </thead>
                                 <tbody>
                                     {filteredConfigs.map(config => (
-                                        <tr key={config.id} className="border-b border-white/5 hover:bg-white/5">
-                                            <td className="p-4 font-medium">{config.rarity}</td>
-                                            <td className="p-4">{config.rate}</td>
-                                            <td className="p-4">{config.variancePercent || 0}%</td>
+                                        <tr key={config.id || config.rarity} className="border-b border-white/5 hover:bg-white/5">
+                                            <td className="p-4 font-medium">{config.rarity ?? '—'}</td>
+                                            <td className="p-4">{config.rate ?? 0}</td>
+                                            <td className="p-4">{config.variancePercent ?? 0}%</td>
                                             <td className="p-4 text-right">
                                                 <div className="flex justify-end gap-2">
                                                     <button
@@ -241,7 +247,7 @@ export const AdminRateConfigPage: React.FC = () => {
                                                         <Edit className="h-4 w-4" />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDeleteConfig(config.id)}
+                                                        onClick={() => config.id && handleDeleteConfig(config.id)}
                                                         className="p-2 hover:bg-red-500/10 rounded-lg text-red-400"
                                                     >
                                                         <Trash2 className="h-4 w-4" />
@@ -295,8 +301,12 @@ export const AdminRateConfigPage: React.FC = () => {
                                 <input
                                     type="number"
                                     step="0.01"
+                                    min={0}
                                     value={newConfig.rate}
-                                    onChange={(e) => setNewConfig({ ...newConfig, rate: parseFloat(e.target.value) })}
+                                    onChange={(e) => {
+                                        const v = parseFloat(e.target.value);
+                                        setNewConfig({ ...newConfig, rate: Number.isFinite(v) ? v : 0 });
+                                    }}
                                     className="w-full px-4 py-2 glass-card rounded-lg text-sm"
                                 />
                             </div>
@@ -305,8 +315,12 @@ export const AdminRateConfigPage: React.FC = () => {
                                 <input
                                     type="number"
                                     step="0.1"
-                                    value={newConfig.variancePercent}
-                                    onChange={(e) => setNewConfig({ ...newConfig, variancePercent: parseFloat(e.target.value) })}
+                                    min={0}
+                                    value={newConfig.variancePercent ?? 0}
+                                    onChange={(e) => {
+                                        const v = parseFloat(e.target.value);
+                                        setNewConfig({ ...newConfig, variancePercent: Number.isFinite(v) ? v : 0 });
+                                    }}
                                     className="w-full px-4 py-2 glass-card rounded-lg text-sm"
                                 />
                             </div>

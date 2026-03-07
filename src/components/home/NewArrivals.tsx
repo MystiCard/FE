@@ -1,145 +1,156 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Star, Heart } from 'lucide-react';
-import { useCart } from '@/hooks/useCart';
 import { useWishlist } from '@/hooks/useWishlist';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { listSellerApi, ListingItem } from '@/utils/api';
 
-const products = [
-    {
-        id: 1,
-        name: 'Charizard VMAX',
-        set: 'Champion\'s Path',
-        price: 299.99,
-        rarity: 'Secret Rare',
-        image: 'https://images.unsplash.com/photo-1613771404721-1f92d799e49f?w=400&q=80',
-    },
-    {
-        id: 2,
-        name: 'Pikachu VMAX',
-        set: 'Vivid Voltage',
-        price: 149.99,
-        rarity: 'Rainbow Rare',
-        image: 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80',
-    },
-    {
-        id: 3,
-        name: 'Mewtwo GX',
-        set: 'Shining Legends',
-        price: 89.99,
-        rarity: 'Ultra Rare',
-        image: 'https://images.unsplash.com/photo-1542779283-429940ce8336?w=400&q=80',
-    },
-    {
-        id: 4,
-        name: 'Rayquaza VMAX',
-        set: 'Evolving Skies',
-        price: 199.99,
-        rarity: 'Alternate Art',
-        image: 'https://images.unsplash.com/photo-1611068813580-c0c3c4a0d8a8?w=400&q=80',
-    },
-    {
-        id: 5,
-        name: 'Gengar VMAX',
-        set: 'Fusion Strike',
-        price: 129.99,
-        rarity: 'Secret Rare',
-        image: 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80',
-    },
-    {
-        id: 6,
-        name: 'Mew VMAX',
-        set: 'Fusion Strike',
-        price: 189.99,
-        rarity: 'Rainbow Rare',
-        image: 'https://images.unsplash.com/photo-1611068813580-c0c3c4a0d8a8?w=400&q=80',
-    },
-    {
-        id: 7,
-        name: 'Umbreon VMAX',
-        set: 'Evolving Skies',
-        price: 349.99,
-        rarity: 'Alternate Art',
-        image: 'https://images.unsplash.com/photo-1542779283-429940ce8336?w=400&q=80',
-    },
-    {
-        id: 8,
-        name: 'Giratina VSTAR',
-        set: 'Lost Origin',
-        price: 249.99,
-        rarity: 'Secret Rare',
-        image: 'https://images.unsplash.com/photo-1613771404721-1f92d799e49f?w=400&q=80',
-    },
-];
+const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
+
+const formatRarity = (rarity: string) =>
+    rarity
+        ? String(rarity)
+              .toLowerCase()
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, (c) => c.toUpperCase())
+        : '';
 
 export const NewArrivals: React.FC = () => {
-    const { addItem: addToCart } = useCart();
     const { addItem: addToWishlist, isInWishlist } = useWishlist();
+    const navigate = useNavigate();
+    const [listings, setListings] = useState<ListingItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const load = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const res = await listSellerApi.getListings(0, 8);
+                const list = (res.content || []).filter((item) => item.quantity > 0);
+                setListings(list);
+            } catch (e) {
+                setError(e instanceof Error ? e.message : 'Không tải được sản phẩm');
+                setListings([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+        load();
+    }, []);
 
     return (
         <section className="py-16">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h2 className="text-4xl font-bold mb-2 font-serif">Sản phẩm mới</h2>
-                    <p className="text-muted-foreground">Thẻ mới vừa được thêm vào bộ sưu tập</p>
+                    <h2 className="text-4xl font-bold mb-2 font-serif">Sản phẩm mới · Sàn giao dịch</h2>
+                    <p className="text-muted-foreground">Thẻ đang bán trên Sàn giao dịch</p>
                 </div>
-                <Link to="/products">
+                <Link to="/marketplace">
                     <Button variant="outline" className="glass-card hover:bg-white/20">
-                        Xem tất cả
+                        Xem sàn giao dịch
                     </Button>
                 </Link>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {products.map((product, index) => (
-                    <Card
-                        key={product.id}
-                        className="group overflow-hidden"
-                        style={{ animationDelay: `${index * 0.1}s` }}
-                    >
-                        <div className="relative aspect-[3/4] overflow-hidden">
-                            <img
-                                src={product.image}
-                                alt={product.name}
-                                className="w-full h-full object-cover group-hover:scale-110"
-                            />
-                            <div className="absolute top-2 right-2">
-                                <div className="glass-card-strong px-2 py-1 rounded-full text-xs font-medium">
-                                    {product.rarity}
+            {loading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {[1, 2, 3, 4].map((i) => (
+                        <Card key={i} className="overflow-hidden animate-pulse">
+                            <div className="aspect-[3/4] bg-white/10" />
+                            <CardContent className="p-4 space-y-2">
+                                <div className="h-5 bg-white/10 rounded w-3/4" />
+                                <div className="h-4 bg-white/10 rounded w-1/2" />
+                                <div className="h-8 bg-white/10 rounded w-1/3" />
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            ) : error ? (
+                <div className="text-center py-12 text-muted-foreground">{error}</div>
+            ) : listings.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">Chưa có thẻ nào đăng bán</div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {listings.map((item, index) => (
+                        <Card
+                            key={item.listSellerId}
+                            className="group overflow-hidden"
+                            style={{ animationDelay: `${index * 0.1}s` }}
+                        >
+                            <div className="relative aspect-[3/4] overflow-hidden">
+                                <img
+                                    src={item.imageUrl || PLACEHOLDER_IMG}
+                                    alt={item.cardName}
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                                    onError={(e) => {
+                                        e.currentTarget.src = PLACEHOLDER_IMG;
+                                    }}
+                                />
+                                <div className="absolute top-2 right-2">
+                                    <div className="glass-card-strong px-2 py-1 rounded-full text-xs font-medium">
+                                        {formatRarity(item.rarity)}
+                                    </div>
                                 </div>
-                            </div>
-                            <button
-                                onClick={() => addToWishlist({ id: product.id, name: product.name, price: product.price, image: product.image, rarity: product.rarity })}
-                                className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20 "
-                            >
-                                <Heart className={`h-4 w-4 ${isInWishlist(product.id) ? 'fill-red-500 text-red-500' : ''}`} />
-                            </button>
-                        </div>
-
-                        <CardContent className="p-4">
-                            <h3 className="font-semibold text-lg mb-1">{product.name}</h3>
-                            <p className="text-sm text-muted-foreground mb-3">{product.set}</p>
-
-                            <div className="flex items-center justify-between">
-                                <span className="text-xl font-bold gradient-text">${product.price}</span>
-                                <Button
-                                    size="sm"
-                                    variant="premium"
-                                    onClick={() => addToCart({ id: product.id, name: product.name, price: product.price, image: product.image, rarity: product.rarity })}
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        addToWishlist({
+                                            id: item.cardId,
+                                            name: item.cardName,
+                                            price: item.price,
+                                            image: item.imageUrl || '',
+                                            rarity: item.rarity,
+                                        });
+                                    }}
+                                    className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20"
                                 >
-                                    Thêm vào giỏ
-                                </Button>
+                                    <Heart
+                                        className={`h-4 w-4 ${isInWishlist(item.cardId) ? 'fill-red-500 text-red-500' : ''}`}
+                                    />
+                                </button>
                             </div>
 
-                            <div className="flex items-center mt-3 text-xs text-muted-foreground">
-                                <Star className="h-3 w-3 fill-accent-500 text-accent-500 mr-1" />
-                                <span>4.9 (127 đánh giá)</span>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
+                            <CardContent className="p-4">
+                                <h3 className="font-semibold text-lg mb-1 line-clamp-2">{item.cardName}</h3>
+                                <p className="text-sm text-muted-foreground mb-1">
+                                    {item.categoryName || 'Thẻ sưu tầm'} · SL: {item.quantity}
+                                </p>
+                                <p className="text-xs text-muted-foreground mb-3">
+                                    Sàn giao dịch · Seller: <span className="font-medium text-white/90">{item.sellerName || '—'}</span>
+                                    {(item.sellerFeedbackCount != null && item.sellerFeedbackCount > 0) && (
+                                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90">
+                                            <Star className="h-3 w-3 fill-amber-400 shrink-0" />
+                                            {Number(item.sellerAverageRating ?? 0).toFixed(1)}
+                                            <span className="text-muted-foreground">({item.sellerFeedbackCount} đánh giá)</span>
+                                        </span>
+                                    )}
+                                </p>
+
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xl font-bold gradient-text">
+                                        {Number(item.price).toLocaleString('vi-VN')} đ
+                                    </span>
+                                    <Button
+                                        size="sm"
+                                        variant="premium"
+                                        onClick={() => navigate('/marketplace')}
+                                    >
+                                        Xem trên sàn
+                                    </Button>
+                                </div>
+
+                                <div className="flex items-center mt-3 text-xs text-muted-foreground">
+                                    <Star className="h-3 w-3 fill-accent-500 text-accent-500 mr-1" />
+                                    <span>Sàn giao dịch</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}
         </section>
     );
 };

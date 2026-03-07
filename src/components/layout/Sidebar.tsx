@@ -17,9 +17,9 @@ export const Sidebar: React.FC = () => {
                     </Link>
 
                     <Link
-                        to="/shop"
+                        to="/mystery-box"
                         className="p-3 rounded-lg hover:bg-white/10 group"
-                        title="Cửa hàng"
+                        title="Hộp bí ẩn"
                     >
                         <ShoppingBag className="h-6 w-6 group-hover:text-primary-400 " />
                     </Link>
