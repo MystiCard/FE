@@ -51,28 +51,22 @@ const values = [
 
 const team = [
     {
-        name: 'Alex Chen',
+        name: 'Duong Van Quyet',
         role: 'Người sáng lập & CEO',
         image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80',
         bio: 'Hơn 15 năm trong ngành thẻ sưu tầm',
     },
     {
-        name: 'Sarah Johnson',
+        name: 'Nguyen Thanh Nha',
         role: 'Trưởng bộ phận Kiểm định',
         image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&q=80',
         bio: 'Chuyên gia định cấp & xác thực thẻ',
     },
     {
-        name: 'Michael Park',
+        name: 'Truong Van Khanh',
         role: 'Giám đốc Công nghệ',
         image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=80',
         bio: 'Xây dựng nền tảng giao dịch an toàn',
-    },
-    {
-        name: 'Emma Williams',
-        role: 'Quản lý Cộng đồng',
-        image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&q=80',
-        bio: 'Kết nối người sưu tầm toàn cầu',
     },
 ];
 
@@ -166,23 +160,48 @@ export const About: React.FC = () => {
                             </p>
                         </div>
                         <div className="mt-8">
-                            <Button variant="premium" size="lg">
-                                Tham gia cộng đồng
-                            </Button>
+                            <a
+                                href="https://www.facebook.com/share/g/1CYt8EMHrA/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <Button variant="premium" size="lg">
+                                    Tham gia cộng đồng
+                                </Button>
+                            </a>
                         </div>
                     </div>
 
-                    <div className="relative ">
-                        <div className="aspect-square rounded-2xl overflow-hidden glass-card-strong">
+                    <div className="relative grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl overflow-hidden glass-card-strong aspect-[4/5]">
                             <img
-                                src="https://images.unsplash.com/photo-1511882150382-421056c481d6?w=800&q=80"
-                                alt="Bộ sưu tập thẻ"
+                                src="https://images.unsplash.com/photo-1511882150382-421056c481d6?w=600&q=80"
+                                alt="Bộ sưu tập thẻ bài"
                                 className="w-full h-full object-cover"
+                                loading="lazy"
                             />
                         </div>
+                        <div className="flex flex-col gap-3">
+                            <div className="rounded-2xl overflow-hidden glass-card-strong flex-1 min-h-[140px]">
+                                <img
+                                    src="https://images.unsplash.com/photo-1613771404784-3a5686aa2be3?w=400&q=80"
+                                    alt="Thẻ sưu tầm"
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                />
+                            </div>
+                            <div className="rounded-2xl overflow-hidden glass-card-strong flex-1 min-h-[140px]">
+                                <img
+                                    src="https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80"
+                                    alt="Giao dịch thẻ"
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                />
+                            </div>
+                        </div>
                         {/* Decorative elements */}
-                        <div className="absolute -top-6 -right-6 w-24 h-24 bg-accent-500/30 rounded-full blur-2xl" />
-                        <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-secondary-500/30 rounded-full blur-2xl" />
+                        <div className="absolute -top-6 -right-6 w-24 h-24 bg-accent-500/30 rounded-full blur-2xl pointer-events-none" />
+                        <div className="absolute -bottom-6 -left-6 w-32 h-32 bg-secondary-500/30 rounded-full blur-2xl pointer-events-none" />
                     </div>
                 </div>
             </section>
@@ -230,11 +249,11 @@ export const About: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
                     {team.map((member, index) => (
                         <Card
                             key={index}
-                            className="group text-center overflow-hidden"
+                            className="group text-center overflow-hidden flex flex-col h-full"
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
                             <div className="relative aspect-square overflow-hidden">
@@ -245,7 +264,7 @@ export const About: React.FC = () => {
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 " />
                             </div>
-                            <CardContent className="p-6">
+                            <CardContent className="p-6 flex-1 flex flex-col justify-center">
                                 <h3 className="font-bold text-lg mb-1">{member.name}</h3>
                                 <p className="text-sm text-accent-400 mb-2">{member.role}</p>
                                 <p className="text-xs text-muted-foreground">{member.bio}</p>

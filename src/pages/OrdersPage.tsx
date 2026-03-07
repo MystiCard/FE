@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { orderApi, OrderItemResponse, ShippingStatus } from '@/utils/api';
-import { AlertCircle, Package, Search, Truck, MapPin, Phone, CreditCard } from 'lucide-react';
+import { AlertCircle, Package, Search, Truck, MapPin, Phone, CreditCard, Star } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -17,7 +17,6 @@ const ALL_SHIPPING_STATUSES: ShippingStatus[] = [
     'DELIVERED',
     'RECEIVED',
     'FAILED',
-    'RETURNED',
     'LOST',
     'CANCELLED',
 ];
@@ -41,8 +40,6 @@ const SHIPPING_FILTERS: { value: UserShippingFilter; label: string }[] = [
                 ? 'Người nhận đã xác nhận'
                 : v === 'FAILED'
                 ? 'Giao thất bại'
-                : v === 'RETURNED'
-                ? 'Đã hoàn'
                 : v === 'LOST'
                 ? 'Thất lạc'
                 : 'Đã hủy',
@@ -60,6 +57,12 @@ export const OrdersPage: React.FC = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
     const [selectedShipment, setSelectedShipment] = useState<OrderItemResponse | null>(null);
+    const [viewMode, setViewMode] = useState<'BUY' | 'SELL'>('BUY');
+    const [actionLoading, setActionLoading] = useState(false);
+    const [feedbackEditingId, setFeedbackEditingId] = useState<string | null>(null);
+    const [feedbackRating, setFeedbackRating] = useState(5);
+    const [feedbackComment, setFeedbackComment] = useState('');
+    const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -67,7 +70,7 @@ export const OrdersPage: React.FC = () => {
         }
     }, [isAuthenticated, navigate]);
 
-    const loadOrders = async (pageIndex: number, shippingStatus: UserShippingFilter) => {
+    const loadOrders = async (pageIndex: number, shippingStatus: UserShippingFilter, mode: 'BUY' | 'SELL') => {
         try {
             setIsLoading(true);
             setError('');
@@ -76,8 +79,10 @@ export const OrdersPage: React.FC = () => {
             if (shippingStatus === 'ALL') {
                 const allResults = await Promise.all(
                     ALL_SHIPPING_STATUSES.map((st) =>
-                        orderApi
-                            .getByShippingStatus(st, 0, 1000)
+                        (mode === 'BUY'
+                            ? orderApi.getByShippingStatus(st, 0, 1000)
+                            : orderApi.getByShippingStatusSeller(st, 0, 1000)
+                        )
                             .then((res) => res.content ?? [])
                             .catch(() => [])
                     )
@@ -89,7 +94,10 @@ export const OrdersPage: React.FC = () => {
                 setOrders(paged);
                 setTotalPages(pages);
             } else {
-                const res = await orderApi.getByShippingStatus(shippingStatus, pageIndex, pageSize);
+                const res =
+                    mode === 'BUY'
+                        ? await orderApi.getByShippingStatus(shippingStatus, pageIndex, pageSize)
+                        : await orderApi.getByShippingStatusSeller(shippingStatus, pageIndex, pageSize);
                 setOrders(res.content ?? []);
                 setTotalPages(res.totalPages || 1);
             }
@@ -104,9 +112,9 @@ export const OrdersPage: React.FC = () => {
 
     useEffect(() => {
         if (!isAuthenticated) return;
-        loadOrders(page, status);
+        loadOrders(page, status, viewMode);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, status, isAuthenticated]);
+    }, [page, status, viewMode, isAuthenticated]);
 
     const filtered = orders.filter((o) => {
         if (!search.trim()) return true;
@@ -118,17 +126,50 @@ export const OrdersPage: React.FC = () => {
 
     if (!isAuthenticated) return null;
 
+    const canConfirmReceive =
+        viewMode === 'BUY' &&
+        selectedShipment?.shipmentResponse?.shipmentStatus === 'DELIVERED' &&
+        selectedShipment?.shipmentResponse?.shipmentId &&
+        ((selectedShipment.orderDetailResponseList || []).some(
+            (d) => d.orderItemStatus !== 'CANCELLED'
+        ) ||
+            (selectedShipment.blindBoxDetails?.length ?? 0) > 0);
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold font-serif gradient-text flex items-center gap-2">
                         <Package className="w-7 h-7" />
-                        Đơn hàng của tôi
+                        {viewMode === 'BUY' ? 'Đơn mua của tôi' : 'Đơn bán của tôi'}
                     </h1>
                     <p className="text-muted-foreground mt-1 text-sm">
-                        Xem và theo dõi trạng thái các đơn hàng bạn đã đặt.
+                        {viewMode === 'BUY'
+                            ? 'Xem và theo dõi trạng thái các đơn hàng bạn đã đặt.'
+                            : 'Xem và theo dõi trạng thái các đơn hàng bạn đã bán cho người khác.'}
                     </p>
+                </div>
+                <div className="flex gap-2">
+                    <Button
+                        variant={viewMode === 'BUY' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => {
+                            setViewMode('BUY');
+                            setPage(0);
+                        }}
+                    >
+                        Đơn mua
+                    </Button>
+                    <Button
+                        variant={viewMode === 'SELL' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => {
+                            setViewMode('SELL');
+                            setPage(0);
+                        }}
+                    >
+                        Đơn bán
+                    </Button>
                 </div>
             </div>
 
@@ -303,7 +344,7 @@ export const OrdersPage: React.FC = () => {
                 </CardContent>
             </Card>
             {/* Order detail dialog by shipment */}
-            <Dialog open={!!selectedShipment} onOpenChange={() => setSelectedShipment(null)}>
+            <Dialog open={!!selectedShipment} onOpenChange={(open) => { if (!open) { setSelectedShipment(null); setFeedbackEditingId(null); } }}>
                 <DialogContent className="max-w-2xl">
                     {selectedShipment && (
                         <>
@@ -372,6 +413,7 @@ export const OrdersPage: React.FC = () => {
                                                 <th className="text-right p-2">Số lượng</th>
                                                 <th className="text-right p-2">Đơn giá</th>
                                                 <th className="text-right p-2">Thành tiền</th>
+                                                {viewMode === 'BUY' && <th className="text-left p-2 w-40">Đánh giá</th>}
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -381,6 +423,9 @@ export const OrdersPage: React.FC = () => {
                                                 const rowTotal = unitPrice * qty;
                                                 const name = d.cardName || 'Thẻ';
                                                 const image = d.cardImageUrl;
+                                                const isReceived = d.orderItemStatus === 'RECIEVED' || d.orderItemStatus === 'RECEIVED';
+                                                const hasFeedback = d.feedbackRating != null;
+                                                const isEditing = feedbackEditingId === d.orderItemId;
                                                 return (
                                                     <tr key={String(d.orderItemId)} className="border-b border-white/5">
                                                         <td className="p-2">
@@ -413,11 +458,142 @@ export const OrdersPage: React.FC = () => {
                                                         <td className="p-2 text-right font-semibold">
                                                             {rowTotal.toLocaleString('vi-VN')} đ
                                                         </td>
+                                                        {viewMode === 'BUY' && (
+                                                            <td className="p-2">
+                                                                {hasFeedback ? (
+                                                                    <div className="text-xs">
+                                                                        <span className="flex items-center gap-0.5 text-yellow-400">
+                                                                            {[1, 2, 3, 4, 5].map((i) => (
+                                                                                <Star key={i} className={`h-3 w-3 ${i <= (d.feedbackRating ?? 0) ? 'fill-current' : ''}`} />
+                                                                            ))}
+                                                                        </span>
+                                                                        {d.feedbackComment && <p className="text-muted-foreground mt-0.5 line-clamp-2">{d.feedbackComment}</p>}
+                                                                    </div>
+                                                                ) : isReceived ? (
+                                                                    isEditing ? (
+                                                                        <div className="space-y-1">
+                                                                            <div className="flex items-center gap-0.5">
+                                                                                {[1, 2, 3, 4, 5].map((i) => (
+                                                                                    <button
+                                                                                        key={i}
+                                                                                        type="button"
+                                                                                        onClick={() => setFeedbackRating(i)}
+                                                                                        className="p-0.5"
+                                                                                    >
+                                                                                        <Star className={`h-4 w-4 ${i <= feedbackRating ? 'fill-yellow-400 text-yellow-400' : 'text-white/30'}`} />
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                            <input
+                                                                                type="text"
+                                                                                placeholder="Nhận xét (tùy chọn)"
+                                                                                value={feedbackComment}
+                                                                                onChange={(e) => setFeedbackComment(e.target.value)}
+                                                                                className="w-full px-2 py-1 rounded text-xs bg-white/5 border border-white/10"
+                                                                            />
+                                                                            <div className="flex gap-1">
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    className="h-6 text-xs"
+                                                                                    disabled={feedbackSubmitting}
+                                                                                    onClick={async () => {
+                                                                                        if (!d.orderItemId) return;
+                                                                                        setFeedbackSubmitting(true);
+                                                                                        try {
+                                                                                            await orderApi.createFeedback(d.orderItemId, feedbackRating, feedbackComment);
+                                                                                            setSelectedShipment((prev) => prev ? {
+                                                                                                ...prev,
+                                                                                                orderDetailResponseList: (prev.orderDetailResponseList || []).map((x) =>
+                                                                                                    x.orderItemId === d.orderItemId
+                                                                                                        ? { ...x, feedbackRating, feedbackComment, feedbackCreatedAt: new Date().toISOString() }
+                                                                                                        : x
+                                                                                                ),
+                                                                                            } : null);
+                                                                                            setFeedbackEditingId(null);
+                                                                                            setFeedbackComment('');
+                                                                                            setFeedbackRating(5);
+                                                                                        } catch (err) {
+                                                                                            alert(err instanceof Error ? err.message : 'Gửi đánh giá thất bại.');
+                                                                                        } finally {
+                                                                                            setFeedbackSubmitting(false);
+                                                                                        }
+                                                                                    }}
+                                                                                >
+                                                                                    Gửi
+                                                                                </Button>
+                                                                                <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setFeedbackEditingId(null); setFeedbackComment(''); setFeedbackRating(5); }}>
+                                                                                    Hủy
+                                                                                </Button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            className="h-7 text-xs"
+                                                                            onClick={() => { setFeedbackEditingId(d.orderItemId); setFeedbackRating(5); setFeedbackComment(''); }}
+                                                                        >
+                                                                            Đánh giá
+                                                                        </Button>
+                                                                    )
+                                                                ) : (
+                                                                    <span className="text-[10px] text-muted-foreground">—</span>
+                                                                )}
+                                                            </td>
+                                                        )}
                                                     </tr>
                                                 );
                                             })}
                                         </tbody>
                                     </table>
+                                ) : (selectedShipment.blindBoxDetails?.length ?? 0) > 0 ? (
+                                    <>
+                                        <p className="text-xs text-yellow-200/90 mb-2">Giao thẻ từ Hộp bí ẩn</p>
+                                        <table className="w-full text-xs sm:text-sm">
+                                            <thead>
+                                                <tr className="border-b border-white/10">
+                                                    <th className="text-left p-2">Thẻ</th>
+                                                    <th className="text-right p-2">Số lượng</th>
+                                                    <th className="text-right p-2">Giá tham khảo</th>
+                                                    <th className="text-right p-2">Thành tiền</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedShipment.blindBoxDetails.map((card, i) => {
+                                                    const price = Number(card.basePrice ?? 0);
+                                                    return (
+                                                        <tr key={i} className="border-b border-white/5">
+                                                            <td className="p-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    {card.cardImageUrl ? (
+                                                                        <img
+                                                                            src={card.cardImageUrl}
+                                                                            alt={card.cardName || ''}
+                                                                            className="w-10 h-14 rounded object-cover bg-white/5"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="w-10 h-14 rounded bg-white/5 flex items-center justify-center text-lg">
+                                                                            🎴
+                                                                        </div>
+                                                                    )}
+                                                                    <span className="text-xs font-medium line-clamp-2">
+                                                                        {card.cardName || '—'}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-2 text-right">1</td>
+                                                            <td className="p-2 text-right">
+                                                                {price.toLocaleString('vi-VN')} đ
+                                                            </td>
+                                                            <td className="p-2 text-right font-semibold">
+                                                                {price.toLocaleString('vi-VN')} đ
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </>
                                 ) : (
                                     <p className="text-xs text-muted-foreground">
                                         Đơn hàng này chưa có item chi tiết để hiển thị.
@@ -428,15 +604,24 @@ export const OrdersPage: React.FC = () => {
                             {/* Tóm tắt tiền giống Shopee */}
                             <div className="mt-4 border-t border-white/10 pt-4 space-y-1 text-sm">
                                 <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Tổng tiền hàng</span>
+                                    <span className="text-muted-foreground">
+                                        {(selectedShipment.blindBoxDetails?.length ?? 0) > 0
+                                            ? 'Tổng giá trị thẻ (tham khảo)'
+                                            : 'Tổng tiền hàng'}
+                                    </span>
                                     <span className="font-semibold">
                                         {(
-                                            (selectedShipment.orderDetailResponseList || []).reduce(
-                                                (sum, d) =>
-                                                    sum +
-                                                    Number(d.price || 0) * Number(d.quantity || 0),
-                                                0
-                                            ) || 0
+                                            (selectedShipment.orderDetailResponseList || []).length > 0
+                                                ? (selectedShipment.orderDetailResponseList || []).reduce(
+                                                      (sum, d) =>
+                                                          sum +
+                                                          Number(d.price || 0) * Number(d.quantity || 0),
+                                                      0
+                                                  )
+                                                : (selectedShipment.blindBoxDetails || []).reduce(
+                                                      (sum, c) => sum + Number(c.basePrice ?? 0),
+                                                      0
+                                                  )
                                         ).toLocaleString('vi-VN')}{' '}
                                         đ
                                     </span>
@@ -451,21 +636,60 @@ export const OrdersPage: React.FC = () => {
                                     <span className="text-sm font-semibold">Thành tiền</span>
                                     <span className="text-base font-bold text-green-300">
                                         {(() => {
-                                            const itemsTotal = (selectedShipment.orderDetailResponseList || []).reduce(
-                                                (sum, d) =>
-                                                    sum +
-                                                    Number(d.price || 0) * Number(d.quantity || 0),
-                                                0
-                                            );
+                                            const itemsTotal =
+                                                (selectedShipment.orderDetailResponseList || []).length > 0
+                                                    ? (selectedShipment.orderDetailResponseList || []).reduce(
+                                                          (sum, d) =>
+                                                              sum +
+                                                              Number(d.price || 0) * Number(d.quantity || 0),
+                                                          0
+                                                      )
+                                                    : (selectedShipment.blindBoxDetails || []).reduce(
+                                                          (sum, c) => sum + Number(c.basePrice ?? 0),
+                                                          0
+                                                      );
                                             const ship = Number(selectedShipment.shipfee || 0);
-                                            return (itemsTotal + ship).toLocaleString('vi-VN');
+                                            const total =
+                                                (selectedShipment.blindBoxDetails?.length ?? 0) > 0
+                                                    ? ship
+                                                    : itemsTotal + ship;
+                                            return total.toLocaleString('vi-VN');
                                         })()}{' '}
                                         đ
                                     </span>
                                 </div>
                             </div>
 
-                            <div className="mt-4 flex justify-end">
+                            <div className="mt-4 flex justify-end gap-2">
+                                {canConfirmReceive && selectedShipment?.shipmentResponse?.shipmentId && (
+                                    <Button
+                                        size="sm"
+                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                        disabled={actionLoading}
+                                        onClick={async () => {
+                                            if (!selectedShipment?.shipmentResponse?.shipmentId) return;
+                                            setActionLoading(true);
+                                            try {
+                                                await orderApi.confirmReceive(
+                                                    selectedShipment.shipmentResponse.shipmentId
+                                                );
+                                                await loadOrders(page, status, viewMode);
+                                                alert('Đã xác nhận nhận hàng, tiền sẽ được chuyển cho người bán.');
+                                                setSelectedShipment(null);
+                                            } catch (err) {
+                                                alert(
+                                                    err instanceof Error
+                                                        ? err.message
+                                                        : 'Không thể xác nhận nhận hàng.'
+                                                );
+                                            } finally {
+                                                setActionLoading(false);
+                                            }
+                                        }}
+                                    >
+                                        {actionLoading ? 'Đang xử lý...' : 'Xác nhận đã nhận hàng'}
+                                    </Button>
+                                )}
                                 <Button size="sm" variant="outline" onClick={() => setSelectedShipment(null)}>
                                     Đóng
                                 </Button>

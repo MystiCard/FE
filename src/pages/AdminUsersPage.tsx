@@ -21,11 +21,11 @@ import {
     User,
     Phone,
     Lock,
-    MapPin,
     Upload,
     Truck,
 } from 'lucide-react';
 import { userApi, UserProfile, AdminCreateUserRequest } from '@/utils/api';
+import { AddressSelect } from '@/components/shared/AddressSelect';
 
 const ROLE_OPTIONS: { value: string; label: string }[] = [
     { value: 'USER', label: 'Khách hàng' },
@@ -40,6 +40,8 @@ const initialCreateForm: AdminCreateUserRequest & { confirmPassword: string; rol
     confirmPassword: '',
     phone: '',
     address: '',
+    districtId: '',
+    wardId: '',
     gender: 'MALE',
     role: 'USER',
 };
@@ -50,7 +52,7 @@ export const AdminUsersPage: React.FC = () => {
     const [isLoading, setIsLoading] = React.useState(true);
     const [error, setError] = React.useState('');
     const [roleFilter, setRoleFilter] = React.useState('');
-    const [statusFilter, setStatusFilter] = React.useState('');
+    const [statusFilter, setStatusFilter] = React.useState<'ACTIVE' | 'BANNED' | ''>('');
     const [createModalOpen, setCreateModalOpen] = React.useState(false);
     const [createForm, setCreateForm] = React.useState(initialCreateForm);
     const [createAvatar, setCreateAvatar] = React.useState<File | null>(null);
@@ -69,7 +71,7 @@ export const AdminUsersPage: React.FC = () => {
             setUsers(data);
             setError('');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load users');
+            setError(err instanceof Error ? err.message : 'Không tải được danh sách người dùng');
             setUsers([]);
         } finally {
             setIsLoading(false);
@@ -77,13 +79,13 @@ export const AdminUsersPage: React.FC = () => {
     };
 
     const handleBanUser = async (userId: string) => {
-        if (!confirm('Are you sure you want to ban this user?')) return;
+        if (!confirm('Bạn có chắc muốn khóa tài khoản này?')) return;
 
         try {
             await userApi.updateUserStatus(userId, 'BANNED');
             await loadUsers();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to ban user');
+            alert(err instanceof Error ? err.message : 'Khóa tài khoản thất bại');
         }
     };
 
@@ -92,7 +94,7 @@ export const AdminUsersPage: React.FC = () => {
             await userApi.updateUserStatus(userId, 'ACTIVE');
             await loadUsers();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to unban user');
+            alert(err instanceof Error ? err.message : 'Mở khóa tài khoản thất bại');
         }
     };
 
@@ -122,6 +124,10 @@ export const AdminUsersPage: React.FC = () => {
             setCreateError('Họ tên và địa chỉ tối thiểu 5 ký tự');
             return;
         }
+        if (!createForm.districtId || !createForm.wardId) {
+            setCreateError('Vui lòng chọn đầy đủ Quận/Huyện và Phường/Xã');
+            return;
+        }
         setCreateSubmitting(true);
         try {
             const newUser = await userApi.adminCreateUser(
@@ -132,6 +138,8 @@ export const AdminUsersPage: React.FC = () => {
                     phone: createForm.phone,
                     address: createForm.address,
                     gender: createForm.gender as 'MALE' | 'FEMALE',
+                    districtId: createForm.districtId,
+                    wardId: createForm.wardId,
                 },
                 createAvatar || undefined
             );
@@ -145,7 +153,7 @@ export const AdminUsersPage: React.FC = () => {
             setCreateAvatar(null);
             await loadUsers();
         } catch (err) {
-            setCreateError(err instanceof Error ? err.message : 'Tạo user thất bại');
+            setCreateError(err instanceof Error ? err.message : 'Tạo tài khoản thất bại');
         } finally {
             setCreateSubmitting(false);
         }
@@ -167,28 +175,28 @@ export const AdminUsersPage: React.FC = () => {
             value: usersList.length.toString(),
             icon: UsersIcon,
             color: 'from-primary-500 to-primary-300',
-            change: `${usersList.length} users`
+            change: `${usersList.length} người dùng`
         },
         {
-            title: 'Active Users',
+            title: 'Đang hoạt động',
             value: usersList.filter(u => u.status === 'ACTIVE').length.toString(),
             icon: UserCheck,
             color: 'from-green-500 to-emerald-500',
-            change: 'Active'
+            change: 'Hoạt động'
         },
         {
-            title: 'Admins',
+            title: 'Quản trị viên',
             value: usersList.filter(u => u.role === 'ADMIN').length.toString(),
             icon: Shield,
             color: 'from-accent-500 to-accent-300',
-            change: 'Admin role'
+            change: 'Vai trò Admin'
         },
         {
-            title: 'Banned Users',
+            title: 'Đã khóa',
             value: usersList.filter(u => u.status === 'BANNED').length.toString(),
             icon: UserX,
             color: 'from-red-500 to-orange-500',
-            change: 'Banned'
+            change: 'Đã khóa'
         },
     ];
 
@@ -472,19 +480,19 @@ export const AdminUsersPage: React.FC = () => {
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Địa chỉ *</label>
-                            <div className="relative">
-                                <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <input
-                                    name="address"
-                                    value={createForm.address}
-                                    onChange={handleCreateUserChange}
-                                    placeholder="Địa chỉ từ 5–255 ký tự"
-                                    className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-                                    required
-                                    minLength={5}
-                                    maxLength={255}
-                                />
-                            </div>
+                            <AddressSelect
+                                value={createForm.address}
+                                onChange={(address) => setCreateForm((prev) => ({ ...prev, address }))}
+                                required
+                                showDetailInput
+                                onCodesChange={(codes) => {
+                                    setCreateForm((prev) => ({
+                                        ...prev,
+                                        districtId: codes.districtId != null ? String(codes.districtId) : '',
+                                        wardId: codes.wardCode ?? '',
+                                    }));
+                                }}
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Giới tính *</label>

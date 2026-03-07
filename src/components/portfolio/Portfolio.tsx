@@ -124,8 +124,15 @@ export const Portfolio: React.FC = () => {
                             <p className="text-muted-foreground">Đang tải danh mục...</p>
                         </div>
                     ) : categories.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                            Chưa có danh mục nào. Thêm danh mục từ trang Admin.
+                        <div className="text-center py-12">
+                            <div className="max-w-sm mx-auto mb-6 rounded-2xl overflow-hidden glass-card-strong">
+                                <img
+                                    src="https://images.unsplash.com/photo-1511882150382-421056c481d6?w=500&q=80"
+                                    alt="Bộ sưu tập thẻ"
+                                    className="w-full h-56 object-cover"
+                                />
+                            </div>
+                            <p className="text-muted-foreground">Chưa có danh mục nào. Thêm danh mục từ trang Admin.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

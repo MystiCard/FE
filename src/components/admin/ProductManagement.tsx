@@ -125,7 +125,7 @@ export const ProductManagement: React.FC = () => {
                                                 {product.rarity}
                                             </span>
                                         </td>
-                                        <td className="p-3 text-right font-semibold">${product.price}</td>
+                                        <td className="p-3 text-right font-semibold">{product.price.toLocaleString('vi-VN')} VND</td>
                                         <td className="p-3 text-center">
                                             <span className={product.stock <= 5 ? 'text-amber-400 font-semibold' : ''}>
                                                 {product.stock}

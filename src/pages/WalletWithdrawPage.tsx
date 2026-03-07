@@ -102,7 +102,7 @@ export const WalletWithdrawPage: React.FC = () => {
                         Rút tiền từ Ví MystiCard
                     </h1>
                     <p className="text-muted-foreground text-sm">
-                        Chọn tài khoản ngân hàng nhận tiền và nhập số tiền muốn rút.
+                        Chỉ rút tiền về tài khoản ngân hàng. Chọn tài khoản và nhập số tiền muốn rút.
                     </p>
                 </div>
                 <Button

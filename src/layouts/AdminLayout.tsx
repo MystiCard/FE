@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, Folder, CreditCard, Gift, Percent, LogOut, Menu, X, ShoppingBag, Wallet } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, Folder, CreditCard, Gift, Percent, LogOut, Menu, X, ShoppingBag, Wallet, Banknote } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -21,16 +21,17 @@ export const AdminLayout: React.FC = () => {
     };
 
     const menuItems = [
-        { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
-        { icon: Folder, label: 'Categories', path: '/admin/categories' },
-        { icon: CreditCard, label: 'Cards', path: '/admin/cards' },
-        { icon: Gift, label: 'Blind Boxes', path: '/admin/blind-boxes' },
-        { icon: Percent, label: 'Rate Configs', path: '/admin/rate-configs' },
-        { icon: Users, label: 'Users', path: '/admin/users' },
-        { icon: Wallet, label: 'Wallet', path: '/admin/wallet' },
-        { icon: ShoppingBag, label: 'Orders', path: '/admin/orders' },
-        { icon: CreditCard, label: 'Transactions', path: '/admin/transactions' },
-        { icon: Settings, label: 'Settings', path: '/admin/settings' },
+        { icon: LayoutDashboard, label: 'Bảng điều khiển', path: '/admin' },
+        { icon: Folder, label: 'Danh mục', path: '/admin/categories' },
+        { icon: CreditCard, label: 'Thẻ', path: '/admin/cards' },
+        { icon: Gift, label: 'Hộp bí ẩn', path: '/admin/blind-boxes' },
+        { icon: Percent, label: 'Tỷ lệ thẻ', path: '/admin/rate-configs' },
+        { icon: Users, label: 'Người dùng', path: '/admin/users' },
+        { icon: Wallet, label: 'Ví', path: '/admin/wallet' },
+        { icon: Banknote, label: 'Duyệt rút tiền', path: '/admin/withdraws' },
+        { icon: ShoppingBag, label: 'Đơn hàng', path: '/admin/orders' },
+        { icon: CreditCard, label: 'Giao dịch', path: '/admin/transactions' },
+        { icon: Settings, label: 'Cài đặt', path: '/admin/settings' },
     ];
 
     return (
@@ -57,8 +58,8 @@ export const AdminLayout: React.FC = () => {
                                 className="h-10 w-10 object-contain"
                             />
                             <div>
-                                <h1 className="text-xl font-bold gradient-text font-serif">MysticCard Admin</h1>
-                                <p className="text-xs text-muted-foreground">Management Dashboard</p>
+                                <h1 className="text-xl font-bold gradient-text font-serif">MysticCard Quản trị</h1>
+                                <p className="text-xs text-muted-foreground">Bảng điều khiển</p>
                             </div>
                         </div>
 
@@ -75,7 +76,7 @@ export const AdminLayout: React.FC = () => {
                                 className="flex items-center gap-2 glass-card px-4 py-2 rounded-lg hover:bg-red-500/20 text-red-400 text-sm"
                             >
                                 <LogOut className="h-4 w-4" />
-                                <span className="hidden sm:inline">Logout</span>
+                                <span className="hidden sm:inline">Đăng xuất</span>
                             </button>
                         </div>
                     </div>

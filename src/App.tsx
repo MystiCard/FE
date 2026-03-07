@@ -9,6 +9,7 @@ import { MysteryBoxHistoryPage } from '@/pages/MysteryBoxHistoryPage';
 import { MysteryBoxCheckoutPage } from '@/pages/MysteryBoxCheckoutPage';
 import { WalletWithdrawPage } from '@/pages/WalletWithdrawPage';
 import { MarketplacePage } from '@/pages/MarketplacePage';
+import { MarketplaceCheckoutPage } from '@/pages/MarketplaceCheckoutPage';
 import { PortfolioPage } from '@/pages/PortfolioPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { LoginPage } from '@/pages/LoginPage';
@@ -24,6 +25,7 @@ import { AdminTransactionsPage } from '@/pages/AdminTransactionsPage';
 import { AdminOrdersPage } from '@/pages/AdminOrdersPage';
 import { AdminBlindBoxesPage } from '@/pages/AdminBlindBoxesPage';
 import { AdminRateConfigPage } from '@/pages/AdminRateConfigPage';
+import { AdminWithdrawPage } from '@/pages/AdminWithdrawPage';
 import { CartPage } from '@/pages/CartPage';
 import { CheckoutPage } from '@/pages/CheckoutPage';
 import { PostListingPage } from '@/pages/PostListingPage';
@@ -94,11 +96,13 @@ function App() {
                         <Route path="shop" element={<ShopPage />} />
                         <Route path="cart" element={<CartPage />} />
                         <Route path="checkout" element={<CheckoutPage />} />
-                        {/* Các route sản phẩm chi tiết từ dropdown cũ được thay thế bởi Hộp bí ẩn */}
+                        {/* === Hộp bí ẩn (Blind Box) — API: blindBoxApi (GET/POST /api/blind-boxes/*) === */}
                         <Route path="mystery-box" element={<MysteryBoxPage />} />
                         <Route path="mystery-box/history" element={<MysteryBoxHistoryPage />} />
                         <Route path="mystery-box/checkout" element={<MysteryBoxCheckoutPage />} />
+                        {/* === Sàn giao dịch (Marketplace) — API: listSellerApi, orderApi, cardApi, categoryApi, shipmentApi, transactionApi === */}
                         <Route path="marketplace" element={<MarketplacePage />} />
+                        <Route path="marketplace/checkout" element={<MarketplaceCheckoutPage />} />
                         <Route path="portfolio" element={<PortfolioPage />} />
                         <Route path="trends" element={<TrendsPage />} />
                         <Route path="post-listing" element={<PostListingPage />} />
@@ -130,6 +134,7 @@ function App() {
                         <Route path="users" element={<AdminUsersPage />} />
                         <Route path="wallet" element={<WalletPage />} />
                         <Route path="transactions" element={<AdminTransactionsPage />} />
+                        <Route path="withdraws" element={<AdminWithdrawPage />} />
                         <Route path="orders" element={<AdminOrdersPage />} />
                     </Route>
 
