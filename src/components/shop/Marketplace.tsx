@@ -526,7 +526,7 @@ export const Marketplace: React.FC = () => {
                             <p className="text-muted-foreground">Đang tải...</p>
                         </div>
                     ) : products.length > 0 ? (
-                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
                             {products.map((product) => {
                                 const prices = product.offers.map((o) => o.price);
                                 const quantities = product.offers.map((o) => o.quantity ?? 0);
@@ -574,8 +574,8 @@ export const Marketplace: React.FC = () => {
                                                 )}
                                             </button>
                                         </div>
-                                        <div className="p-3 flex-1 flex flex-col gap-1">
-                                            <p className="text-sm font-semibold line-clamp-2">
+                                        <div className="p-2.5 flex-1 flex flex-col gap-1">
+                                            <p className="text-xs md:text-sm font-semibold line-clamp-2">
                                                 {product.cardName}
                                             </p>
                                             <p className="text-[11px] text-muted-foreground">
