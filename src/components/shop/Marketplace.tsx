@@ -80,7 +80,7 @@ function groupListingsByCard(listings: ListingItem[]): CardProduct[] {
 
 export const Marketplace: React.FC = () => {
     const [listings, setListings] = useState<ListingItem[]>([]);
-    const [totalElements, setTotalElements] = useState(0);
+    const [_totalElements, setTotalElements] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [currentPage, setCurrentPage] = useState(0);
     const [pageSize] = useState(24);
@@ -98,7 +98,6 @@ export const Marketplace: React.FC = () => {
     const [orderLoading, setOrderLoading] = useState(false);
     const [orderError, setOrderError] = useState<string | null>(null);
     const [paymentMethod] = useState<'WALLET'>('WALLET');
-    const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
     const [cartOpen, setCartOpen] = useState(false);
     const { items: cartItems, addCard, setSelectedListing: setCartSelectedListing, updateQuantity: updateCartQuantity, removeCard: removeCartCard } = useMarketplaceCart();
     const { isAuthenticated } = useAuth();
@@ -357,6 +356,19 @@ export const Marketplace: React.FC = () => {
         return grouped;
     }, [filteredListings, sortBy]);
 
+    // Tự động mở chi tiết thẻ khi đi từ thông báo giá: ?card={cardId}
+    useEffect(() => {
+        const cardId = searchParams.get('card');
+        if (!cardId || !products.length) return;
+        const product = products.find((p) => p.cardId === cardId);
+        if (!product) return;
+        setSelectedProduct(product);
+        const el = document.getElementById(`marketplace-card-${cardId}`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [searchParams, products]);
+
     return (
         <div className="py-8">
             {error && (
@@ -514,169 +526,108 @@ export const Marketplace: React.FC = () => {
                             <p className="text-muted-foreground">Đang tải...</p>
                         </div>
                     ) : products.length > 0 ? (
-                        <Card className="glass-card-strong overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b border-white/10 text-left text-xs text-muted-foreground uppercase tracking-wider">
-                                            <th className="p-4 font-medium">Sản phẩm</th>
-                                            <th className="p-4 font-medium text-center w-24">Số đề nghị</th>
-                                            <th className="p-4 font-medium text-right w-28">Từ</th>
-                                            <th className="p-4 w-32" />
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {products.map((product) => {
-                                            const minPrice = Math.min(...product.offers.map(o => o.price));
-                                            const isExpanded = expandedCardId === product.cardId;
-                                            return (
-                                                <React.Fragment key={product.cardId}>
-                                                    <tr
-                                                        className="border-b border-white/5 hover:bg-white/5 transition-colors"
-                                                        onClick={() => setExpandedCardId(isExpanded ? null : product.cardId)}
-                                                    >
-                                                        <td className="p-4">
-                                                            <div className="flex items-center gap-4">
-                                                                <img
-                                                                    src={product.imageUrl || PLACEHOLDER_IMG}
-                                                                    alt={product.cardName}
-                                                                    className="w-12 h-16 object-cover rounded-lg shrink-0"
-                                                                    onError={(e) => {
-                                                                        e.currentTarget.src = PLACEHOLDER_IMG;
-                                                                    }}
-                                                                />
-                                                                <div>
-                                                                    <div className="font-medium">{product.cardName}</div>
-                                                                    <div className="text-xs text-muted-foreground">
-                                                                        {product.categoryName || '—'} · {formatRarity(product.rarity)}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4 text-center">
-                                                            <span className="inline-flex items-center gap-1 text-sm">
-                                                                <Users className="h-4 w-4 text-muted-foreground" />
-                                                                {product.offers.length}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-4 text-right">
-                                                            <span className="font-semibold text-accent-400">
-                                                                {formatCurrencyVND(minPrice)}
-                                                            </span>
-                                                        </td>
-                                                                    <td className="p-4">
-                                                                        <div className="flex items-center justify-end gap-2">
-                                                                            <Button
-                                                                                variant="outline"
-                                                                                size="sm"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    addCardToCart(product, e);
-                                                                                }}
-                                                                            >
-                                                                                Thêm thẻ vào giỏ
-                                                                            </Button>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                className="gap-1"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setSelectedProduct(product);
-                                                                                }}
-                                                                            >
-                                                                                Xem đề nghị
-                                                                                <ChevronDown className="h-4 w-4" />
-                                                                            </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="rounded-full"
-                                                                    onClick={(e) => toggleWishlistForCard(product, e)}
-                                                                    disabled={wishlistLoadingCardId === product.cardId}
-                                                                    aria-label={
-                                                                        wishlistCardIds.has(product.cardId) || isInWishlist(product.cardId)
-                                                                            ? 'Bỏ khỏi wishlist'
-                                                                            : 'Thêm vào wishlist'
-                                                                    }
-                                                                >
-                                                                    {wishlistLoadingCardId === product.cardId ? (
-                                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                                    ) : (
-                                                                        <Heart
-                                                                            className={`h-4 w-4 ${
-                                                                                wishlistCardIds.has(product.cardId) || isInWishlist(product.cardId)
-                                                                                    ? 'fill-red-500 text-red-500'
-                                                                                    : ''
-                                                                            }`}
-                                                                        />
-                                                                    )}
-                                                                </Button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                    {/* Hàng mở rộng: bảng offer bên dưới thẻ */}
-                                                    {isExpanded && (
-                                                        <tr className="bg-white/5">
-                                                            <td colSpan={4} className="p-4">
-                                                                <div className="pl-16 pr-4">
-                                                                    <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-                                                                        {product.offers.length} đề nghị
-                                                                    </div>
-                                                                    <table className="w-full text-sm">
-                                                                        <thead>
-                                                                            <tr className="text-muted-foreground text-left">
-                                                                                <th className="pb-2 font-medium">Giá</th>
-                                                                                <th className="pb-2 font-medium">Số lượng</th>
-                                                                                <th className="pb-2 font-medium">Người bán</th>
-                                                                                <th className="pb-2 font-medium text-right">Thao tác</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {product.offers.map((offer) => (
-                                                                                <tr key={offer.listSellerId} className="border-t border-white/5">
-                                                                                    <td className="py-2 font-medium text-accent-400">
-                                                                                        {formatCurrencyVND(offer.price)}
-                                                                                    </td>
-                                                                                    <td className="py-2">{offer.quantity}</td>
-                                                                                    <td className="py-2 text-muted-foreground">
-                                                                                        <span>{offer.sellerName || '—'}</span>
-                                                                                        {(offer.sellerFeedbackCount != null && offer.sellerFeedbackCount > 0) && (
-                                                                                            <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90 text-xs">
-                                                                                                <Star className="h-3 w-3 fill-amber-400 shrink-0" />
-                                                                                                {Number(offer.sellerAverageRating ?? 0).toFixed(1)}
-                                                                                                <span className="text-muted-foreground">({offer.sellerFeedbackCount} đánh giá)</span>
-                                                                                            </span>
-                                                                                        )}
-                                                                                    </td>
-                                                                                    <td className="py-2 text-right">
-                                                                                        <Button
-                                                                                            variant="premium"
-                                                                                            size="sm"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                setSelectedProduct(product);
-                                                                                                setSelectedListing(offer);
-                                                                                            }}
-                                                                                        >
-                                                                                            Xem chi tiết
-                                                                                        </Button>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                    </table>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </React.Fragment>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </Card>
+                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {products.map((product) => {
+                                const prices = product.offers.map((o) => o.price);
+                                const quantities = product.offers.map((o) => o.quantity ?? 0);
+                                const minPrice = prices.length ? Math.min(...prices) : product.basePrice;
+                                const totalQuantity = quantities.reduce((sum, q) => sum + q, 0);
+                                const inWishlist =
+                                    wishlistCardIds.has(product.cardId) || isInWishlist(product.cardId);
+
+                                return (
+                                    <div
+                                        key={product.cardId}
+                                        id={`marketplace-card-${product.cardId}`}
+                                        className="group relative rounded-2xl glass-card-strong border border-white/5 hover:border-primary-500/50 hover:shadow-lg cursor-pointer overflow-hidden flex flex-col"
+                                        onClick={() => setSelectedProduct(product)}
+                                    >
+                                        <div className="relative aspect-[2.5/3.5] overflow-hidden bg-black/40">
+                                            <img
+                                                src={product.imageUrl || PLACEHOLDER_IMG}
+                                                alt={product.cardName}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                onError={(e) => {
+                                                    e.currentTarget.src = PLACEHOLDER_IMG;
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="absolute top-2 right-2 rounded-full bg-black/60 p-1 hover:bg-black/80"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleWishlistForCard(product, e);
+                                                }}
+                                                aria-label={
+                                                    inWishlist ? 'Bỏ khỏi wishlist' : 'Thêm vào wishlist'
+                                                }
+                                                disabled={wishlistLoadingCardId === product.cardId}
+                                            >
+                                                {wishlistLoadingCardId === product.cardId ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                                                ) : (
+                                                    <Heart
+                                                        className={`h-4 w-4 ${
+                                                            inWishlist ? 'fill-red-500 text-red-500' : 'text-white'
+                                                        }`}
+                                                    />
+                                                )}
+                                            </button>
+                                        </div>
+                                        <div className="p-3 flex-1 flex flex-col gap-1">
+                                            <p className="text-sm font-semibold line-clamp-2">
+                                                {product.cardName}
+                                            </p>
+                                            <p className="text-[11px] text-muted-foreground">
+                                                {product.categoryName || '—'} ·{' '}
+                                                {formatRarity(product.rarity)}
+                                            </p>
+                                            <div className="mt-1 flex items-center justify-between">
+                                                <span className="text-base font-bold text-accent-400">
+                                                    {formatCurrencyVND(minPrice)}
+                                                </span>
+                                                <span className="text-[11px] text-muted-foreground">
+                                                    Còn {totalQuantity} thẻ
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
+                                                <span className="inline-flex items-center gap-1">
+                                                    <Users className="h-3 w-3" />
+                                                    {product.offers.length} đề nghị
+                                                </span>
+                                            </div>
+                                            <div className="mt-2 flex gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="premium"
+                                                    size="sm"
+                                                    className="flex-1"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        addCardToCart(product, e);
+                                                    }}
+                                                >
+                                                    Thêm vào giỏ
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="flex-1 gap-1"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedProduct(product);
+                                                    }}
+                                                >
+                                                    Xem đề nghị
+                                                    <ChevronDown className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     ) : (
                         <Card className="glass-card-strong">
                             <CardContent className="py-16 text-center">
@@ -962,7 +913,7 @@ function ListingOffersModal({
     onSelectOffer,
     onAddCardToCart,
     formatRarity,
-    rarityClass,
+    rarityClass: _rarityClass,
     placeholderImg,
 }: {
     product: CardProduct | null;

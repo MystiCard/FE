@@ -559,7 +559,7 @@ export const OrdersPage: React.FC = () => {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {selectedShipment.blindBoxDetails.map((card, i) => {
+                                                {selectedShipment.blindBoxDetails?.map((card, i) => {
                                                     const price = Number(card.basePrice ?? 0);
                                                     return (
                                                         <tr key={i} className="border-b border-white/5">

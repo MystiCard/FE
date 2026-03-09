@@ -155,7 +155,7 @@ export const WalletWithdrawPage: React.FC = () => {
                                         <label
                                             key={b.bankAccountId}
                                             className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer ${
-                                                selectedBankId === b.bankId
+                                                selectedBankId === b.bankAccountId
                                                     ? 'border-yellow-400 bg-yellow-500/10'
                                                     : 'border-white/10 hover:border-yellow-400/60'
                                             }`}

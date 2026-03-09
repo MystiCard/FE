@@ -27,7 +27,7 @@ interface AddressSelectProps {
 }
 
 export const AddressSelect: React.FC<AddressSelectProps> = ({
-    value = '',
+    value: _value = '',
     onChange,
     placeholderProvince = 'Chọn Tỉnh / Thành phố',
     placeholderWard = 'Chọn Xã / Phường',

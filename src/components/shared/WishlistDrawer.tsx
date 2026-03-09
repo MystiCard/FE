@@ -167,7 +167,7 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
                                                 const count = alert?.matchingListings?.length ?? 0;
                                                 return count > 0 ? (
                                                     <Link
-                                                        to="/marketplace"
+                                                        to={`/marketplace?card=${item.cardId}`}
                                                         onClick={onClose}
                                                         className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-md bg-green-500/20 text-green-400 text-xs font-medium"
                                                     >

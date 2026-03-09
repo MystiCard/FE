@@ -7,70 +7,6 @@ import { Card as CardType, Category, cardApi, getCardImageUrl } from '@/utils/ap
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 
-/** Modal nhỏ nhập giá mong muốn khi thêm wishlist */
-function ExpectPriceModal({
-    isOpen,
-    onClose,
-    cardName,
-    onSubmit,
-    loading,
-}: {
-    isOpen: boolean;
-    onClose: () => void;
-    cardName: string;
-    onSubmit: (expectPrice: number | undefined) => void;
-    loading: boolean;
-}) {
-    const [value, setValue] = useState<string>('');
-    React.useEffect(() => {
-        if (isOpen) setValue('');
-    }, [isOpen]);
-    const handleSubmit = () => {
-        const num = value.trim() ? Number(value.trim()) : undefined;
-        if (num !== undefined && (Number.isNaN(num) || num < 0)) return;
-        onSubmit(num);
-        setValue('');
-        onClose();
-    };
-    return (
-        <Dialog open={isOpen} onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="max-w-sm glass-card-strong border-white/10">
-                <DialogHeader>
-                    <DialogTitle className="text-lg">Thêm vào wishlist</DialogTitle>
-                    <DialogDescription>
-                        Nhập giá mong muốn (VNĐ) cho thẻ <strong>{cardName}</strong>. Khi có người bán dưới giá này, bạn sẽ được thông báo.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="mt-4 space-y-3">
-                    <input
-                        type="number"
-                        min={0}
-                        step={1000}
-                        placeholder="Ví dụ: 50000 (để trống = không đặt giá)"
-                        value={value}
-                        onChange={(e) => setValue(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm"
-                    />
-                    <div className="flex gap-2 justify-end">
-                        <Button
-                            variant="ghost"
-                            onClick={() => {
-                                onSubmit(undefined);
-                                onClose();
-                            }}
-                        >
-                            Bỏ qua (vẫn thêm wishlist)
-                        </Button>
-                        <Button variant="premium" onClick={handleSubmit} disabled={loading}>
-                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Thêm wishlist'}
-                        </Button>
-                    </div>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
 
 interface CardDetailModalProps {
@@ -85,7 +21,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
     const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
     const [inWishlist, setInWishlist] = useState(false);
     const [wishlistLoading, setWishlistLoading] = useState(false);
-    const [showExpectPriceModal, setShowExpectPriceModal] = useState(false);
+    const [expectPriceInput, setExpectPriceInput] = useState<string>('');
 
     useEffect(() => {
         if (!card?.cardId || !isOpen) return;
@@ -107,10 +43,19 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
 
     if (!card) return null;
 
-    const handleAddWishlistWithPrice = async (expectPrice?: number) => {
+    const handleAddWishlistWithPrice = async () => {
         if (!card) return;
         setWishlistLoading(true);
-        setShowExpectPriceModal(false);
+
+        const raw = expectPriceInput.replace(/\s/g, '').replace(/\./g, '').replace(/,/g, '');
+        const parsed = raw ? Number(raw) : undefined;
+        if (parsed !== undefined && (Number.isNaN(parsed) || parsed < 0)) {
+            setWishlistLoading(false);
+            return;
+        }
+        const finalExpectPrice =
+            parsed != null ? parsed : Number(card.basePrice ?? 0);
+
         addToWishlistLocal({
             id: card.cardId,
             name: card.name,
@@ -122,7 +67,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
 
         if (isAuthenticated) {
             try {
-                await cardApi.addToWishlist(card.cardId, expectPrice);
+                await cardApi.addToWishlist(card.cardId, finalExpectPrice);
                 window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
             } catch {
                 setInWishlist(false);
@@ -130,6 +75,7 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
             }
         }
         setWishlistLoading(false);
+        onClose();
     };
 
     const toggleWishlist = async () => {
@@ -149,8 +95,8 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
             }
             setWishlistLoading(false);
         } else {
-            // Chưa có trong wishlist -> mở modal nhập giá mong muốn
-            setShowExpectPriceModal(true);
+            // Chưa có trong wishlist -> thêm luôn với giá mong muốn hiện tại (hoặc giá gốc nếu để trống)
+            await handleAddWishlistWithPrice();
         }
     };
 
@@ -236,29 +182,42 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
                     </div>
                 </div>
 
-                <div className="mt-6 flex justify-end gap-2">
-                    <Button
-                        variant={inWishlist ? 'outline' : 'premium'}
-                        onClick={toggleWishlist}
-                        className="gap-2"
-                        disabled={wishlistLoading}
-                    >
-                        {wishlistLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className={`h-4 w-4 ${inWishlist ? 'fill-red-500 text-red-500' : ''}`} />}
-                        {inWishlist ? 'Bỏ khỏi danh sách yêu thích' : 'Thêm vào danh sách yêu thích'}
-                    </Button>
-                    <Button variant="ghost" onClick={onClose}>
-                        Đóng
-                    </Button>
+                <div className="mt-6 space-y-3">
+                    {!inWishlist && (
+                        <div className="flex flex-col items-end gap-2">
+                            <div className="w-full md:w-80">
+                                <label className="block text-xs font-medium text-muted-foreground mb-1.5 text-right md:text-left">
+                                    Giá mong muốn (VNĐ)
+                                </label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step={1000}
+                                    placeholder="Ví dụ: 50000 (để trống = dùng giá gốc)"
+                                    value={expectPriceInput}
+                                    onChange={(e) => setExpectPriceInput(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm"
+                                />
+                            </div>
+                        </div>
+                    )}
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            variant={inWishlist ? 'outline' : 'premium'}
+                            onClick={toggleWishlist}
+                            className="gap-2"
+                            disabled={wishlistLoading}
+                        >
+                            {wishlistLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className={`h-4 w-4 ${inWishlist ? 'fill-red-500 text-red-500' : ''}`} />}
+                            {inWishlist ? 'Bỏ khỏi danh sách yêu thích' : 'Thêm vào danh sách yêu thích'}
+                        </Button>
+                        <Button variant="ghost" onClick={onClose}>
+                            Đóng
+                        </Button>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
-        <ExpectPriceModal
-            isOpen={showExpectPriceModal}
-            onClose={() => setShowExpectPriceModal(false)}
-            cardName={card.name}
-            onSubmit={handleAddWishlistWithPrice}
-            loading={wishlistLoading}
-        />
     </>
     );
 };

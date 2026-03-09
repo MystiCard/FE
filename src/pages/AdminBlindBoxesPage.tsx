@@ -701,7 +701,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                                     )}
                                                     <div className="aspect-[2/3]">
                                                         <img
-                                                            src={getCardImageUrl(card) || card.imageUrl || 'https://via.placeholder.com/150?text=Card'}
+                                                            src={getCardImageUrl(card) || 'https://via.placeholder.com/150?text=Card'}
                                                             alt={card.name || ''}
                                                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                         />

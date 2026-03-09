@@ -15,7 +15,7 @@ import {
     FileSpreadsheet,
     Eye
 } from 'lucide-react';
-import { cardApi, categoryApi, Card as CardType, Category, getCardImageUrl } from '@/utils/api';
+import { cardApi, categoryApi, Card as CardType, Category, getCardImageUrl, cardRequiredApi, CardRequired } from '@/utils/api';
 
 export const AdminCardsPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = React.useState('');
@@ -32,6 +32,9 @@ export const AdminCardsPage: React.FC = () => {
     const [isImporting, setIsImporting] = React.useState(false);
     const [detailCard, setDetailCard] = React.useState<CardType | null>(null);
     const [detailLoading, setDetailLoading] = React.useState(false);
+    const [requests, setRequests] = React.useState<CardRequired[]>([]);
+    const [reqNote, setReqNote] = React.useState<Record<string, string>>({});
+    const [reqProcessing, setReqProcessing] = React.useState<string | null>(null);
 
     // Helper to format rarity for display
     const formatRarity = (rarity: string) => {
@@ -76,7 +79,16 @@ export const AdminCardsPage: React.FC = () => {
     React.useEffect(() => {
         loadCards();
         loadCategories();
+        loadRequests();
     }, []);
+    const loadRequests = async () => {
+        try {
+            const res = await cardRequiredApi.getAllRequiredCardsAdmin(0, 50);
+            setRequests(res.content ?? []);
+        } catch {
+            setRequests([]);
+        }
+    };
 
     const loadCards = async () => {
         try {
@@ -91,6 +103,30 @@ export const AdminCardsPage: React.FC = () => {
         }
     };
 
+    const approveRequest = async (r: CardRequired) => {
+        setReqProcessing(r.cardRequiredId);
+        try {
+            await cardRequiredApi.approveRequiredCard(r.cardRequiredId, reqNote[r.cardRequiredId] ?? null);
+            await loadRequests();
+            await loadCards();
+        } catch (e) {
+            alert(e instanceof Error ? e.message : 'Duyệt yêu cầu thất bại');
+        } finally {
+            setReqProcessing(null);
+        }
+    };
+
+    const rejectRequest = async (r: CardRequired) => {
+        setReqProcessing(r.cardRequiredId);
+        try {
+            await cardRequiredApi.rejectRequiredCard(r.cardRequiredId, reqNote[r.cardRequiredId] ?? null);
+            await loadRequests();
+        } catch (e) {
+            alert(e instanceof Error ? e.message : 'Từ chối yêu cầu thất bại');
+        } finally {
+            setReqProcessing(null);
+        }
+    };
     const loadCategories = async () => {
         try {
             const data = await categoryApi.getAllCategories();
@@ -395,6 +431,106 @@ export const AdminCardsPage: React.FC = () => {
                             <option value="SECRET_RARE">Bí mật</option>
                         </select>
                     </div>
+                </CardContent>
+            </Card>
+
+            {/* Seller Card Requests (Card Not In System) */}
+            <Card className="glass-card-strong">
+                <CardHeader className="pb-2">
+                    <CardTitle>Yêu cầu thêm thẻ từ Seller</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                        Flow: Seller gửi yêu cầu → Admin duyệt → hệ thống cập nhật catalog → Seller đăng bán.
+                    </p>
+                </CardHeader>
+                <CardContent>
+                    {requests.filter(r => r.status === 'PENDING').length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Không có yêu cầu nào đang chờ.</p>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b border-white/10">
+                                        <th className="text-left p-3 text-sm font-semibold text-muted-foreground">Ảnh</th>
+                                        <th className="text-left p-3 text-sm font-semibold text-muted-foreground">Thẻ</th>
+                                        <th className="text-left p-3 text-sm font-semibold text-muted-foreground">Danh mục</th>
+                                        <th className="text-left p-3 text-sm font-semibold text-muted-foreground">Set</th>
+                                        <th className="text-right p-3 text-sm font-semibold text-muted-foreground">Giá base</th>
+                                        <th className="text-left p-3 text-sm font-semibold text-muted-foreground">Người gửi</th>
+                                        <th className="text-left p-3 text-sm font-semibold text-muted-foreground">Ghi chú</th>
+                                        <th className="text-right p-3 text-sm font-semibold text-muted-foreground">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {requests.filter(r => r.status === 'PENDING').map((r) => {
+                                        const catName = r.categoryName || '—';
+                                        return (
+                                            <tr key={r.cardRequiredId} className="border-b border-white/5 hover:bg-white/5">
+                                                <td className="p-3">
+                                                    <div className="w-12 h-16 rounded-md overflow-hidden bg-white/5 border border-white/10">
+                                                        {r.imageUrl ? (
+                                                            <img
+                                                                src={r.imageUrl}
+                                                                alt={r.cardName}
+                                                                className="w-full h-full object-cover"
+                                                                onError={(e) => {
+                                                                    e.currentTarget.src =
+                                                                        'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=100&q=80';
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-lg">
+                                                                🎴
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="p-3">
+                                                        <div className="font-medium">{r.cardName}</div>
+                                                        <div className="text-xs text-muted-foreground">{formatRarity(r.rate)}</div>
+                                                </td>
+                                                <td className="p-3 text-sm">{catName}</td>
+                                                <td className="p-3 text-sm">{catName}</td>
+                                                <td className="p-3 text-right font-semibold text-accent-400">
+                                                    {formatCurrencyVND(r.basePrice)}
+                                                </td>
+                                                <td className="p-3 text-sm text-muted-foreground">
+                                                    <div>{r.userName || '—'}</div>
+                                                </td>
+                                                <td className="p-3">
+                                                    <input
+                                                        value={reqNote[r.cardRequiredId] ?? ''}
+                                                        onChange={(e) => setReqNote((m) => ({ ...m, [r.cardRequiredId]: e.target.value }))}
+                                                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary-500/30 text-sm"
+                                                        placeholder="Ghi chú cho seller (optional)"
+                                                    />
+                                                </td>
+                                                <td className="p-3">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="premium"
+                                                            disabled={reqProcessing === r.cardRequiredId}
+                                                            onClick={() => approveRequest(r)}
+                                                        >
+                                                            {reqProcessing === r.cardRequiredId ? 'Đang duyệt...' : 'Duyệt'}
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            disabled={reqProcessing === r.cardRequiredId}
+                                                            onClick={() => rejectRequest(r)}
+                                                        >
+                                                            Từ chối
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

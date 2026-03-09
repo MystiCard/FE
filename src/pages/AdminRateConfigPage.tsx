@@ -6,7 +6,6 @@ import {
     Search,
     Edit,
     Trash2,
-    Percent,
     Settings,
     X,
     Upload,

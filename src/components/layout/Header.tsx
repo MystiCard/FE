@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { WishlistDrawer } from '@/components/shared/WishlistDrawer';
 import { MobileMenu } from '@/components/shared/MobileMenu';
 import { userApi, cardApi, WishlistPriceAlert } from '@/utils/api';
 
@@ -16,9 +15,9 @@ export const Header: React.FC = () => {
 
     const navLinkClass = (path: string, exact = true) =>
         `text-sm font-medium hover:text-primary-400 transition-colors ${(exact ? pathname === path : pathname.startsWith(path)) ? 'text-primary-400' : ''}`;
+    const [isMarketplaceOpen, setIsMarketplaceOpen] = React.useState(false);
     const [isPortfolioOpen, setIsPortfolioOpen] = React.useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
-    const [isWishlistOpen, setIsWishlistOpen] = React.useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
     const [isAlertsOpen, setIsAlertsOpen] = React.useState(false);
     const [priceAlerts, setPriceAlerts] = React.useState<WishlistPriceAlert[]>([]);
@@ -152,9 +151,42 @@ export const Header: React.FC = () => {
                             Hộp bí ẩn
                         </Link>
 
-                        <Link to="/marketplace" className={navLinkClass('/marketplace')}>
-                            Sàn giao dịch
-                        </Link>
+                        {/* Marketplace Dropdown */}
+                        <div
+                            className="relative"
+                            onMouseEnter={() => setIsMarketplaceOpen(true)}
+                            onMouseLeave={() => setIsMarketplaceOpen(false)}
+                        >
+                            <button
+                                className={`flex items-center gap-1 text-sm font-medium hover:text-primary-400 transition-colors ${
+                                    ['/marketplace', '/post-listing'].some((p) => pathname === p || pathname.startsWith(p + '/'))
+                                        ? 'text-primary-400'
+                                        : ''
+                                }`}
+                            >
+                                <span>Sàn giao dịch</span>
+                                <ChevronDown className="h-4 w-4" />
+                            </button>
+
+                            {isMarketplaceOpen && (
+                                <div className="absolute top-full left-0 pt-2 w-52">
+                                    <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
+                                        <Link
+                                            to="/marketplace"
+                                            className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
+                                        >
+                                            Sàn giao dịch
+                                        </Link>
+                                        <Link
+                                            to="/my-listings"
+                                            className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md"
+                                        >
+                                            Bài đăng của tôi
+                                        </Link>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         {/* Portfolio Dropdown */}
                         <div
@@ -164,7 +196,7 @@ export const Header: React.FC = () => {
                         >
                             <button
                                 className={`flex items-center gap-1 text-sm font-medium hover:text-primary-400 transition-colors ${
-                                    ['/portfolio', '/trends', '/post-listing'].some((p) => pathname === p || pathname.startsWith(p + '/'))
+                                    ['/portfolio', '/trends'].some((p) => pathname === p || pathname.startsWith(p + '/'))
                                         ? 'text-primary-400'
                                         : ''
                                 }`}
@@ -181,9 +213,6 @@ export const Header: React.FC = () => {
                                         </Link>
                                         <Link to="/trends" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
                                             Xu hướng thị trường
-                                        </Link>
-                                        <Link to="/post-listing" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Đăng bán
                                         </Link>
                                     </div>
                                 </div>
@@ -220,19 +249,20 @@ export const Header: React.FC = () => {
                                 </Button>
                             </Link>
                         )}
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="relative"
-                            onClick={() => setIsWishlistOpen(true)}
-                        >
-                            <Heart className="h-5 w-5" />
-                            {wishlistCount > 0 && (
-                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary-500 rounded-full text-xs font-bold flex items-center justify-center text-white">
-                                    {wishlistCount}
-                                </span>
-                            )}
-                        </Button>
+                        <Link to="/wishlist">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="relative"
+                            >
+                                <Heart className="h-5 w-5" />
+                                {wishlistCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary-500 rounded-full text-xs font-bold flex items-center justify-center text-white">
+                                        {wishlistCount}
+                                    </span>
+                                )}
+                            </Button>
+                        </Link>
                         <Button
                             variant="ghost"
                             size="icon"
@@ -271,7 +301,7 @@ export const Header: React.FC = () => {
                                             priceAlerts.map((alert) => (
                                                 <Link
                                                     key={alert.wishListId}
-                                                    to="/marketplace"
+                                                    to={`/marketplace?card=${alert.cardId}`}
                                                     className="block px-3 py-2 text-sm hover:bg-white/10 rounded-md border-l-2 border-amber-500/50"
                                                     onClick={() => setIsAlertsOpen(false)}
                                                 >
@@ -368,7 +398,6 @@ export const Header: React.FC = () => {
                 </div>
             </div>
 
-            <WishlistDrawer isOpen={isWishlistOpen} onClose={() => setIsWishlistOpen(false)} />
             <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
         </header>
     );

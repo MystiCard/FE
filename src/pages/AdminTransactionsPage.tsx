@@ -1,42 +1,38 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { transactionApi, TransactionResponse, PageResponse } from '@/utils/api';
+import { paymentApi, PaymentResponse, PageResponse } from '@/utils/api';
 import { Search, Filter, ArrowUpCircle, ArrowDownCircle, CreditCard, RefreshCcw } from 'lucide-react';
 
 type StatusFilter = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | undefined;
 
-const getTypeLabel = (type: TransactionResponse['transactionType']) => {
-    switch (type) {
-        case 'DEPOSIT':
-        case 'DEPOSTIE':
-            return 'Nạp tiền';
-        case 'WITHDRAW':
-            return 'Rút tiền';
-        case 'REQUEST_WITHDRAW':
-            return 'Yêu cầu rút';
-        case 'TRANSFER':
-            return 'Chuyển tiền';
-        case 'PAYMENT':
-        default:
-            return 'Thanh toán';
+const getTypeLabel = (payment: PaymentResponse) => {
+    const content = payment.content || '';
+    const lower = content.toLowerCase();
+    if (lower.includes('top up') || lower.includes('deposite') || lower.includes('deposit')) {
+        return 'Nạp tiền';
     }
+    if (lower.includes('withdraw')) {
+        return 'Rút tiền';
+    }
+    if (lower.includes('refund')) {
+        return 'Hoàn tiền';
+    }
+    return content || 'Giao dịch ví';
 };
 
-const getTypeIcon = (type: TransactionResponse['transactionType']) => {
-    switch (type) {
-        case 'DEPOSIT':
-        case 'DEPOSTIE':
-            return <ArrowUpCircle className="w-4 h-4 text-green-400" />;
-        case 'WITHDRAW':
-        case 'REQUEST_WITHDRAW':
-            return <ArrowDownCircle className="w-4 h-4 text-red-400" />;
-        default:
-            return <CreditCard className="w-4 h-4 text-blue-400" />;
+const getTypeIcon = (payment: PaymentResponse) => {
+    const label = getTypeLabel(payment);
+    if (label.startsWith('Nạp')) {
+        return <ArrowUpCircle className="w-4 h-4 text-green-400" />;
     }
+    if (label.startsWith('Rút')) {
+        return <ArrowDownCircle className="w-4 h-4 text-red-400" />;
+    }
+    return <CreditCard className="w-4 h-4 text-blue-400" />;
 };
 
 export const AdminTransactionsPage: React.FC = () => {
-    const [transactions, setTransactions] = useState<TransactionResponse[]>([]);
+    const [transactions, setTransactions] = useState<PaymentResponse[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>(undefined);
@@ -48,7 +44,7 @@ export const AdminTransactionsPage: React.FC = () => {
         try {
             setIsLoading(true);
             setError('');
-            const res: PageResponse<TransactionResponse> = await transactionApi.getAllTransactionsAdmin(
+            const res: PageResponse<PaymentResponse> = await paymentApi.getAllPaymentsAdmin(
                 status,
                 pageIndex,
                 20
@@ -73,8 +69,8 @@ export const AdminTransactionsPage: React.FC = () => {
         if (!search.trim()) return true;
         const s = search.trim().toLowerCase();
         return (
-            tx.walletTransactionId?.toLowerCase().includes(s) ||
-            getTypeLabel(tx.transactionType).toLowerCase().includes(s)
+            tx.paymentId?.toLowerCase().includes(s) ||
+            getTypeLabel(tx).toLowerCase().includes(s)
         );
     });
 
@@ -160,32 +156,32 @@ export const AdminTransactionsPage: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filtered.map((tx) => (
-                                        <tr key={tx.walletTransactionId} className="border-b border-white/5 hover:bg-white/5">
+                                    {filtered.map((tx, idx) => (
+                                        <tr key={tx.paymentId ?? idx} className="border-b border-white/5 hover:bg-white/5">
                                             <td className="p-3">
-                                                {tx.createAt
-                                                    ? new Date(tx.createAt).toLocaleString('vi-VN')
+                                                {tx.createdAt
+                                                    ? new Date(tx.createdAt).toLocaleString('vi-VN')
                                                     : '—'}
                                             </td>
                                             <td className="p-3">
                                                 <div className="flex items-center gap-2">
-                                                    {getTypeIcon(tx.transactionType)}
-                                                    <span>{getTypeLabel(tx.transactionType)}</span>
+                                                    {getTypeIcon(tx)}
+                                                    <span>{getTypeLabel(tx)}</span>
                                                 </div>
                                             </td>
                                             <td className="p-3">
                                                 <span
                                                     className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                        tx.statusTransaction === 'SUCCESS'
+                                                        tx.statusPayment === 'SUCCESS'
                                                             ? 'bg-green-500/20 text-green-400'
-                                                            : tx.statusTransaction === 'PENDING'
+                                                            : tx.statusPayment === 'PENDING'
                                                             ? 'bg-yellow-500/20 text-yellow-400'
-                                                            : tx.statusTransaction === 'FAILED'
+                                                            : tx.statusPayment === 'FAILED'
                                                             ? 'bg-red-500/20 text-red-400'
                                                             : 'bg-gray-500/20 text-gray-300'
                                                     }`}
                                                 >
-                                                    {tx.statusTransaction}
+                                                    {tx.statusPayment}
                                                 </span>
                                             </td>
                                             <td className="p-3 text-right font-semibold">

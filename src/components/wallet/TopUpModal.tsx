@@ -19,6 +19,7 @@ const PRESET_AMOUNTS = [
 ];
 
 export const TopUpModal: React.FC<TopUpModalProps> = ({ userId, onClose, onSuccess }) => {
+    void onSuccess;
     const [amount, setAmount] = useState<number>(0);
     const [customAmount, setCustomAmount] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
