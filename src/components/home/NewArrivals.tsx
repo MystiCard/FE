@@ -56,11 +56,11 @@ export const NewArrivals: React.FC = () => {
             </div>
 
             {loading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                     {[1, 2, 3, 4].map((i) => (
                         <Card key={i} className="overflow-hidden animate-pulse">
                             <div className="aspect-[3/4] bg-white/10" />
-                            <CardContent className="p-4 space-y-2">
+                            <CardContent className="p-3 space-y-2">
                                 <div className="h-5 bg-white/10 rounded w-3/4" />
                                 <div className="h-4 bg-white/10 rounded w-1/2" />
                                 <div className="h-8 bg-white/10 rounded w-1/3" />
@@ -73,7 +73,7 @@ export const NewArrivals: React.FC = () => {
             ) : listings.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">Chưa có thẻ nào đăng bán</div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                     {listings.map((item, index) => (
                         <Card
                             key={item.listSellerId}
@@ -113,12 +113,12 @@ export const NewArrivals: React.FC = () => {
                                 </button>
                             </div>
 
-                            <CardContent className="p-4">
-                                <h3 className="font-semibold text-lg mb-1 line-clamp-2">{item.cardName}</h3>
-                                <p className="text-sm text-muted-foreground mb-1">
+                            <CardContent className="p-3">
+                                <h3 className="font-semibold text-sm md:text-base mb-1 line-clamp-2">{item.cardName}</h3>
+                                <p className="text-xs md:text-sm text-muted-foreground mb-1">
                                     {item.categoryName || 'Thẻ sưu tầm'} · SL: {item.quantity}
                                 </p>
-                                <p className="text-xs text-muted-foreground mb-3">
+                                <p className="text-[11px] md:text-xs text-muted-foreground mb-2">
                                     Sàn giao dịch · Seller: <span className="font-medium text-white/90">{item.sellerName || '—'}</span>
                                     {(item.sellerFeedbackCount != null && item.sellerFeedbackCount > 0) && (
                                         <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90">
@@ -130,7 +130,7 @@ export const NewArrivals: React.FC = () => {
                                 </p>
 
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xl font-bold gradient-text">
+                                    <span className="text-sm md:text-base font-bold gradient-text">
                                         {Number(item.price).toLocaleString('vi-VN')} đ
                                     </span>
                                     <Button
