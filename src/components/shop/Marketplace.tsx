@@ -421,69 +421,69 @@ export const Marketplace: React.FC = () => {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Sidebar bộ lọc */}
-                <div className="lg:col-span-1">
-                    <Card className="glass-card-strong sticky top-24">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-base flex items-center gap-2">
-                                <Filter className="h-4 w-4" />
-                                Bộ lọc
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Giá (đ)</label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        value={priceRange[0]}
-                                        onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])}
-                                        className="w-full px-3 py-2 glass-card rounded-lg text-sm"
-                                    />
-                                    <span className="self-center text-muted-foreground">–</span>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        value={priceRange[1]}
-                                        onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
-                                        className="w-full px-3 py-2 glass-card rounded-lg text-sm"
-                                    />
-                                </div>
+            <div className="space-y-6">
+                {/* Thanh bộ lọc ngang */}
+                <Card className="glass-card-strong">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                            <Filter className="h-4 w-4" />
+                            Bộ lọc
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-6">
+                        <div className="w-full lg:max-w-xs">
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Giá (đ)</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    value={priceRange[0]}
+                                    onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])}
+                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm"
+                                />
+                                <span className="self-center text-muted-foreground">–</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    value={priceRange[1]}
+                                    onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
+                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm"
+                                />
                             </div>
-                            <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Set</label>
-                                <select
-                                    value={filterCategory}
-                                    onChange={(e) => setFilterCategory(e.target.value)}
-                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
-                                >
-                                    <option value="all">Tất cả set</option>
-                                    {categories.map((c) => (
-                                        <option key={c.categoryId} value={c.categoryId}>
-                                            {c.categoryName}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Độ hiếm</label>
-                                <select
-                                    value={filterRarity}
-                                    onChange={(e) => setFilterRarity(e.target.value)}
-                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
-                                >
-                                    <option value="all">Tất cả</option>
-                                    {RARITIES.map((r) => (
-                                        <option key={r} value={r}>
-                                            {formatRarity(r)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                        </div>
+                        <div className="w-full lg:max-w-xs">
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Set</label>
+                            <select
+                                value={filterCategory}
+                                onChange={(e) => setFilterCategory(e.target.value)}
+                                className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
+                            >
+                                <option value="all">Tất cả set</option>
+                                {categories.map((c) => (
+                                    <option key={c.categoryId} value={c.categoryId}>
+                                        {c.categoryName}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="w-full lg:max-w-xs">
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Độ hiếm</label>
+                            <select
+                                value={filterRarity}
+                                onChange={(e) => setFilterRarity(e.target.value)}
+                                className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
+                            >
+                                <option value="all">Tất cả</option>
+                                {RARITIES.map((r) => (
+                                    <option key={r} value={r}>
+                                        {formatRarity(r)}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="w-full lg:w-auto">
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -497,12 +497,12 @@ export const Marketplace: React.FC = () => {
                             >
                                 Xóa bộ lọc
                             </Button>
-                        </CardContent>
-                    </Card>
-                </div>
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {/* Khu vực danh sách sản phẩm kiểu Cardmarket */}
-                <div className="lg:col-span-3">
+                <div>
                     <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                         <div className="text-sm text-muted-foreground">
                             <span className="font-medium text-white">{products.length}</span> thẻ
