@@ -80,7 +80,7 @@ export const MyListingsPage: React.FC = () => {
 
         setEditSaving(true);
         try {
-            await listSellerApi.updateListing(selectedListing.listSellerId, {
+            await listSellerApi.updateMyListing(selectedListing.listSellerId, {
                 price: priceNum,
                 quantity: qtyNum,
             });

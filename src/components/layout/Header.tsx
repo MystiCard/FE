@@ -111,9 +111,9 @@ export const Header: React.FC = () => {
     };
 
     return (
-        <header className="pokemon-header glass-card-strong sticky top-0 z-50 w-full border-b border-white/10 overflow-x-hidden">
+        <header className="pokemon-header glass-card-strong sticky top-0 z-50 w-full border-b border-white/10 ">
             <div className="container mx-auto px-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 md:gap-4 lg:gap-6 h-auto md:h-16">
+                <div className="flex h-16 items-center justify-between gap-6 lg:gap-8">
                     {/* Logo */}
                     <div className="flex items-center gap-3 shrink-0">
                         <Button
@@ -138,7 +138,7 @@ export const Header: React.FC = () => {
                     </div>
 
                     {/* Navigation */}
-                    <nav className="hidden md:flex items-center gap-4 lg:gap-6 flex-1 min-w-0">
+                    <nav className="hidden md:flex items-center gap-5 lg:gap-6">
                         <Link to="/" className={navLinkClass('/', true)}>
                             Trang chủ
                         </Link>
@@ -243,7 +243,7 @@ export const Header: React.FC = () => {
                                     className="hidden md:flex items-center gap-2 hover:bg-white/10"
                                 >
                                     <Wallet className="h-4 w-4 text-green-400" />
-                                    <span className="text-sm font-medium text-green-400 max-w-[140px] truncate">
+                                    <span className="text-sm font-medium text-green-400">
                                         {walletBalance.toLocaleString('vi-VN')}đ
                                     </span>
                                 </Button>
@@ -337,7 +337,7 @@ export const Header: React.FC = () => {
                                             {(user.name || user.email || 'U')[0].toUpperCase()}
                                         </div>
                                     )}
-                                    <span className="hidden md:block max-w-[140px] text-sm font-medium truncate">
+                                    <span className="hidden md:block text-sm font-medium">
                                         {user.name || user.email?.split('@')[0]}
                                     </span>
                                     <ChevronDown className="h-4 w-4 hidden md:block" />

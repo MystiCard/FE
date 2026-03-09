@@ -1181,28 +1181,6 @@ export interface OrderCardResponse {
     orderItems: OrderItemResponse[];
 }
 
-// Quote đơn hàng (tính phí ship trước khi tạo đơn)
-export interface QuoteOrderRequest {
-    toDistrictId: number;
-    toWardId: number;
-    orderItemsList: {
-        quantity: number;
-        listSellerId: string;
-    }[];
-}
-
-export interface OrderQuoteResponse {
-    itemsTotal: number;
-    shippingTotal: number;
-    grandTotal: number;
-    sellerQuotes: Array<{
-        sellerId: string;
-        sellerName?: string;
-        itemsSubtotal: number;
-        shippingFee: number;
-    }>;
-}
-
 // Payload tạo đơn từ sàn giao dịch (match OrderCardRequest ở BE)
 export interface CreateOrderRequest {
     buyerAddress: string;
@@ -1449,14 +1427,6 @@ export const orderApi = {
         });
         return res.data;
     },
-
-    quoteOrder: async (payload: QuoteOrderRequest): Promise<OrderQuoteResponse> => {
-        const res = await apiRequest<ApiResponse<OrderQuoteResponse>>('/orders/quote', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        });
-        return res.data;
-    },
 };
 
 // Bank Account API (rút tiền cần chọn tài khoản ngân hàng)
@@ -1635,10 +1605,59 @@ export const blindBoxApi = {
 
     /** Lịch sử mở hộp bí ẩn của user hiện tại (mới nhất trước). */
     getMyHistory: async (): Promise<BlindBoxHistoryItem[]> => {
-        const response = await apiRequest<ApiResponse<BlindBoxHistoryItem[]>>('/blind-boxes/me/results', {
+        // BE: GET /api/blind-boxes/results?page=&size= trả về Page<BlindBoxResultResponse>
+        const params = new URLSearchParams({
+            // BE đang dùng Pageable.ofSize(size).withPage(page) (0-based),
+            // nên để lấy trang đầu tiên phải truyền page=0.
+            page: '0',
+            size: '100',
+        });
+        const response = await apiRequest<ApiResponse<PageResponse<{
+            blindBoxResultId: string;
+            openedAt?: string;
+            cardName?: string;
+            cardImageUrl?: string;
+            rarity?: string;
+        }>>>(`/blind-boxes/results?${params.toString()}`, {
             method: 'GET',
         });
-        return response.data;
+
+        const page = response.data;
+        const rows = page?.content ?? [];
+
+        return rows.map((it) => {
+            const card: Card = {
+                cardId: '',
+                name: it.cardName ?? 'Thẻ bí ẩn',
+                description: undefined,
+                // backend rarity là enum string; fallback COMMON nếu thiếu
+                rarity: (it.rarity as Card['rarity']) ?? 'COMMON',
+                imageUrl: it.cardImageUrl ?? undefined,
+                categoryName: undefined,
+                basePrice: 0,
+                minPrice: 0,
+                maxPrice: 0,
+            };
+
+            const openedAt = it.openedAt ?? '';
+
+            const item: BlindBoxHistoryItem = {
+                blindBoxResultId: String(it.blindBoxResultId),
+                openedAt,
+                card,
+                blindBoxId: undefined,
+                blindBoxName: undefined,
+                // BE history hiện chưa trả giá mở & lời/lỗ → để 0 và UI sẽ xử lý
+                drawPrice: 0,
+                profitOrLoss: 0,
+                shipped: false,
+                listedForSale: false,
+                soldAndDeliveredToBuyer: false,
+                shippedToHomeDelivered: false,
+            };
+
+            return item;
+        });
     },
 
     /** Yêu cầu ship các thẻ đã mở (BlindBoxResult) về nhà. */

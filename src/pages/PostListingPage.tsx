@@ -102,6 +102,23 @@ export const PostListingPage: React.FC = () => {
 
     const RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SUPER_RARE', 'SECRET_RARE'] as const;
 
+    // Gợi ý giá theo khoảng min/max của thẻ (không chặn submit, chỉ cảnh báo mềm)
+    let priceSoftWarning: string | null = null;
+    let priceSoftWarningClass = 'text-xs mt-1 text-amber-300';
+    if (selectedCard && price.trim()) {
+        const priceStr = price.replace(/\s/g, '').replace(/\./g, '').replace(/,/g, '.');
+        const num = parseFloat(priceStr);
+        if (Number.isFinite(num) && num > 0) {
+            if (typeof selectedCard.minPrice === 'number' && num < selectedCard.minPrice) {
+                priceSoftWarning =
+                    'Giá thấp hơn khoảng tham khảo. Bạn vẫn có thể đăng, nhưng nên cân nhắc để không bán rẻ hơn thị trường.';
+            } else if (typeof selectedCard.maxPrice === 'number' && num > selectedCard.maxPrice) {
+                priceSoftWarning =
+                    'Giá cao hơn khoảng tham khảo. Bạn vẫn có thể đăng, nhưng giá cao có thể khó bán.';
+            }
+        }
+    }
+
     // Tự động chọn thẻ nếu có query param ?card=...
     useEffect(() => {
         if (!preselectCardId || !cards.length) return;
@@ -583,6 +600,11 @@ export const PostListingPage: React.FC = () => {
                                                 className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                                                 required
                                             />
+                                            {priceSoftWarning && (
+                                                <p className={priceSoftWarningClass}>
+                                                    {priceSoftWarning}
+                                                </p>
+                                            )}
                                         </div>
 
                                         <div>

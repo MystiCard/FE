@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { orderApi, QuoteOrderRequest, OrderQuoteResponse, shipmentApi, userApi, UserProfile, transactionApi } from '@/utils/api';
+import { orderApi, shipmentApi, userApi, UserProfile, transactionApi } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,21 +65,20 @@ export const MarketplaceCheckoutPage: React.FC = () => {
     const [toWardId, setToWardId] = useState<number>(90752);
     const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'MOMO'>(state.paymentMethod ?? 'WALLET');
 
-    const [quote, setQuote] = useState<OrderQuoteResponse | null>(null);
     const [loading, setLoading] = useState(true);
-    const [quoting, setQuoting] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // GHN master data (optional): giúp user đổi quận/phường trong checkout
+    // GHN master data (optional): giúp user đổi quận/phường trong checkout (best-effort)
     const [provinces, setProvinces] = useState<any[]>([]);
     const [districts, setDistricts] = useState<any[]>([]);
     const [wards, setWards] = useState<any[]>([]);
     const [provinceId, setProvinceId] = useState<number | ''>('');
 
-    const canQuote = useMemo(() => {
-        return items.length > 0 && Number.isFinite(toDistrictId) && Number.isFinite(toWardId);
-    }, [items.length, toDistrictId, toWardId]);
+    const itemsTotal = useMemo(
+        () => items.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0),
+        [items],
+    );
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -151,30 +150,6 @@ export const MarketplaceCheckoutPage: React.FC = () => {
         };
         load();
     }, [toDistrictId]);
-
-    // Quote whenever destination changes
-    useEffect(() => {
-        if (!canQuote) return;
-        const run = async () => {
-            setQuoting(true);
-            setError(null);
-            try {
-                const payload: QuoteOrderRequest = {
-                    toDistrictId: Number(toDistrictId),
-                    toWardId: Number(toWardId),
-                    orderItemsList: items.map((it) => ({ listSellerId: it.listSellerId, quantity: it.quantity })),
-                };
-                const q = await orderApi.quoteOrder(payload);
-                setQuote(q);
-            } catch (e) {
-                setQuote(null);
-                setError(e instanceof Error ? e.message : 'Không tính được phí ship. Vui lòng thử lại.');
-            } finally {
-                setQuoting(false);
-            }
-        };
-        run();
-    }, [canQuote, items, toDistrictId, toWardId]);
 
     const handleConfirm = async () => {
         if (!items.length) return;
@@ -258,7 +233,8 @@ export const MarketplaceCheckoutPage: React.FC = () => {
                         Checkout sàn giao dịch
                     </h1>
                     <p className="text-muted-foreground text-sm">
-                        Xem phí vận chuyển theo địa chỉ nhận hàng trước khi thanh toán.
+                        Kiểm tra địa chỉ nhận hàng và sản phẩm trước khi thanh toán.
+                        Phí vận chuyển sẽ được hệ thống tính sau khi tạo đơn.
                     </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => navigate('/marketplace')} className="flex items-center gap-2">
@@ -268,8 +244,24 @@ export const MarketplaceCheckoutPage: React.FC = () => {
             </div>
 
             {error && (
-                <div className="p-3 rounded-lg bg-red-500/15 border border-red-500/40 text-sm text-red-200">
-                    {error}
+                <div className="p-3 rounded-lg bg-red-500/15 border border-red-500/40 text-sm text-red-200 space-y-2">
+                    <p>{error}</p>
+                    {(/insufficient|không đủ|số dư/i.test(error)) && (
+                        <div className="space-y-1 text-xs">
+                            <p>
+                                Có vẻ như số dư Ví MystiCard của bạn không đủ để thanh toán đơn này.
+                                Vui lòng nạp thêm tiền hoặc giảm số lượng sản phẩm rồi thử lại.
+                            </p>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-yellow-400 text-yellow-200 hover:bg-yellow-500/10"
+                                onClick={() => navigate('/wallet')}
+                            >
+                                Đi tới ví để nạp tiền
+                            </Button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -366,7 +358,8 @@ export const MarketplaceCheckoutPage: React.FC = () => {
                             </div>
 
                             <p className="text-xs text-muted-foreground">
-                                Địa chỉ mặc định lấy từ <span className="underline">My Info</span>. Bạn có thể chỉnh tại đây để xem lại phí ship trước khi thanh toán.
+                                Địa chỉ mặc định lấy từ <span className="underline">My Info</span>. Bạn có thể chỉnh tại đây trước khi đặt mua.
+                                Phí ship thực tế sẽ được tính sau khi đơn được tạo.
                             </p>
                         </CardContent>
                     </Card>
@@ -383,10 +376,7 @@ export const MarketplaceCheckoutPage: React.FC = () => {
                                 </div>
                             ) : (
                                 itemsBySeller.map((group) => {
-                                    const headerName =
-                                        group.sellerName ||
-                                        quote?.sellerQuotes?.find((sq) => sq.sellerId === group.sellerId)?.sellerName ||
-                                        'Người bán';
+                                    const headerName = group.sellerName || 'Người bán';
 
                                     return (
                                         <div
@@ -455,31 +445,14 @@ export const MarketplaceCheckoutPage: React.FC = () => {
 
                     <Card className="glass-card border-white/10">
                         <CardHeader className="pb-3 border-b border-white/5">
-                            <CardTitle className="text-base">Phí ship theo người bán</CardTitle>
+                            <CardTitle className="text-base">Phí vận chuyển</CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-4 space-y-3 text-sm">
-                            {quoting && (
-                                <div className="text-xs text-muted-foreground">Đang tính phí ship...</div>
-                            )}
-                            {quote?.sellerQuotes?.length ? (
-                                quote.sellerQuotes.map((sq) => (
-                                    <div key={sq.sellerId} className="flex justify-between border-b border-white/5 pb-2 last:border-b-0 last:pb-0">
-                                        <div className="min-w-0 pr-3">
-                                            <div className="font-medium line-clamp-1">{sq.sellerName || 'Người bán'}</div>
-                                            <div className="text-xs text-muted-foreground">
-                                                Tiền hàng: {Number(sq.itemsSubtotal ?? 0).toLocaleString('vi-VN')}đ
-                                            </div>
-                                        </div>
-                                        <div className="text-right font-semibold text-yellow-300">
-                                            {Number(sq.shippingFee ?? 0).toLocaleString('vi-VN')}đ
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-xs text-muted-foreground">
-                                    Không có dữ liệu phí ship (hãy thử đổi quận/phường hoặc tải lại).
-                                </div>
-                            )}
+                        <CardContent className="pt-4 space-y-2 text-sm">
+                            <p className="text-xs text-muted-foreground">
+                                Hệ thống sẽ tính phí vận chuyển cho từng người bán dựa trên địa chỉ nhận hàng
+                                sau khi bạn xác nhận thanh toán. Bạn có thể xem chi tiết phí ship trong mục
+                                <span className="font-semibold"> Đơn hàng</span>.
+                            </p>
                         </CardContent>
                     </Card>
                 </div>
@@ -493,13 +466,13 @@ export const MarketplaceCheckoutPage: React.FC = () => {
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Tiền hàng</span>
                                 <span className="font-semibold">
-                                    {Number(quote?.itemsTotal ?? 0).toLocaleString('vi-VN')}đ
+                                    {itemsTotal.toLocaleString('vi-VN')}đ
                                 </span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Phí vận chuyển</span>
-                                <span className="font-semibold">
-                                    {Number(quote?.shippingTotal ?? 0).toLocaleString('vi-VN')}đ
+                                <span className="font-semibold text-muted-foreground">
+                                    Sẽ được tính sau
                                 </span>
                             </div>
 
@@ -532,10 +505,15 @@ export const MarketplaceCheckoutPage: React.FC = () => {
                             </div>
 
                             <div className="pt-2 border-t border-white/10 flex justify-between items-center">
-                                <span className="text-sm font-semibold">Tổng thanh toán</span>
-                                <span className="text-lg font-bold text-green-300">
-                                    {Number(quote?.grandTotal ?? 0).toLocaleString('vi-VN')}đ
-                                </span>
+                                <span className="text-sm font-semibold">Tổng thanh toán (ước tính)</span>
+                                <div className="text-right">
+                                    <span className="text-lg font-bold text-green-300 block">
+                                        {itemsTotal.toLocaleString('vi-VN')}đ
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground">
+                                        Chưa bao gồm phí vận chuyển
+                                    </span>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -543,7 +521,7 @@ export const MarketplaceCheckoutPage: React.FC = () => {
                     <Button
                         className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-semibold shadow-lg hover:from-yellow-400 hover:to-orange-400"
                         size="lg"
-                        disabled={submitting || quoting || !quote}
+                        disabled={submitting}
                         onClick={handleConfirm}
                     >
                         {submitting ? 'Đang tạo đơn...' : 'Thanh toán'}
