@@ -170,8 +170,26 @@ export const apiRequest = async <T>(
     }
 
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Request failed' }));
-        throw new Error(error.message || 'Request failed');
+        // Backend đôi khi trả lỗi không phải JSON (vd: HTML/plaintext) → cố lấy message rõ nhất.
+        const contentType = response.headers.get('content-type') || '';
+        let message = `Request failed (${response.status})`;
+        try {
+            if (contentType.includes('application/json')) {
+                const errorJson: any = await response.json();
+                message =
+                    errorJson?.message ||
+                    errorJson?.error ||
+                    errorJson?.title ||
+                    message;
+            } else {
+                const text = await response.text();
+                const trimmed = (text || '').trim();
+                if (trimmed) message = trimmed;
+            }
+        } catch {
+            // ignore parse failures, keep default
+        }
+        throw new Error(message);
     }
 
     return response.json();
@@ -191,8 +209,25 @@ export const apiRequestNoRedirect = async <T>(url: string, options: RequestInit 
     });
 
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Request failed' }));
-        throw new Error(error.message || 'Request failed');
+        const contentType = response.headers.get('content-type') || '';
+        let message = `Request failed (${response.status})`;
+        try {
+            if (contentType.includes('application/json')) {
+                const errorJson: any = await response.json();
+                message =
+                    errorJson?.message ||
+                    errorJson?.error ||
+                    errorJson?.title ||
+                    message;
+            } else {
+                const text = await response.text();
+                const trimmed = (text || '').trim();
+                if (trimmed) message = trimmed;
+            }
+        } catch {
+            // ignore
+        }
+        throw new Error(message);
     }
 
     return response.json();
@@ -1145,6 +1180,19 @@ export interface PageResponse<T> {
     number: number;
 }
 
+// Order summary (BE: OrderResponse from GET /api/orders/my-orders)
+export type OrderStatus = 'CREATED' | 'PAID' | 'PARTIAL_COMPLETED' | 'COMPLETED' | 'PARTIAL_CANCELLED' | 'CANCELLED';
+
+export interface OrderSummaryResponse {
+    orderId: string;
+    totalAmount: number;
+    status: OrderStatus;
+    orderDate: string;
+    quantity: number;
+    buyerId?: string;
+    blindBoxId?: string | null;
+}
+
 // Chi tiết thẻ trong shipment Hộp bí ẩn (không có OrderItem)
 export interface BlindBoxShipmentItemResponse {
     cardName?: string;
@@ -1320,13 +1368,27 @@ export const transactionApi = {
         return response.data;
     },
 
-    // Admin: approve withdraw transaction (gateway redirect - giữ để tương thích)
+    // Admin: approve withdraw transaction → trả về URL thanh toán (MoMo)
     approveWithdraw: async (transactionId: string, provider: string): Promise<string> => {
-        const res = await apiRequest<ApiResponse<string>>('/transactions/approve', {
+        // Dùng kiểu xử lý linh hoạt giống hàm deposit: BE đôi khi trả thẳng string hoặc bọc trong ApiResponse.
+        const raw = await apiRequest<any>('/transactions/approve', {
             method: 'POST',
             body: JSON.stringify({ transactionId, provider }),
         });
-        return res.data;
+
+        // Nếu backend trả trực tiếp URL dạng string
+        if (typeof raw === 'string' && raw.startsWith('http')) {
+            return raw;
+        }
+
+        // Nếu backend trả ApiResponse<string>
+        const maybeApi = raw as ApiResponse<string>;
+        const url = (maybeApi && (maybeApi.data || (maybeApi as any).message)) as string | undefined;
+        if (url && typeof url === 'string' && url.startsWith('http')) {
+            return url;
+        }
+
+        throw new Error('Không nhận được URL thanh toán hợp lệ từ server khi approve rút tiền.');
     },
 
     // Admin: báo cáo giao dịch (dùng cho dashboard)
@@ -1335,6 +1397,21 @@ export const transactionApi = {
             method: 'POST',
             body: JSON.stringify(payload),
         });
+        return res.data;
+    },
+    // Admin: danh sách yêu cầu rút tiền (REQUEST_WITHDRAW, PENDING/ các trạng thái khác)
+    getWithdrawRequestsAdmin: async (
+        page: number = 1,
+        size: number = 20
+    ): Promise<PageResponse<TransactionResponse>> => {
+        const params = new URLSearchParams({
+            page: String(page),
+            size: String(size),
+        });
+        const res = await apiRequest<ApiResponse<PageResponse<TransactionResponse>>>(
+            `/transactions/request-withdraw?${params.toString()}`,
+            { method: 'GET' }
+        );
         return res.data;
     },
 };
@@ -1351,11 +1428,33 @@ export const orderApi = {
             page: pageOneBased.toString(),
             size: size.toString(),
         });
+        // BE: POST /api/orders/orderItems/status (body: { orderId?: UUID, shippingStatus: enum })
         const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse>>>(
-            `/orders/status?${params.toString()}`,
+            `/orders/orderItems/status?${params.toString()}`,
             {
                 method: 'POST',
-                body: JSON.stringify(shippingStatus),
+                body: JSON.stringify({ shippingStatus }),
+            }
+        );
+        return res.data;
+    },
+
+    /** Lấy chi tiết orderItem theo orderId (BE: POST /api/orders/orderItems/status với body { orderId }) */
+    getOrderItemsByOrderId: async (
+        orderId: string,
+        page: number = 0,
+        size: number = 50
+    ): Promise<PageResponse<OrderItemResponse>> => {
+        const pageOneBased = Math.max(1, page + 1);
+        const params = new URLSearchParams({
+            page: pageOneBased.toString(),
+            size: size.toString(),
+        });
+        const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse>>>(
+            `/orders/orderItems/status?${params.toString()}`,
+            {
+                method: 'POST',
+                body: JSON.stringify({ orderId }),
             }
         );
         return res.data;
@@ -1366,19 +1465,8 @@ export const orderApi = {
         page: number = 0,
         size: number = 10
     ): Promise<PageResponse<OrderItemResponse>> => {
-        const pageOneBased = Math.max(1, page + 1);
-        const params = new URLSearchParams({
-            page: pageOneBased.toString(),
-            size: size.toString(),
-        });
-        const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse>>>(
-            `/orders/status-admin?${params.toString()}`,
-            {
-                method: 'POST',
-                body: JSON.stringify(shippingStatus),
-            }
-        );
-        return res.data;
+        // Hiện BE không có endpoint status-admin riêng; dùng chung /orders/orderItems/status để tránh gọi nhầm 404.
+        return orderApi.getByShippingStatus(shippingStatus, page, size);
     },
 
     getByShippingStatusSeller: async (
@@ -1386,19 +1474,8 @@ export const orderApi = {
         page: number = 0,
         size: number = 10
     ): Promise<PageResponse<OrderItemResponse>> => {
-        const pageOneBased = Math.max(1, page + 1);
-        const params = new URLSearchParams({
-            page: pageOneBased.toString(),
-            size: size.toString(),
-        });
-        const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse>>>(
-            `/orders/status-seller?${params.toString()}`,
-            {
-                method: 'POST',
-                body: JSON.stringify(shippingStatus),
-            }
-        );
-        return res.data;
+        // Hiện BE không có endpoint status-seller riêng; dùng chung /orders/orderItems/status để tránh gọi nhầm 404.
+        return orderApi.getByShippingStatus(shippingStatus, page, size);
     },
 
     confirmReceive: async (shipmentId: string): Promise<OrderItemResponse> => {
@@ -1406,6 +1483,28 @@ export const orderApi = {
             `/orders/confirm-receive/${shipmentId}`,
             {
                 method: 'POST',
+            }
+        );
+        return res.data;
+    },
+
+    /** Kiểm tra có thể hủy toàn bộ order hay không (BE: GET /api/orders/can-cancle-order/{orderId}) */
+    canCancelOrder: async (orderId: string): Promise<boolean> => {
+        const res = await apiRequest<ApiResponse<boolean>>(
+            `/orders/can-cancle-order/${orderId}`,
+            {
+                method: 'GET',
+            }
+        );
+        return res.data;
+    },
+
+    /** Kiểm tra một order item hiện tại có thể cancel / confirm không (BE: GET /api/orders/can-do/{orderItemId}) */
+    canDo: async (orderItemId: string): Promise<{ canCancle: boolean; canConfirmRecieve: boolean }> => {
+        const res = await apiRequest<ApiResponse<{ canCancle: boolean; canConfirmRecieve: boolean }>>(
+            `/orders/can-do/${orderItemId}`,
+            {
+                method: 'GET',
             }
         );
         return res.data;
@@ -1425,6 +1524,56 @@ export const orderApi = {
             method: 'POST',
             body: JSON.stringify(payload),
         });
+        return res.data;
+    },
+
+    /** Buyer: hủy đơn (BE: POST /api/orders/cancel-order/{orderId}) */
+    cancelOrder: async (orderId: string): Promise<OrderCardResponse> => {
+        const res = await apiRequest<ApiResponse<OrderCardResponse>>(`/orders/cancel-order/${orderId}`, {
+            method: 'POST',
+        });
+        return res.data;
+    },
+
+    /** Buyer: danh sách order của tôi (BE: GET /api/orders/my-orders?orderStatus=&page=&size=) */
+    getMyOrders: async (
+        orderStatus: OrderStatus | undefined,
+        page: number = 0,
+        size: number = 10
+    ): Promise<PageResponse<OrderSummaryResponse>> => {
+        const pageOneBased = Math.max(1, page + 1);
+        const params = new URLSearchParams({
+            page: String(pageOneBased),
+            size: String(size),
+        });
+        if (orderStatus) params.set('orderStatus', orderStatus);
+        const res = await apiRequest<ApiResponse<PageResponse<OrderSummaryResponse>>>(`/orders/my-orders?${params.toString()}`, {
+            method: 'GET',
+        });
+        return res.data;
+    },
+
+    /**
+     * Seller: danh sách đơn trả thẻ về cho tôi (my-card-return) theo trạng thái shipment.
+     * BE: POST /api/orders/my-card-return?status=&page=&size=
+     */
+    getMyReturnOrderItem: async (
+        shippingStatus: ShippingStatus,
+        page: number = 0,
+        size: number = 10
+    ): Promise<PageResponse<OrderItemResponse>> => {
+        const pageOneBased = Math.max(1, page + 1);
+        const params = new URLSearchParams({
+            page: pageOneBased.toString(),
+            size: size.toString(),
+        });
+        const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse>>>(
+            `/orders/my-card-return?${params.toString()}`,
+            {
+                method: 'POST',
+                body: JSON.stringify(shippingStatus),
+            }
+        );
         return res.data;
     },
 };
@@ -1618,6 +1767,10 @@ export const blindBoxApi = {
             cardName?: string;
             cardImageUrl?: string;
             rarity?: string;
+            shipped?: boolean;
+            shippedToHomeDelivered?: boolean;
+            listedForSale?: boolean;
+            soldAndDeliveredToBuyer?: boolean;
         }>>>(`/blind-boxes/results?${params.toString()}`, {
             method: 'GET',
         });
@@ -1650,10 +1803,10 @@ export const blindBoxApi = {
                 // BE history hiện chưa trả giá mở & lời/lỗ → để 0 và UI sẽ xử lý
                 drawPrice: 0,
                 profitOrLoss: 0,
-                shipped: false,
-                listedForSale: false,
-                soldAndDeliveredToBuyer: false,
-                shippedToHomeDelivered: false,
+                shipped: !!it.shipped,
+                listedForSale: !!it.listedForSale,
+                soldAndDeliveredToBuyer: !!it.soldAndDeliveredToBuyer,
+                shippedToHomeDelivered: !!it.shippedToHomeDelivered,
             };
 
             return item;
@@ -1782,6 +1935,14 @@ export interface ShipmentResponse {
     createAt?: string;
 }
 
+export interface TrackingResponse {
+    trackingId: string;
+    createAt?: string;
+    shippingStatus: ShippingStatus;
+    images?: { imageId?: string; url?: string }[];
+    note?: string;
+}
+
 // GHN master-data types (chỉ dùng các field chính)
 export interface GhnProvince {
     ProvinceID: number;
@@ -1812,10 +1973,38 @@ export interface UpdateShipmentRequest {
     note?: string;
 }
 
+// GHN master-data base config (FE gọi trực tiếp GHN, không qua BE)
+const GHN_API_BASE_URL = 'https://online-gateway.ghn.vn/shiip/public-api';
+const GHN_TOKEN = import.meta.env.VITE_GHN_TOKEN as string | undefined;
+
+async function ghnRequest<T>(path: string, body?: unknown): Promise<T> {
+    if (!GHN_TOKEN) {
+        // Chưa cấu hình token → trả về rỗng để UI fallback "Giữ nguyên (không đổi)"
+        return [] as unknown as T;
+    }
+    const hasBody = body !== undefined;
+    const response = await fetch(`${GHN_API_BASE_URL}${path}`, {
+        method: hasBody ? 'POST' : 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            Token: GHN_TOKEN,
+        },
+        ...(hasBody ? { body: JSON.stringify(body) } : {}),
+    });
+
+    if (!response.ok) {
+        throw new Error('Không lấy được dữ liệu địa lý từ GHN');
+    }
+
+    const json = await response.json();
+    const data = (json as any).data ?? json;
+    return data as T;
+}
+
 export const shipmentApi = {
     getByOrderItemId: async (orderItemId: string): Promise<ShipmentResponse[]> => {
         const response = await apiRequest<ApiResponse<ShipmentResponse[]>>(
-            `/shipments/orders/${orderItemId}`,
+            `/shipments/ordersItems/${orderItemId}`,
             { method: 'GET' }
         );
         return response.data;
@@ -1839,6 +2028,31 @@ export const shipmentApi = {
     ): Promise<PageResponse<ShipmentResponse>> => {
         const response = await apiRequest<ApiResponse<PageResponse<ShipmentResponse>>>(
             `/shipments/not-asign?page=${page}&size=${size}`,
+            { method: 'GET' }
+        );
+        return response.data;
+    },
+
+    /** Kiểm tra có được phép nhận shipment đầu tiên hay không (BE: GET /api/shipments/check-allow-recieve) */
+    checkAllowReceive: async (): Promise<boolean> => {
+        const response = await apiRequest<ApiResponse<boolean>>('/shipments/check-allow-recieve', {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
+    /** Shipper nhận shipment cho mình (BE: POST /api/shipments/recieve/{shipmentId}) */
+    receiveShipment: async (shipmentId: string): Promise<ShipmentResponse> => {
+        const response = await apiRequest<ApiResponse<ShipmentResponse>>(
+            `/shipments/recieve/${shipmentId}`,
+            { method: 'POST' }
+        );
+        return response.data;
+    },
+
+    getTrackingsByShipmentId: async (shipmentId: string): Promise<TrackingResponse[]> => {
+        const response = await apiRequest<ApiResponse<TrackingResponse[]>>(
+            `/trackings/shipments/${shipmentId}`,
             { method: 'GET' }
         );
         return response.data;
@@ -1878,6 +2092,29 @@ export const shipmentApi = {
         return result.data;
     },
 
+    /** Tính lại phí ship khi đổi địa chỉ (BE: POST /shipments/calculate-fee). Dùng sau khi đã tạo order, trước khi thanh toán. */
+    recalculateFee: async (params: {
+        orderId: string;
+        listSellerId: string;
+        toDistrictId: number;
+        toWardId: number;
+        oldShipmentFee: number;
+        totalPrice: number;
+    }): Promise<number> => {
+        const res = await apiRequest<ApiResponse<number>>('/shipments/calculate-fee', {
+            method: 'POST',
+            body: JSON.stringify({
+                orderId: params.orderId,
+                listsellerId: params.listSellerId,
+                toDistrictId: params.toDistrictId,
+                toWardId: params.toWardId,
+                oldShipmentFee: params.oldShipmentFee,
+                totalPrice: params.totalPrice,
+            }),
+        });
+        return res.data;
+    },
+
     // Tính phí ship trực tiếp (dùng cho Hộp bí ẩn)
     calculateFeeDirect: async (params: {
         totalAmount: number;
@@ -1892,28 +2129,24 @@ export const shipmentApi = {
         return response.data;
     },
 
-    // GHN master-data thông qua backend
+    // GHN master-data: FE gọi trực tiếp GHN với Token header
     getProvinces: async (): Promise<GhnProvince[]> => {
-        const response = await apiRequestNoRedirect<ApiResponse<GhnProvince[]>>('/shipments/provinces', {
-            method: 'GET',
-        });
-        return response.data;
+        const list = await ghnRequest<GhnProvince[]>('/master-data/province');
+        return Array.isArray(list) ? list : [];
     },
 
     getDistricts: async (provinceId: number): Promise<GhnDistrict[]> => {
-        const response = await apiRequestNoRedirect<ApiResponse<GhnDistrict[]>>(
-            `/shipments/districts?provinceId=${provinceId}`,
-            { method: 'GET' }
-        );
-        return response.data;
+        const list = await ghnRequest<GhnDistrict[]>('/master-data/district', {
+            province_id: provinceId,
+        });
+        return Array.isArray(list) ? list : [];
     },
 
     getWards: async (districtId: number): Promise<GhnWard[]> => {
-        const response = await apiRequestNoRedirect<ApiResponse<GhnWard[]>>(
-            `/shipments/wards?districtId=${districtId}`,
-            { method: 'GET' }
-        );
-        return response.data;
+        const list = await ghnRequest<GhnWard[]>('/master-data/ward', {
+            district_id: districtId,
+        });
+        return Array.isArray(list) ? list : [];
     },
 };
 
