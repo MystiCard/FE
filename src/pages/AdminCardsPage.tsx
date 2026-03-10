@@ -35,6 +35,13 @@ export const AdminCardsPage: React.FC = () => {
     const [requests, setRequests] = React.useState<CardRequired[]>([]);
     const [reqNote, setReqNote] = React.useState<Record<string, string>>({});
     const [reqProcessing, setReqProcessing] = React.useState<string | null>(null);
+    const [cardPage, setCardPage] = React.useState(1);
+    const cardPageSize = 15;
+
+    // Reset card page when filters change
+    React.useEffect(() => {
+        setCardPage(1);
+    }, [searchQuery, filterCategory, filterRarity]);
 
     // Helper to format rarity for display
     const formatRarity = (rarity: string) => {
@@ -66,6 +73,31 @@ export const AdminCardsPage: React.FC = () => {
             return matchesSearch && matchesCategory && matchesRarity;
         });
     };
+
+    const filteredCards = getFilteredCards();
+    const totalCardPages = Math.max(1, Math.ceil(filteredCards.length / cardPageSize));
+    const currentCardPage = Math.min(cardPage, totalCardPages);
+    const pagedCards = filteredCards.slice(
+        (currentCardPage - 1) * cardPageSize,
+        currentCardPage * cardPageSize
+    );
+
+    const buildCardPageNumbers = () => {
+        const pages: (number | 'ellipsis')[] = [];
+        if (totalCardPages <= 7) {
+            for (let i = 1; i <= totalCardPages; i++) pages.push(i);
+            return pages;
+        }
+        pages.push(1);
+        const left = Math.max(2, currentCardPage - 1);
+        const right = Math.min(totalCardPages - 1, currentCardPage + 1);
+        if (left > 2) pages.push('ellipsis');
+        for (let i = left; i <= right; i++) pages.push(i);
+        if (right < totalCardPages - 1) pages.push('ellipsis');
+        pages.push(totalCardPages);
+        return pages;
+    };
+
     const [newCard, setNewCard] = React.useState({
         name: '',
         description: '',
@@ -537,7 +569,14 @@ export const AdminCardsPage: React.FC = () => {
             {/* Products Table */}
             <Card className="glass-card-strong">
                 <CardHeader>
-                    <CardTitle>Thẻ ({getFilteredCards().length})</CardTitle>
+                    <CardTitle className="flex items-center justify-between gap-2">
+                        <span>Thẻ ({filteredCards.length})</span>
+                        {filteredCards.length > 0 && (
+                            <span className="text-sm font-normal text-muted-foreground">
+                                Trang {currentCardPage}/{totalCardPages}
+                            </span>
+                        )}
+                    </CardTitle>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
@@ -545,11 +584,12 @@ export const AdminCardsPage: React.FC = () => {
                             <div className="rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
                             <div className="text-muted-foreground">Đang tải thẻ...</div>
                         </div>
-                    ) : getFilteredCards().length === 0 ? (
+                    ) : filteredCards.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
                             Chưa có thẻ nào. Thêm thẻ đầu tiên để bắt đầu!
                         </div>
                     ) : (
+                        <>
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
@@ -562,7 +602,7 @@ export const AdminCardsPage: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {getFilteredCards().map((card) => (
+                                    {pagedCards.map((card) => (
                                         <tr key={card.cardId} className="border-b border-white/5 hover:bg-white/5 ">
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
@@ -622,6 +662,49 @@ export const AdminCardsPage: React.FC = () => {
                                 </tbody>
                             </table>
                         </div>
+                        {totalCardPages > 1 && (
+                            <div className="flex items-center justify-center gap-3 mt-6">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-full px-3 h-8 text-xs"
+                                    disabled={currentCardPage === 1}
+                                    onClick={() => setCardPage((p) => Math.max(1, p - 1))}
+                                >
+                                    ‹
+                                </Button>
+                                <div className="flex items-center gap-1">
+                                    {buildCardPageNumbers().map((item, idx) =>
+                                        item === 'ellipsis' ? (
+                                            <span key={`e-${idx}`} className="w-6 h-6 flex items-center justify-center text-xs text-muted-foreground">...</span>
+                                        ) : (
+                                            <button
+                                                key={item}
+                                                type="button"
+                                                onClick={() => setCardPage(item)}
+                                                className={`w-7 h-7 rounded-full text-[11px] font-medium border transition-colors ${
+                                                    item === currentCardPage
+                                                        ? 'bg-primary-500 text-white border-primary-500'
+                                                        : 'border-white/10 text-muted-foreground hover:bg-white/10'
+                                                }`}
+                                            >
+                                                {item}
+                                            </button>
+                                        )
+                                    )}
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-full px-3 h-8 text-xs"
+                                    disabled={currentCardPage === totalCardPages}
+                                    onClick={() => setCardPage((p) => Math.min(totalCardPages, p + 1))}
+                                >
+                                    ›
+                                </Button>
+                            </div>
+                        )}
+                        </>
                     )}
                 </CardContent>
             </Card>

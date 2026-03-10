@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     Search,
     Filter,
@@ -693,6 +693,9 @@ export const Marketplace: React.FC = () => {
                         <>
                             <DialogHeader>
                                 <DialogTitle className="text-lg">Chi tiết đề nghị</DialogTitle>
+                                <DialogDescription>
+                                    Xem người bán, giá và số lượng trước khi checkout.
+                                </DialogDescription>
                             </DialogHeader>
                             <div className="flex gap-4 mt-4">
                                 <img
@@ -789,6 +792,9 @@ export const Marketplace: React.FC = () => {
                 <DialogContent className="max-w-xl glass-card-strong border-white/10">
                     <DialogHeader>
                         <DialogTitle className="text-lg">Giỏ hàng sàn giao dịch</DialogTitle>
+                        <DialogDescription>
+                            Chọn người bán cho từng thẻ rồi chuyển sang checkout để tính phí ship.
+                        </DialogDescription>
                     </DialogHeader>
                     {cartItems.length === 0 ? (
                         <p className="text-sm text-muted-foreground mt-4">

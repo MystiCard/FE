@@ -24,6 +24,7 @@ import { AdminUsersPage } from '@/pages/AdminUsersPage';
 import { AdminTransactionsPage } from '@/pages/AdminTransactionsPage';
 import { AdminOrdersPage } from '@/pages/AdminOrdersPage';
 import { AdminBlindBoxesPage } from '@/pages/AdminBlindBoxesPage';
+import { AdminBlindBoxDetailPage } from '@/pages/AdminBlindBoxDetailPage';
 import { AdminRateConfigPage } from '@/pages/AdminRateConfigPage';
 import { AdminWithdrawPage } from '@/pages/AdminWithdrawPage';
 import { CartPage } from '@/pages/CartPage';
@@ -141,6 +142,7 @@ function App() {
                         <Route path="categories" element={<AdminCategoriesPage />} />
                         <Route path="cards" element={<AdminCardsPage />} />
                         <Route path="blind-boxes" element={<AdminBlindBoxesPage />} />
+                        <Route path="blind-boxes/:id" element={<AdminBlindBoxDetailPage />} />
                         <Route path="rate-configs" element={<AdminRateConfigPage />} />
                         <Route path="users" element={<AdminUsersPage />} />
                         <Route path="wallet" element={<WalletPage />} />

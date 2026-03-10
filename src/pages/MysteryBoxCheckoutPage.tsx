@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { blindBoxApi, BlindBoxHistoryItem, userApi, UserProfile, shipmentApi, transactionApi, getCardImageUrl } from '@/utils/api';
+import { blindBoxApi, BlindBoxHistoryItem, ShipmentResponse, userApi, UserProfile, transactionApi, getCardImageUrl } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,10 +38,17 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [items, setItems] = useState<BlindBoxHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
+    const [creatingShipment, setCreatingShipment] = useState(false);
+    const [paying, setPaying] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [shippingFee, setShippingFee] = useState<number>(0);
+    const [shipment, setShipment] = useState<ShipmentResponse | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<'WALLET' | 'MOMO'>('WALLET');
+    const createShipReqIdRef = useRef(0);
+
+    const shippingFee = useMemo(() => {
+        const fee = shipment?.shipmentFee ?? 0;
+        return typeof fee === 'number' ? fee : Number(fee) || 0;
+    }, [shipment?.shipmentFee]);
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -68,27 +75,6 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
                 if (!selected.length) {
                     setError('Không tìm thấy thẻ nào khớp với lựa chọn. Vui lòng thử lại từ lịch sử.');
                 }
-
-                // Tự động tính phí ship. Nếu thiếu mã quận/xã, dùng mã mặc định để backend
-                // fallback sang công thức nội bộ (không còn 0đ).
-                const totalAmount = selected.reduce(
-                    (sum, it) => sum + (it.card?.basePrice ?? 0),
-                    0
-                );
-                try {
-                    const toDistrictId = p?.districtId ? Number(p.districtId) : 3695;
-                    const toWardId = p?.wardId || '90752';
-                    const fee = await shipmentApi.calculateFeeDirect({
-                        totalAmount,
-                        fromDistrictId: 3695,
-                        toDistrictId,
-                        toWardId,
-                    });
-                    setShippingFee(fee);
-                } catch {
-                    // Nếu lỗi tính ship thì giữ 0, không chặn checkout
-                    setShippingFee(0);
-                }
             } catch (e) {
                 setError(
                     e instanceof Error
@@ -111,50 +97,87 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
     );
     const grandTotal = shippingFee;
 
-    const handleConfirm = async () => {
+    const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+        let t: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+            t = setTimeout(() => reject(new Error(`${label} quá thời gian chờ (${ms / 1000}s).`)), ms);
+        });
+        try {
+            return await Promise.race([promise, timeout]);
+        } finally {
+            if (t) clearTimeout(t);
+        }
+    };
+
+    const createShipment = async () => {
         if (!resultIds.length) return;
-        setSubmitting(true);
+        const reqId = Date.now();
+        createShipReqIdRef.current = reqId;
+        setCreatingShipment(true);
         setError(null);
         try {
-            const shipment = await blindBoxApi.requestShipResults(resultIds);
-            const shipmentIdStr = typeof shipment.shipmentId === 'string' ? shipment.shipmentId : String(shipment.shipmentId);
-
-            if (paymentMethod === 'WALLET') {
-                await transactionApi.payBlindBoxShipWithWallet(shipmentIdStr);
-                // Thông báo UI + thông báo ví thay đổi để các màn hình khác (Profile, Wallet, ...) reload số dư.
-                window.dispatchEvent(new CustomEvent('wallet-updated'));
-                alert(
-                    [
-                        `Đã tạo đơn giao ${resultIds.length} thẻ về nhà.`,
-                        `Mã đơn: ${shipmentIdStr.slice(0, 8)}`,
-                        `Phí vận chuyển: ${(shipment.shipmentFee ?? 0).toLocaleString('vi-VN')} VND`,
-                        `Thanh toán bằng: Ví MystiCard (đã trừ tiền trong ví).`,
-                    ].join('\n'),
-                );
-                sessionStorage.removeItem(STORAGE_KEY);
-                navigate('/orders');
-                return;
-            } else {
-                alert(
-                    [
-                        `Đã tạo đơn giao ${resultIds.length} thẻ về nhà.`,
-                        `Mã đơn: ${shipmentIdStr.slice(0, 8)}`,
-                        `Phí vận chuyển (thanh toán qua MoMo sau): ${(shipment.shipmentFee ?? 0).toLocaleString('vi-VN')} VND`,
-                        `Phương thức thanh toán: MoMo (chưa implement redirect).`,
-                    ].join('\n'),
-                );
-                sessionStorage.removeItem(STORAGE_KEY);
-                navigate('/orders');
-                return;
-            }
+            const res = await withTimeout(
+                blindBoxApi.requestShipResults(resultIds),
+                15000,
+                'Tạo đơn giao'
+            );
+            if (createShipReqIdRef.current !== reqId) return;
+            setShipment(res);
         } catch (e) {
+            if (createShipReqIdRef.current !== reqId) return;
+            setShipment(null);
             setError(
                 e instanceof Error
                     ? e.message
                     : 'Không thể tạo đơn giao hàng. Vui lòng thử lại.'
             );
         } finally {
-            setSubmitting(false);
+            if (createShipReqIdRef.current === reqId) setCreatingShipment(false);
+        }
+    };
+
+    // Create shipment as soon as user reaches checkout (same idea as Marketplace checkout)
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        if (!resultIds.length) return;
+        if (loading) return;
+        if (!items.length) return;
+        // If already created (or currently creating), skip
+        if (shipment || creatingShipment) return;
+        void createShipment();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, loading, resultIds.join('|'), items.length]);
+
+    const handlePayWithWallet = async () => {
+        if (!shipment?.shipmentId) return;
+        const shipmentIdStr = typeof shipment.shipmentId === 'string' ? shipment.shipmentId : String(shipment.shipmentId);
+        setPaying(true);
+        setError(null);
+        try {
+            const tx = await withTimeout(
+                transactionApi.payBlindBoxShipWithWallet(shipmentIdStr),
+                15000,
+                'Thanh toán'
+            );
+            window.dispatchEvent(new CustomEvent('wallet-updated'));
+            alert(
+                [
+                    `Đã thanh toán đơn giao ${resultIds.length} thẻ về nhà.`,
+                    `Mã đơn: ${shipmentIdStr.slice(0, 8)}`,
+                    `Phí vận chuyển: ${(shipment.shipmentFee ?? 0).toLocaleString('vi-VN')} VND`,
+                    `Trạng thái giao dịch: ${String(tx?.statusTransaction ?? '—')}`,
+                ].join('\n'),
+            );
+            sessionStorage.removeItem(STORAGE_KEY);
+            navigate('/orders');
+        } catch (e) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : 'Thanh toán thất bại. Vui lòng thử lại.'
+            );
+        } finally {
+            setPaying(false);
         }
     };
 
@@ -363,11 +386,28 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
                     <Button
                         className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-semibold shadow-lg hover:from-yellow-400 hover:to-orange-400"
                         size="lg"
-                        disabled={submitting || !items.length}
-                        onClick={handleConfirm}
+                        disabled={creatingShipment || paying || !items.length || !shipment}
+                        onClick={handlePayWithWallet}
                     >
-                        {submitting ? 'Đang tạo đơn giao...' : 'Đặt giao về nhà'}
+                        {creatingShipment
+                            ? 'Đang tạo đơn giao...'
+                            : paying
+                                ? 'Đang thanh toán...'
+                                : shipment
+                                    ? 'Thanh toán phí ship (Ví)'
+                                    : 'Tạo đơn giao'}
                     </Button>
+
+                    {!shipment && items.length > 0 && (
+                        <Button
+                            variant="outline"
+                            className="w-full"
+                            disabled={creatingShipment || paying}
+                            onClick={createShipment}
+                        >
+                            {creatingShipment ? 'Đang tạo đơn...' : 'Thử lại tạo đơn'}
+                        </Button>
+                    )}
                 </div>
             </div>
         </div>

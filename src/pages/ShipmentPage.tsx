@@ -15,6 +15,7 @@ import { Package, Truck, MapPin, Phone, Calendar, RefreshCw } from 'lucide-react
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogFooter,
@@ -52,7 +53,7 @@ export const ShipmentPage: React.FC = () => {
     const [myShipments, setMyShipments] = useState<ShipmentResponse[]>([]);
     const [unassignedShipments, setUnassignedShipments] = useState<ShipmentResponse[]>([]);
     const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [pageMine, setPageMine] = useState(1);
     const [pageUnassigned, setPageUnassigned] = useState(1);
     const [totalPagesMine, setTotalPagesMine] = useState(1);
@@ -73,7 +74,24 @@ export const ShipmentPage: React.FC = () => {
             try {
                 const p = await userApi.getMyProfile();
                 setProfile(p);
-            } catch {
+            } catch (err) {
+                const rawMessage = (err as Error).message || '';
+                const normalized = rawMessage.toLowerCase();
+
+                // Nếu BE trả 403 / USER_NOT_FOUND / không đủ quyền → thông báo rõ ràng và không crash
+                if (
+                    rawMessage.includes('FORBIDDEN') ||
+                    rawMessage.includes('USER_NOT_FOUND') ||
+                    normalized.includes('forbidden') ||
+                    normalized.includes('user not found') ||
+                    normalized.includes('access is denied')
+                ) {
+                    setMessage({
+                        type: 'error',
+                        text: 'Bạn không có quyền truy cập trang quản lý vận chuyển hoặc tài khoản không hợp lệ.',
+                    });
+                }
+
                 setProfile(null);
             }
         };
@@ -91,8 +109,20 @@ export const ShipmentPage: React.FC = () => {
             setMyShipments(res.content ?? []);
             setTotalPagesMine(res.totalPages ?? 1);
         } catch (err) {
-            setMessage({ type: 'error', text: (err as Error).message });
-            setMyShipments([]);
+            const rawMessage = (err as Error).message || '';
+            const normalized = rawMessage.toLowerCase();
+
+            // Nếu BE trả USER_NOT_FOUND hoặc thông báo tương tự → coi như không có shipment nào
+            if (rawMessage.includes('USER_NOT_FOUND') || normalized.includes('user not found')) {
+                setMessage({
+                    type: 'error',
+                    text: 'Tài khoản hiện tại không phải shipper hoặc không tìm thấy thông tin user. Hiện chưa có đơn giao hàng nào.',
+                });
+                setMyShipments([]);
+            } else {
+                setMessage({ type: 'error', text: rawMessage || 'Không tải được danh sách đơn giao.' });
+                setMyShipments([]);
+            }
         } finally {
             setLoading(false);
         }
@@ -114,9 +144,11 @@ export const ShipmentPage: React.FC = () => {
 
     useEffect(() => {
         if (!isAuthenticated) return;
+        if (!profile) return;
+
         if (activeTab === 'mine') loadMyShipments();
         else loadUnassigned();
-    }, [isAuthenticated, activeTab, pageMine, pageUnassigned, completeFilter]);
+    }, [isAuthenticated, profile, activeTab, pageMine, pageUnassigned, completeFilter]);
 
     const handleAssignShipper = async (shipment: ShipmentResponse) => {
         if (!profile?.userId) {
@@ -126,10 +158,16 @@ export const ShipmentPage: React.FC = () => {
         setSubmitting(true);
         setMessage(null);
         try {
-            await shipmentApi.assignShipper({
-                shipmentId: shipment.shipmentId,
-                shipperId: profile.userId,
-            });
+            const allowed = await shipmentApi.checkAllowReceive();
+            if (!allowed) {
+                setMessage({
+                    type: 'error',
+                    text: 'Bạn hiện không được phép nhận shipment mới. Vui lòng kiểm tra lại quy tắc hệ thống.',
+                });
+                return;
+            }
+
+            await shipmentApi.receiveShipment(String(shipment.shipmentId));
             setMessage({ type: 'success', text: 'Đã nhận đơn giao hàng.' });
             loadUnassigned();
         } catch (err) {
@@ -280,14 +318,16 @@ export const ShipmentPage: React.FC = () => {
                                             </p>
                                         )}
                                         <p className="font-medium">Phí ship: {Number(s.shipmentFee).toLocaleString('vi-VN')} ₫</p>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="mt-2"
-                                            onClick={() => handleOpenUpdate(s)}
-                                        >
-                                            Cập nhật trạng thái
-                                        </Button>
+                                        {s.shipmentStatus !== 'DELIVERED' && s.shipmentStatus !== 'RECEIVED' && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="mt-2"
+                                                onClick={() => handleOpenUpdate(s)}
+                                            >
+                                                Cập nhật trạng thái
+                                            </Button>
+                                        )}
                                     </CardContent>
                                 </Card>
                             ))
@@ -390,6 +430,9 @@ export const ShipmentPage: React.FC = () => {
                 <DialogContent className="glass-card border-white/20 bg-gray-900/95">
                     <DialogHeader>
                         <DialogTitle>Cập nhật trạng thái đơn</DialogTitle>
+                        <DialogDescription>
+                            Cập nhật trạng thái giao hàng và đính kèm hình ảnh nếu cần.
+                        </DialogDescription>
                     </DialogHeader>
                     {updateModal && (
                         <div className="space-y-4 py-2">

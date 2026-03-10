@@ -30,55 +30,67 @@ export const WalletPage: React.FC = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [statusFilter, setStatusFilter] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | undefined>(undefined);
 
+    const fetchProfile = async () => {
+        if (!isAuthenticated) {
+            navigate('/login');
+            return;
+        }
+
+        try {
+            const data = await userApi.getMyProfile();
+            setProfile(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load profile');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const fetchTransactions = async () => {
+        if (!isAuthenticated) return;
+
+        setIsLoadingTransactions(true);
+        try {
+            const data: PageResponse<TransactionResponse> = await transactionApi.getMyTransactions(
+                statusFilter,
+                currentPage - 1,
+                10
+            );
+            setTransactions(data.content);
+            setTotalPages(data.totalPages);
+        } catch (err) {
+            console.error('Failed to load transactions:', err);
+            // Set empty array on error
+            setTransactions([]);
+            setTotalPages(1);
+        } finally {
+            setIsLoadingTransactions(false);
+        }
+    };
+
     // Fetch user profile
     useEffect(() => {
-        const fetchProfile = async () => {
-            if (!isAuthenticated) {
-                navigate('/login');
-                return;
-            }
-
-            try {
-                const data = await userApi.getMyProfile();
-                setProfile(data);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'Failed to load profile');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchProfile();
     }, [isAuthenticated, navigate]);
 
     // Fetch transactions
     useEffect(() => {
-        const fetchTransactions = async () => {
-            if (!isAuthenticated) return;
-
-            setIsLoadingTransactions(true);
-            try {
-                const data: PageResponse<TransactionResponse> = await transactionApi.getMyTransactions(
-                    statusFilter,
-                    currentPage - 1,
-                    10
-                );
-                setTransactions(data.content);
-                setTotalPages(data.totalPages);
-            } catch (err) {
-                console.error('Failed to load transactions:', err);
-                // Set empty array on error
-                setTransactions([]);
-                setTotalPages(1);
-            } finally {
-                setIsLoadingTransactions(false);
-            }
-        };
-
         if (isAuthenticated && !isLoading) {
             fetchTransactions();
         }
     }, [isAuthenticated, isLoading, currentPage, statusFilter]);
+
+    // Khi ví thay đổi từ màn khác (checkout / rút tiền / mở hộp...), refetch profile + transactions.
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        const handler = () => {
+            fetchProfile();
+            fetchTransactions();
+        };
+        window.addEventListener('wallet-updated', handler);
+        return () => window.removeEventListener('wallet-updated', handler);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, currentPage, statusFilter]);
 
     // Load danh sách ngân hàng khi mở modal thêm tài khoản
     useEffect(() => {

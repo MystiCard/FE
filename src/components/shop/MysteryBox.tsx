@@ -210,11 +210,12 @@ export function MysteryBox() {
                     profitOrLoss: totalBaseValue - totalPaid,
                 });
 
-                // Sau khi mua/mở xong, refetch số dư ví và phát sự kiện để Header cập nhật realtime
+                // Sau khi mua/mở xong, refetch số dư ví và phát sự kiện để Header + Wallet cập nhật realtime
                 try {
                     const profileAfter = await userApi.getMyProfile();
                     const newBalance = profileAfter?.walletResponse?.balance ?? 0;
                     window.dispatchEvent(new CustomEvent('wallet-balance-updated', { detail: { balance: newBalance } }));
+                    window.dispatchEvent(new CustomEvent('wallet-updated'));
                 } catch {
                     // Nếu lỗi thì bỏ qua, không chặn flow mở thẻ
                 }

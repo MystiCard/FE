@@ -31,6 +31,13 @@ export const AdminCategoriesPage: React.FC = () => {
         description: '',
         imageUrl: '',
     });
+    const [categoryPage, setCategoryPage] = React.useState(1);
+    const categoryPageSize = 12;
+
+    // Reset page when search changes
+    React.useEffect(() => {
+        setCategoryPage(1);
+    }, [searchQuery]);
 
     // Load categories on mount
     React.useEffect(() => {
@@ -126,6 +133,29 @@ export const AdminCategoriesPage: React.FC = () => {
         (category.categoryName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
         (category.description?.toLowerCase() || '').includes(searchQuery.toLowerCase())
     );
+
+    const totalCategoryPages = Math.max(1, Math.ceil(filteredCategories.length / categoryPageSize));
+    const currentCategoryPage = Math.min(categoryPage, totalCategoryPages);
+    const pagedCategories = filteredCategories.slice(
+        (currentCategoryPage - 1) * categoryPageSize,
+        currentCategoryPage * categoryPageSize
+    );
+
+    const buildCategoryPageNumbers = () => {
+        const pages: (number | 'ellipsis')[] = [];
+        if (totalCategoryPages <= 7) {
+            for (let i = 1; i <= totalCategoryPages; i++) pages.push(i);
+            return pages;
+        }
+        pages.push(1);
+        const left = Math.max(2, currentCategoryPage - 1);
+        const right = Math.min(totalCategoryPages - 1, currentCategoryPage + 1);
+        if (left > 2) pages.push('ellipsis');
+        for (let i = left; i <= right; i++) pages.push(i);
+        if (right < totalCategoryPages - 1) pages.push('ellipsis');
+        pages.push(totalCategoryPages);
+        return pages;
+    };
 
     const handleAddCategory = async () => {
         if (!newCategory.name.trim()) {
@@ -310,7 +340,14 @@ export const AdminCategoriesPage: React.FC = () => {
             {/* Categories Grid */}
             <Card className="glass-card-strong">
                 <CardHeader>
-                    <CardTitle>Categories ({filteredCategories.length})</CardTitle>
+                    <CardTitle className="flex items-center justify-between gap-2">
+                        <span>Categories ({filteredCategories.length})</span>
+                        {filteredCategories.length > 0 && (
+                            <span className="text-sm font-normal text-muted-foreground">
+                                Trang {currentCategoryPage}/{totalCategoryPages}
+                            </span>
+                        )}
+                    </CardTitle>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
@@ -323,8 +360,9 @@ export const AdminCategoriesPage: React.FC = () => {
                             Chưa có danh mục nào. Thêm danh mục đầu tiên để bắt đầu!
                         </div>
                     ) : (
+                        <>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredCategories.map((category) => (
+                            {pagedCategories.map((category) => (
                                 <div key={category.categoryId} className="glass-card p-4 rounded-lg hover:bg-white/5 transition-colors">
                                     {/* Category Image */}
                                     {/* Category Image */}
@@ -383,6 +421,49 @@ export const AdminCategoriesPage: React.FC = () => {
                                 </div>
                             ))}
                         </div>
+                        {totalCategoryPages > 1 && (
+                            <div className="flex items-center justify-center gap-3 mt-6">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-full px-3 h-8 text-xs"
+                                    disabled={currentCategoryPage === 1}
+                                    onClick={() => setCategoryPage((p) => Math.max(1, p - 1))}
+                                >
+                                    ‹
+                                </Button>
+                                <div className="flex items-center gap-1">
+                                    {buildCategoryPageNumbers().map((item, idx) =>
+                                        item === 'ellipsis' ? (
+                                            <span key={`e-${idx}`} className="w-6 h-6 flex items-center justify-center text-xs text-muted-foreground">...</span>
+                                        ) : (
+                                            <button
+                                                key={item}
+                                                type="button"
+                                                onClick={() => setCategoryPage(item)}
+                                                className={`w-7 h-7 rounded-full text-[11px] font-medium border transition-colors ${
+                                                    item === currentCategoryPage
+                                                        ? 'bg-primary-500 text-white border-primary-500'
+                                                        : 'border-white/10 text-muted-foreground hover:bg-white/10'
+                                                }`}
+                                            >
+                                                {item}
+                                            </button>
+                                        )
+                                    )}
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-full px-3 h-8 text-xs"
+                                    disabled={currentCategoryPage === totalCategoryPages}
+                                    onClick={() => setCategoryPage((p) => Math.min(totalCategoryPages, p + 1))}
+                                >
+                                    ›
+                                </Button>
+                            </div>
+                        )}
+                        </>
                     )}
                 </CardContent>
             </Card>

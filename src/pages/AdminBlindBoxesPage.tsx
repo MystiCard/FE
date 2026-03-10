@@ -18,9 +18,11 @@ import {
     Check,
     AlertCircle
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { blindBoxApi, cardApi, categoryApi, rateConfigApi, BlindBox, BlindBoxCardInBox, Card as CardType, BlindBoxProbability, Category, RateConfig, getCardImageUrl } from '@/utils/api';
 
 export const AdminBlindBoxesPage: React.FC = () => {
+    const navigate = useNavigate();
     // --- State: List View ---
     const [searchQuery, setSearchQuery] = useState('');
     const [blindBoxes, setBlindBoxes] = useState<BlindBox[]>([]);
@@ -44,12 +46,8 @@ export const AdminBlindBoxesPage: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [selectedRarity, setSelectedRarity] = useState<string>('all');
     const [rateConfigs, setRateConfigs] = useState<RateConfig[]>([]);
-
-    // --- State: Details View ---
-    const [viewingBox, setViewingBox] = useState<BlindBox | null>(null);
-    const [boxCards, setBoxCards] = useState<BlindBoxCardInBox[]>([]);
-    const [boxProbabilities, setBoxProbabilities] = useState<BlindBoxProbability[]>([]);
-    const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+    const [cardPage, setCardPage] = useState(1);
+    const cardPageSize = 20;
 
     const formatCurrencyVND = (value: number) => {
         const safe = Number.isFinite(value) ? value : 0;
@@ -90,7 +88,8 @@ export const AdminBlindBoxesPage: React.FC = () => {
     // --- Handlers: Create Box ---
     const handleCreateBox = async () => {
         // Validation
-        if (!newBox.name.trim()) {
+        const trimmedName = newBox.name.trim();
+        if (!trimmedName) {
             alert('Vui lòng nhập tên hộp bí ẩn.');
             return;
         }
@@ -99,18 +98,32 @@ export const AdminBlindBoxesPage: React.FC = () => {
             return;
         }
 
+        // PostgreSQL: name/description/image_url đang là VARCHAR(255) → cắt bớt cho an toàn
+        const safeName = trimmedName.slice(0, 255);
+        const safeDescription = (newBox.description || '').slice(0, 255);
+
+        // Nếu admin không nhập URL ảnh hộp, tự lấy ảnh từ thẻ đầu tiên để list có thumbnail.
+        let fallbackImageUrl = '';
+        if (!newBox.imageUrl && newBox.cardIds.length > 0) {
+            const firstCard = availableCards.find(c => c.cardId === newBox.cardIds[0]);
+            if (firstCard) {
+                fallbackImageUrl = getCardImageUrl(firstCard);
+            }
+        }
+        const safeImageUrl = (newBox.imageUrl || fallbackImageUrl || '').slice(0, 255);
+
         setIsSubmitting(true);
         try {
             const payload = {
-                name: newBox.name,
-                description: newBox.description,
-                imageUrl: newBox.imageUrl || undefined,
+                name: safeName,
+                description: safeDescription,
+                imageUrl: safeImageUrl || undefined,
                 cardIds: newBox.cardIds,
             };
 
             await blindBoxApi.createBlindBox(payload);
 
-            // Reset and reload
+            // Reset và reload
             setNewBox({
                 name: '',
                 description: '',
@@ -166,24 +179,8 @@ export const AdminBlindBoxesPage: React.FC = () => {
     };
 
     // --- Handlers: View Details ---
-    const handleViewDetails = async (box: BlindBox) => {
-        setViewingBox(box);
-        setIsLoadingDetails(true);
-        try {
-            // Fetch cards and probabilities in parallel
-            const [cards, probs] = await Promise.all([
-                blindBoxApi.getBlindBoxCards(box.blindBoxId).catch(() => []),
-                blindBoxApi.getBlindBoxProbabilities(box.blindBoxId).catch(() => [])
-            ]);
-            setBoxCards(Array.isArray(cards) ? cards : []);
-            setBoxProbabilities(Array.isArray(probs) ? probs : []);
-        } catch (err) {
-            console.error('Failed to load box details:', err);
-            setBoxCards([]);
-            setBoxProbabilities([]);
-        } finally {
-            setIsLoadingDetails(false);
-        }
+    const handleViewDetails = (box: BlindBox) => {
+        navigate(`/admin/blind-boxes/${box.blindBoxId}`);
     };
 
     // --- Filtering ---
@@ -208,6 +205,29 @@ export const AdminBlindBoxesPage: React.FC = () => {
 
         return matchesSearch && matchesCategory && matchesRarity;
     });
+
+    // Card pagination (selector)
+    const totalCardCount = filteredCards.length;
+    const totalCardPages = totalCardCount > 0 ? Math.ceil(totalCardCount / cardPageSize) : 1;
+    const currentCardPage = Math.min(cardPage, totalCardPages);
+    const cardStartIndex = (currentCardPage - 1) * cardPageSize;
+    const pagedCards = filteredCards.slice(cardStartIndex, cardStartIndex + cardPageSize);
+
+    const buildCardPageNumbers = () => {
+        const pages: (number | 'ellipsis')[] = [];
+        if (totalCardPages <= 7) {
+            for (let i = 1; i <= totalCardPages; i++) pages.push(i);
+            return pages;
+        }
+        pages.push(1);
+        const left = Math.max(2, currentCardPage - 1);
+        const right = Math.min(totalCardPages - 1, currentCardPage + 1);
+        if (left > 2) pages.push('ellipsis');
+        for (let i = left; i <= right; i++) pages.push(i);
+        if (right < totalCardPages - 1) pages.push('ellipsis');
+        pages.push(totalCardPages);
+        return pages;
+    };
 
     // --- UI Helpers ---
     const getBoxPrice = (box: BlindBox): number => {
@@ -424,7 +444,10 @@ export const AdminBlindBoxesPage: React.FC = () => {
                             </div>
                             <select
                                 value={selectedCategory}
-                                onChange={(e) => setSelectedCategory(e.target.value)}
+                                onChange={(e) => {
+                                    setSelectedCategory(e.target.value);
+                                    setCardPage(1);
+                                }}
                                 className="w-full sm:w-[200px] px-4 py-2 glass-card rounded-lg text-sm bg-black/60 border-white/10 focus:ring-primary-500/50"
                             >
                                 <option value="all">Tất cả danh mục</option>
@@ -436,16 +459,19 @@ export const AdminBlindBoxesPage: React.FC = () => {
                             </select>
                             <select
                                 value={selectedRarity}
-                                onChange={(e) => setSelectedRarity(e.target.value)}
+                                onChange={(e) => {
+                                    setSelectedRarity(e.target.value);
+                                    setCardPage(1);
+                                }}
                                 className="w-full sm:w-[200px] px-4 py-2 glass-card rounded-lg text-sm bg-black/60 border-white/10 focus:ring-primary-500/50"
                             >
                                 <option value="all">Tất cả độ hiếm</option>
-                                <option value="COMMON">Thường</option>
-                                <option value="UNCOMMON">Hiếm nhẹ</option>
-                                <option value="RARE">Hiếm</option>
-                                <option value="ULTRA_RARE">Cực hiếm</option>
-                                <option value="SUPER_RARE">Siêu hiếm</option>
-                                <option value="SECRET_RARE">Bí mật</option>
+                                <option value="COMMON">Common</option>
+                                <option value="UNCOMMON">Uncommon</option>
+                                <option value="RARE">Rare</option>
+                                <option value="ULTRA_RARE">Ultra Rare</option>
+                                <option value="SUPER_RARE">Super Rare</option>
+                                <option value="SECRET_RARE">Secret Rare</option>
                             </select>
                             <Button
                                 type="button"
@@ -461,39 +487,48 @@ export const AdminBlindBoxesPage: React.FC = () => {
                             </Button>
                         </div>
 
-                        {/* Card Grid */}
-                        <div className="flex-1 overflow-y-auto glass-card rounded-xl p-4 border border-white/10 bg-black/20">
-                            {filteredCards.length === 0 ? (
+                        {/* Card Grid + Pagination */}
+                        <div className="flex-1 overflow-y-auto glass-card rounded-xl p-4 border border-white/10 bg-black/20 flex flex-col gap-4">
+                            {totalCardCount === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-60">
                                     <Search className="h-12 w-12 mb-2" />
                                     <p>Không tìm thấy thẻ phù hợp</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                                    {filteredCards.map(card => {
-                                        const isSelected = newBox.cardIds.includes(card.cardId);
-                                        return (
-                                            <div
-                                                key={card.cardId}
-                                                onClick={() => toggleCardSelection(card.cardId)}
-                                                className={`
+                                <>
+                                    <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                                        <span>
+                                            {totalCardCount} thẻ · Trang {currentCardPage}/{totalCardPages}
+                                        </span>
+                                        <span>
+                                            Đang xem {pagedCards.length} / {totalCardCount} thẻ
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                                        {pagedCards.map(card => {
+                                            const isSelected = newBox.cardIds.includes(card.cardId);
+                                            return (
+                                                <div
+                                                    key={card.cardId}
+                                                    onClick={() => toggleCardSelection(card.cardId)}
+                                                    className={`
                                                     group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300 transform hover:scale-[1.02]
                                                     border-2 ${isSelected ? 'border-primary-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'border-white/5 hover:border-white/20'}
                                                     bg-gray-900/40 backdrop-blur-sm
                                                 `}
-                                            >
-                                                {/* Selection Indicator */}
-                                                <div className={`absolute top-2 right-2 z-10 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isSelected ? 'bg-primary-500 text-white' : 'bg-black/50 text-white/30 border border-white/20'}`}>
-                                                    {isSelected && <Check className="w-4 h-4" />}
-                                                </div>
+                                                >
+                                                    {/* Selection Indicator */}
+                                                    <div className={`absolute top-2 right-2 z-10 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isSelected ? 'bg-primary-500 text-white' : 'bg-black/50 text-white/30 border border-white/20'}`}>
+                                                        {isSelected && <Check className="w-4 h-4" />}
+                                                    </div>
 
-                                                {/* Image */}
-                                                <div className="aspect-[2/3] w-full bg-black/50 relative overflow-hidden">
-                                                    <img
-                                                        src={getCardImageUrl(card) || 'https://via.placeholder.com/200x300?text=No+Image'}
-                                                        alt={card.name}
-                                                        className={`w-full h-full object-cover transition-opacity duration-300 ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}
-                                                    />
+                                                    {/* Image */}
+                                                    <div className="aspect-[2/3] w-full bg-black/50 relative overflow-hidden">
+                                                        <img
+                                                            src={getCardImageUrl(card) || 'https://via.placeholder.com/200x300?text=No+Image'}
+                                                            alt={card.name}
+                                                            className={`w-full h-full object-cover transition-opacity duration-300 ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}
+                                                        />
                                                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 pt-8">
                                                             <div className="flex justify-between items-end">
                                                                 <div className="text-white text-xs font-bold truncate pr-2">{card.name}</div>
@@ -502,11 +537,59 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                    </div>
                                                 </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {totalCardPages > 1 && (
+                                        <div className="flex items-center justify-center gap-3 mt-3">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="rounded-full px-3 h-8 text-xs"
+                                                disabled={currentCardPage === 1}
+                                                onClick={() => setCardPage(p => Math.max(1, p - 1))}
+                                            >
+                                                ‹
+                                            </Button>
+                                            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                                                {buildCardPageNumbers().map((item, idx) =>
+                                                    item === 'ellipsis' ? (
+                                                        <span
+                                                            key={`e-${idx}`}
+                                                            className="w-6 h-6 flex items-center justify-center text-xs text-muted-foreground"
+                                                        >
+                                                            ...
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            key={item}
+                                                            type="button"
+                                                            onClick={() => setCardPage(item)}
+                                                            className={`w-7 h-7 rounded-full text-[11px] font-medium border transition-colors ${
+                                                                item === currentCardPage
+                                                                    ? 'bg-primary-500 text-white border-primary-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]'
+                                                                    : 'border-white/10 text-muted-foreground hover:bg-white/10'
+                                                            }`}
+                                                        >
+                                                            {item}
+                                                        </button>
+                                                    )
+                                                )}
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="rounded-full px-3 h-8 text-xs"
+                                                disabled={currentCardPage === totalCardPages}
+                                                onClick={() => setCardPage(p => Math.min(totalCardPages, p + 1))}
+                                            >
+                                                ›
+                                            </Button>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -626,100 +709,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
                 </div>
             )}
 
-            {/* --- View Details Modal --- */}
-            {viewingBox && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-                    <Card className="glass-card-strong w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border-primary-500/20 shadow-2xl">
-                        <CardHeader className="border-b border-white/10 flex-shrink-0 bg-white/5">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <CardTitle className="text-2xl font-serif">{viewingBox.name}</CardTitle>
-                                    <p className="text-accent-400 font-bold text-xl mt-1">
-                                        {formatCurrencyVND(getBoxPrice(viewingBox))}{' '}
-                                        <span className="text-sm font-normal text-muted-foreground">/ lần mở</span>
-                                    </p>
-                                    {getAllBoxPrice(viewingBox) > 0 && (
-                                        <p className="text-primary-300 text-sm mt-0.5">
-                                            Tổng giá trị hộp: {formatCurrencyVND(getAllBoxPrice(viewingBox))}
-                                        </p>
-                                    )}
-                                </div>
-                                <Button variant="ghost" className="hover:bg-white/10" onClick={() => setViewingBox(null)}>
-                                    <X className="h-6 w-6" />
-                                </Button>
-                            </div>
-                        </CardHeader>
-
-                        <CardContent className="p-6 overflow-y-auto flex-1 custom-scrollbar">
-                            {isLoadingDetails ? (
-                                <div className="py-20 flex flex-col items-center justify-center text-muted-foreground">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mb-4"></div>
-                                    <p>Đang tải chi tiết hộp...</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-8">
-                                    <div>
-                                        <h3 className="text-sm font-uppercase font-bold text-muted-foreground tracking-wider mb-2">Mô tả</h3>
-                                        <p className="text-gray-300 leading-relaxed bg-white/5 p-4 rounded-xl border border-white/5">
-                                            {viewingBox.description || 'Chưa có mô tả.'}
-                                        </p>
-                                    </div>
-
-                                    {/* Probabilities Section */}
-                                    {(boxProbabilities?.length ?? 0) > 0 && (
-                                        <div>
-                                            <h3 className="text-sm font-uppercase font-bold text-muted-foreground tracking-wider mb-3 flex items-center gap-2">
-                                                <Percent className="h-4 w-4" /> Tỷ lệ độ hiếm
-                                            </h3>
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                                {(boxProbabilities ?? []).map((prob, idx) => (
-                                                    <div key={idx} className={`p-4 rounded-xl border ${getRarityColor(prob.rarity)} flex flex-col items-center text-center`}>
-                                                        <span className="text-xs font-bold opacity-70 mb-1">{prob.rarity}</span>
-                                                        <span className="text-2xl font-black">{(Number(prob.probability ?? 0)).toFixed(1)}%</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Cards Grid */}
-                                    <div>
-                                        <h3 className="text-sm font-uppercase font-bold text-muted-foreground tracking-wider mb-2 flex items-center gap-2">
-                                            <Grid className="h-4 w-4" /> Thẻ trong hộp
-                                        </h3>
-                                        <p className="text-xs text-muted-foreground mb-3">
-                                            {(boxCards ?? []).filter(c => c.status).length} còn trong hộp · {(boxCards ?? []).filter(c => c.status === false).length} đã mở
-                                        </p>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                            {(boxCards ?? []).map((card, idx) => (
-                                                <div key={card.cardId || card.blindBoxCardId || `card-${idx}`} className="group relative rounded-lg overflow-hidden border border-white/10 bg-black/40">
-                                                    {/* Badge "Đã mở" khi thẻ đã được mở ra khỏi hộp */}
-                                                    {card.status === false && (
-                                                        <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded bg-amber-500/90 text-black text-[10px] font-bold uppercase tracking-wide">
-                                                            Đã mở
-                                                        </div>
-                                                    )}
-                                                    <div className="aspect-[2/3]">
-                                                        <img
-                                                            src={getCardImageUrl(card) || 'https://via.placeholder.com/150?text=Card'}
-                                                            alt={card.name || ''}
-                                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                                        />
-                                                    </div>
-                                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2">
-                                                        <p className="text-xs font-bold text-white truncate">{card.name || '—'}</p>
-                                                        <p className="text-[10px] text-gray-400">{card.rarity || '—'}</p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
+            {/* Modal chi tiết đã được thay bằng trang riêng /admin/blind-boxes/:id */}
         </div>
     );
 };
