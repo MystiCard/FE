@@ -95,7 +95,14 @@ export const Header: React.FC = () => {
         };
 
         window.addEventListener('wallet-balance-updated', handleWalletUpdated);
-        return () => window.removeEventListener('wallet-balance-updated', handleWalletUpdated);
+        // Đồng bộ với các màn khác đang dispatch sự kiện 'wallet-updated'
+        window.addEventListener('wallet-updated', () => {
+            fetchWalletBalance();
+        });
+        return () => {
+            window.removeEventListener('wallet-balance-updated', handleWalletUpdated);
+            window.removeEventListener('wallet-updated', fetchWalletBalance);
+        };
     }, [isAuthenticated]);
 
     const handleLogout = async (e: React.MouseEvent) => {
