@@ -6,7 +6,7 @@ import { useWishlist } from '@/hooks/useWishlist';
 import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { MobileMenu } from '@/components/shared/MobileMenu';
-import { userApi, cardApi, WishlistPriceAlert } from '@/utils/api';
+import { userApi, cardApi, notificationApi, type NotificationItem } from '@/utils/api';
 
 export const Header: React.FC = () => {
     const navigate = useNavigate();
@@ -20,7 +20,8 @@ export const Header: React.FC = () => {
     const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
     const [isAlertsOpen, setIsAlertsOpen] = React.useState(false);
-    const [priceAlerts, setPriceAlerts] = React.useState<WishlistPriceAlert[]>([]);
+    const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
+    const [selectedNotification, setSelectedNotification] = React.useState<NotificationItem | null>(null);
     const { itemCount: marketplaceCartCount } = useMarketplaceCart();
     const { itemCount: wishlistLocalCount } = useWishlist();
     const { user, isAuthenticated, logout } = useAuth();
@@ -47,24 +48,42 @@ export const Header: React.FC = () => {
         return () => window.removeEventListener('wishlist-api-updated', onUpdated);
     }, [isAuthenticated]);
 
-    const fetchPriceAlerts = async () => {
-        if (!isAuthenticated) return;
-        try {
-            const list = await cardApi.getWishlistPriceAlerts();
-            setPriceAlerts(list.filter((a) => a.matchingListings && a.matchingListings.length > 0));
-        } catch {
-            setPriceAlerts([]);
-        }
+    const sortNotifications = (list: NotificationItem[]) => {
+        // Chưa đọc trước, sau đó theo thời gian mới → cũ
+        return [...list].sort((a, b) => {
+            if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
+            return a.createdAt < b.createdAt ? 1 : -1;
+        });
     };
-    useEffect(() => {
+
+    const fetchNotifications = async () => {
         if (!isAuthenticated) {
-            setPriceAlerts([]);
+            setNotifications([]);
             return;
         }
-        fetchPriceAlerts();
-        const onUpdated = () => fetchPriceAlerts();
-        window.addEventListener('wishlist-api-updated', onUpdated);
-        return () => window.removeEventListener('wishlist-api-updated', onUpdated);
+        try {
+            const res = await notificationApi.getMyNotifications(0, 50);
+            const list = res.content ?? [];
+            setNotifications(sortNotifications(list));
+        } catch {
+            setNotifications([]);
+        }
+    };
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setNotifications([]);
+            return;
+        }
+        fetchNotifications();
+        const onWishlistUpdated = () => fetchNotifications();
+        const onWalletUpdated = () => fetchNotifications();
+        window.addEventListener('wishlist-api-updated', onWishlistUpdated);
+        window.addEventListener('wallet-updated', onWalletUpdated);
+        return () => {
+            window.removeEventListener('wishlist-api-updated', onWishlistUpdated);
+            window.removeEventListener('wallet-updated', onWalletUpdated);
+        };
     }, [isAuthenticated]);
 
     // Fetch wallet balance for authenticated users + listen for realtime updates
@@ -290,35 +309,100 @@ export const Header: React.FC = () => {
                         >
                             <Button variant="ghost" size="icon" className="relative">
                                 <Bell className="h-5 w-5" />
-                                {isAuthenticated && priceAlerts.length > 0 && (
-                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full text-xs font-bold flex items-center justify-center text-black">
-                                        {priceAlerts.length}
+                                {isAuthenticated && notifications.some((n) => !n.isRead) && (
+                                    <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-amber-500 rounded-full text-[10px] font-bold flex items-center justify-center text-black">
+                                        {notifications.filter((n) => !n.isRead).length}
                                     </span>
                                 )}
                             </Button>
                             {isAuthenticated && isAlertsOpen && (
                                 <div className="absolute top-full right-0 pt-2 w-80 max-h-96 overflow-auto z-50">
-                                    <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
+                                    <div className="p-2 space-y-1 rounded-lg shadow-xl border border-white/15 bg-[#050015]/95 backdrop-blur-md">
                                         <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                            Thông báo giá wishlist
+                                            Thông báo
                                         </div>
-                                        {priceAlerts.length === 0 ? (
-                                            <p className="px-3 py-4 text-sm text-muted-foreground">Chưa có tin bán nào dưới giá mong muốn.</p>
-                                        ) : (
-                                            priceAlerts.map((alert) => (
-                                                <Link
-                                                    key={alert.wishListId}
-                                                    to={`/marketplace?card=${alert.cardId}`}
-                                                    className="block px-3 py-2 text-sm hover:bg-white/10 rounded-md border-l-2 border-amber-500/50"
-                                                    onClick={() => setIsAlertsOpen(false)}
-                                                >
-                                                    <span className="font-medium text-white">{alert.cardName}</span>
-                                                    <br />
-                                                    <span className="text-xs text-muted-foreground">
-                                                        Có {alert.matchingListings.length} tin bán ≤ {alert.expectPrice?.toLocaleString('vi-VN')}đ
+                                        {selectedNotification && (
+                                            <div className="mx-2 mb-2 rounded-md border border-amber-500/40 bg-black/40 p-2 text-xs text-white space-y-2">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-amber-300 font-semibold">
+                                                        {selectedNotification.notiType === 'wishList'
+                                                            ? 'Wishlist'
+                                                            : selectedNotification.notiType === 'shipment'
+                                                            ? 'Giao hàng'
+                                                            : 'Ví tiền'}
                                                     </span>
-                                                </Link>
-                                            ))
+                                                    <span className="text-[10px] text-muted-foreground">
+                                                        {new Date(selectedNotification.createdAt).toLocaleString('vi-VN')}
+                                                    </span>
+                                                </div>
+                                                <p className="whitespace-pre-line">
+                                                    {selectedNotification.message}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {notifications.length === 0 ? (
+                                            <p className="px-3 py-4 text-sm text-muted-foreground">
+                                                Chưa có thông báo nào.
+                                            </p>
+                                        ) : (
+                                            notifications.map((n) => {
+                                                const typeLabel =
+                                                    n.notiType === 'wishList'
+                                                        ? 'Wishlist'
+                                                        : n.notiType === 'shipment'
+                                                        ? 'Giao hàng'
+                                                        : 'Ví tiền';
+
+                                                const handleClick = async () => {
+                                                    setSelectedNotification(n);
+                                                    if (!n.isRead) {
+                                                        try {
+                                                            await notificationApi.markAsRead(n.notificationId);
+                                                            setNotifications((prev) =>
+                                                                sortNotifications(
+                                                                    prev.map((item) =>
+                                                                        item.notificationId === n.notificationId
+                                                                            ? { ...item, isRead: true }
+                                                                            : item
+                                                                    )
+                                                                )
+                                                            );
+                                                        } catch {
+                                                            // ignore error, giữ nguyên UI
+                                                        }
+                                                    }
+                                                };
+
+                                                return (
+                                                    <button
+                                                        key={n.notificationId}
+                                                        type="button"
+                                                        onClick={handleClick}
+                                                        className={`w-full text-left px-3 py-2 text-sm hover:bg-white/10 rounded-md border-l-2 ${
+                                                            n.isRead
+                                                                ? 'border-transparent opacity-50'
+                                                                : 'border-amber-500/60 bg-amber-500/10'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                {!n.isRead && (
+                                                                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
+                                                                )}
+                                                                <span className="text-xs text-amber-300 font-semibold">
+                                                                    {typeLabel}
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[10px] text-muted-foreground">
+                                                                {new Date(n.createdAt).toLocaleString('vi-VN')}
+                                                            </span>
+                                                        </div>
+                                                        <p className={`text-xs mt-1 whitespace-pre-line ${n.isRead ? 'text-muted-foreground' : 'text-white'}`}>
+                                                            {n.message}
+                                                        </p>
+                                                    </button>
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </div>

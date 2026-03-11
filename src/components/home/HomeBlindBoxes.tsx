@@ -21,10 +21,11 @@ export const HomeBlindBoxes: React.FC = () => {
             setError(null);
             try {
                 const data = await blindBoxApi.getAllBlindBoxes();
-                const active = (data || []).filter(
-                    (b) => b.blindBoxStatus === 'ACTIVE' || !b.blindBoxStatus
+                // Hiển thị cả hộp SOLD OUT (không cho mua), chỉ ẩn các trạng thái admin không muốn public
+                const visible = (data || []).filter(
+                    (b) => b.blindBoxStatus !== 'DISABLED' && b.blindBoxStatus !== 'DRAFT'
                 );
-                setBoxes(active.slice(0, 4));
+                setBoxes(visible.slice(0, 4));
             } catch (e) {
                 setError(e instanceof Error ? e.message : 'Không tải được Hộp bí ẩn');
                 setBoxes([]);
@@ -67,41 +68,60 @@ export const HomeBlindBoxes: React.FC = () => {
                 <div className="text-center py-12 text-muted-foreground">Chưa có Hộp bí ẩn</div>
             ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                    {boxes.map((box) => (
-                        <Card
-                            key={box.blindBoxId}
-                            className="group overflow-hidden hover:border-yellow-400/50 transition-colors"
-                        >
-                            <Link to="/mystery-box" className="block">
-                                <div className="relative aspect-[3/4] overflow-hidden">
-                                    <img
-                                        src={box.imageUrl || PLACEHOLDER_BOX}
-                                        alt={box.name}
-                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                        onError={(e) => {
-                                            e.currentTarget.src = PLACEHOLDER_BOX;
-                                        }}
-                                    />
-                                    <div className="absolute bottom-2 left-2 right-2">
-                                        <div className="glass-card-strong px-2 py-1 rounded text-xs font-medium text-yellow-300">
-                                            {formatVND(box.drawPrice)} / lần mở
+                    {boxes.map((box) => {
+                        const soldOut = String(box.blindBoxStatus || '').toUpperCase() === 'OUT_OF_STOCK';
+                        const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) =>
+                            soldOut ? (
+                                <div className="block cursor-not-allowed">{children}</div>
+                            ) : (
+                                <Link to="/mystery-box" className="block">
+                                    {children}
+                                </Link>
+                            );
+
+                        return (
+                            <Card
+                                key={box.blindBoxId}
+                                className={`group overflow-hidden transition-colors ${soldOut ? 'opacity-80' : 'hover:border-yellow-400/50'}`}
+                            >
+                                <Wrapper>
+                                    <div className="relative aspect-[3/4] overflow-hidden">
+                                        <img
+                                            src={box.imageUrl || PLACEHOLDER_BOX}
+                                            alt={box.name}
+                                            className={`w-full h-full object-cover transition-transform ${soldOut ? '' : 'group-hover:scale-105'}`}
+                                            onError={(e) => {
+                                                e.currentTarget.src = PLACEHOLDER_BOX;
+                                            }}
+                                        />
+                                        {soldOut && (
+                                            <div className="absolute top-2 left-2">
+                                                <div className="glass-card-strong px-2 py-1 rounded-full text-xs font-bold text-yellow-300 border border-yellow-400/30">
+                                                    SOLD OUT
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div className="absolute bottom-2 left-2 right-2">
+                                            <div className="glass-card-strong px-2 py-1 rounded text-xs font-medium text-yellow-300">
+                                                {formatVND(box.drawPrice)} / lần mở
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <CardContent className="p-3">
-                                    <h3 className="font-semibold text-sm md:text-base mb-1 line-clamp-2">{box.name}</h3>
-                                    {box.description && (
-                                        <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
-                                            {box.description}
-                                        </p>
-                                    )}
-                                    <Button variant="premium" size="sm" className="w-full">
-                                        Mở hộp ngay
-                                    </Button>
-                                </CardContent>
-                            </Link>
-                        </Card>
-                    ))}
+                                    <CardContent className="p-3">
+                                        <h3 className="font-semibold text-sm md:text-base mb-1 line-clamp-2">{box.name}</h3>
+                                        {box.description && (
+                                            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                                                {box.description}
+                                            </p>
+                                        )}
+                                        <Button variant="premium" size="sm" className="w-full" disabled={soldOut}>
+                                            {soldOut ? 'Đã hết hàng' : 'Mở hộp ngay'}
+                                        </Button>
+                                    </CardContent>
+                                </Wrapper>
+                            </Card>
+                        );
+                    })}
                 </div>
             )}
         </section>

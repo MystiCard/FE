@@ -20,6 +20,12 @@ function getBoxPrice(box: BlindBox): number {
     return typeof p === 'number' ? p : Number(p) || 0;
 }
 
+function isSoldOut(box: BlindBox | null | undefined): boolean {
+    const s = box?.blindBoxStatus;
+    if (!s) return false;
+    return String(s).toUpperCase() === 'OUT_OF_STOCK';
+}
+
 /** Nền tối tím đậm dễ đọc, viền vàng nhẹ giữ cảm giác hộp bí ẩn */
 const BOX_GRADIENT = 'from-[#1a0a2e] via-[#2d1b4e] to-[#1a0a2e]';
 
@@ -58,6 +64,38 @@ export function MysteryBox() {
             .then(async (list) => {
                 if (cancelled) return;
                 setBlindBoxes(list);
+
+                // FE-only: xác định SOLD OUT ngay trên danh sách (không cần bấm mua)
+                // Dựa vào API /blind-boxes/{id}/cards: nếu không còn card.status=true => SOLD OUT
+                try {
+                    const CONCURRENCY = 4;
+                    const next = [...list];
+                    for (let i = 0; i < list.length; i += CONCURRENCY) {
+                        const batch = list.slice(i, i + CONCURRENCY);
+                        const results = await Promise.all(
+                            batch.map(async (box) => {
+                                try {
+                                    const cards = await blindBoxApi.getBlindBoxCards(box.blindBoxId);
+                                    const hasAny = Array.isArray(cards) && cards.some((c) => c.status);
+                                    return { id: box.blindBoxId, soldOut: !hasAny };
+                                } catch {
+                                    // Nếu lỗi thì không tự phán sold out (giữ nguyên theo BE)
+                                    return { id: box.blindBoxId, soldOut: false };
+                                }
+                            })
+                        );
+                        for (const r of results) {
+                            const idx = next.findIndex((b) => b.blindBoxId === r.id);
+                            if (idx >= 0 && r.soldOut) {
+                                next[idx] = { ...next[idx], blindBoxStatus: 'OUT_OF_STOCK' };
+                            }
+                        }
+                        if (!cancelled) setBlindBoxes([...next]);
+                    }
+                } catch {
+                    // ignore
+                }
+
                 const probs: Record<string, { rarity: string; probability: number }[]> = {};
                 await Promise.all(
                     list.map(async (box) => {
@@ -100,6 +138,10 @@ export function MysteryBox() {
     };
 
     const openBox = (box: BlindBox, mode: 'ONE' | 'TEN' | 'ALL' = 'ONE') => {
+        if (isSoldOut(box)) {
+            alert('Hộp đã SOLD OUT. Vui lòng chọn hộp khác.');
+            return;
+        }
         setSelectedBox(box);
         setDrawMode(mode);
         setShowInteractiveBag(true);
@@ -116,6 +158,11 @@ export function MysteryBox() {
 
     const handleBagClick = async () => {
         if (!showInteractiveBag || isTearing || !selectedBox || isBuying) return;
+        if (isSoldOut(selectedBox)) {
+            alert('Hộp đã SOLD OUT. Vui lòng chọn hộp khác.');
+            resetBox();
+            return;
+        }
 
         const pricePerDraw = getBoxPrice(selectedBox);
         let requiredBalance = pricePerDraw;
@@ -223,9 +270,18 @@ export function MysteryBox() {
                 const raw = err instanceof Error ? err.message : String(err);
                 const isEmptyBox = /empty|refill/i.test(raw);
                 const msg = isEmptyBox
-                    ? 'Hộp đã hết thẻ. Vui lòng liên hệ admin để nạp thêm.'
+                    ? 'Hộp đã SOLD OUT.'
                     : raw || 'Mua / mở hộp thất bại. Kiểm tra ví hoặc đăng nhập.';
                 alert(msg);
+                if (isEmptyBox && selectedBox?.blindBoxId) {
+                    setBlindBoxes((prev) =>
+                        prev.map((b) =>
+                            b.blindBoxId === selectedBox.blindBoxId
+                                ? { ...b, blindBoxStatus: 'OUT_OF_STOCK' }
+                                : b
+                        )
+                    );
+                }
                 setIsTearing(false);
                 setIsBuying(false);
                 setSelectedBox(null);
@@ -440,18 +496,35 @@ export function MysteryBox() {
                     {!isLoadingBoxes && blindBoxes.map((box) => (
                         <div
                             key={box.blindBoxId}
-                            className="bg-gradient-to-b from-[#1a0a2e] to-[#0B0112] rounded-2xl shadow-[0_0_20px_rgba(160,32,240,0.2)] overflow-hidden border-2 border-[#D4AF37]/30 hover:border-[#A020F0] hover:shadow-[0_0_30px_rgba(212,175,55,0.4)] group"
+                            className={`bg-gradient-to-b from-[#1a0a2e] to-[#0B0112] rounded-2xl shadow-[0_0_20px_rgba(160,32,240,0.2)] overflow-hidden border-2 border-[#D4AF37]/30 group ${
+                                isSoldOut(box)
+                                    ? 'opacity-80'
+                                    : 'hover:border-[#A020F0] hover:shadow-[0_0_30px_rgba(212,175,55,0.4)]'
+                            }`}
                         >
                             <div className={`bg-gradient-to-br ${BOX_GRADIENT} p-8 relative overflow-hidden`}>
                                 <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjEiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-30"></div>
                                 <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
                                     <div className="flex-shrink-0">
-                                        <img
-                                            src={box.imageUrl || defaultBoxImage}
-                                            alt={box.name}
-                                            className="w-48 h-48 object-contain drop-shadow-[0_0_30px_rgba(212,175,55,0.5)] group-hover:scale-110"
-                                            onError={(e) => { (e.target as HTMLImageElement).src = defaultBoxImage; }}
-                                        />
+                                        <div className="relative">
+                                            <img
+                                                src={box.imageUrl || defaultBoxImage}
+                                                alt={box.name}
+                                                className={`w-48 h-48 object-contain drop-shadow-[0_0_30px_rgba(212,175,55,0.5)] ${
+                                                    isSoldOut(box) ? '' : 'group-hover:scale-110'
+                                                }`}
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = defaultBoxImage;
+                                                }}
+                                            />
+                                            {isSoldOut(box) && (
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <span className="px-3 py-1 rounded-full bg-black/60 border border-[#D4AF37]/40 text-[#FFD700] font-bold text-sm">
+                                                        SOLD OUT
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="flex-1 text-white">
                                         <h4
@@ -497,7 +570,7 @@ export function MysteryBox() {
                                         )}
                                         {box.blindBoxStatus === 'OUT_OF_STOCK' ? (
                                             <div className="w-full md:w-auto px-8 py-3 rounded-full font-bold text-lg bg-[#1a0a2e] text-[#E0E0E0]/70 border-2 border-[#D4AF37]/30 cursor-not-allowed inline-flex items-center gap-2 justify-center">
-                                                Hết hàng — Liên hệ admin để nạp thêm
+                                                SOLD OUT
                                             </div>
                                         ) : (
                                             <div className="flex flex-wrap gap-3 items-center">
