@@ -33,7 +33,7 @@ export function MysteryBox() {
     const [lastDrawResult, setLastDrawResult] = useState<{ drawPrice: number; profitOrLoss: number } | null>(null);
     const [showResults, setShowResults] = useState(false);
     const [totalValue, setTotalValue] = useState(0);
-    const [tearProgress, setTearProgress] = useState(0);
+    const [_tearProgress, setTearProgress] = useState(0);
     const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [showInteractiveBag, setShowInteractiveBag] = useState(false);
@@ -210,11 +210,12 @@ export function MysteryBox() {
                     profitOrLoss: totalBaseValue - totalPaid,
                 });
 
-                // Sau khi mua/mở xong, refetch số dư ví và phát sự kiện để Header cập nhật realtime
+                // Sau khi mua/mở xong, refetch số dư ví và phát sự kiện để Header + Wallet cập nhật realtime
                 try {
                     const profileAfter = await userApi.getMyProfile();
                     const newBalance = profileAfter?.walletResponse?.balance ?? 0;
                     window.dispatchEvent(new CustomEvent('wallet-balance-updated', { detail: { balance: newBalance } }));
+                    window.dispatchEvent(new CustomEvent('wallet-updated'));
                 } catch {
                     // Nếu lỗi thì bỏ qua, không chặn flow mở thẻ
                 }
@@ -745,7 +746,7 @@ export function MysteryBox() {
             {isCardsFlying && openedCards.length > 0 && (
                 <div className="bg-gradient-to-br from-[#0B0112] to-[#1a0a2e] rounded-2xl p-12 shadow-[0_0_50px_rgba(160,32,240,0.4)] border-4 border-[#D4AF37] relative overflow-hidden min-h-[600px]">
                     <div className="relative w-full h-[500px]">
-                        {openedCards.map((card, index) => {
+                        {openedCards.map((_card, index) => {
                             const angle = (360 / openedCards.length) * index;
                             const burstRadius = 250;
                             const burstX = Math.cos((angle * Math.PI) / 180) * burstRadius;

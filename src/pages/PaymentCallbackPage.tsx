@@ -129,7 +129,7 @@ export const PaymentCallbackPage: React.FC = () => {
                     <div className="space-y-3 mb-6 p-4 bg-white/5 rounded-lg">
                         <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Mã giao dịch</span>
-                            <span className="text-white font-mono text-xs">{transaction.transactionId}</span>
+                            <span className="text-white font-mono text-xs">{transaction.transactionId || transaction.walletTransactionId}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Số tiền</span>

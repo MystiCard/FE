@@ -276,7 +276,7 @@ export const AdminUsersPage: React.FC = () => {
                         </select>
                         <select
                             value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
+                            onChange={(e) => setStatusFilter(e.target.value as any)}
                             className="glass-card px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                         >
                             <option value="">Tất cả trạng thái</option>

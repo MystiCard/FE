@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Search, Package, Tag, Filter, X, Star } from 'lucide-react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { cardApi, categoryApi, listSellerApi, Card as CardType, Category, ListingItem, getCardImageUrl } from '@/utils/api';
-import { useAuth } from '@/contexts/AuthContext';
+import { ArrowLeft, Search, Package, Tag, Filter, X } from 'lucide-react';
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { cardApi, categoryApi, listSellerApi, Card as CardType, Category, getCardImageUrl } from '@/utils/api';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
 
@@ -34,7 +32,7 @@ const rarityClass: Record<string, string> = {
 export const PostListingPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isAuthenticated } = useAuth();
+    const { page: pageParam } = useParams<{ page?: string }>();
     const [cards, setCards] = useState<CardType[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -45,87 +43,53 @@ export const PostListingPage: React.FC = () => {
     const [selectedCard, setSelectedCard] = useState<CardType | null>(null);
     const [price, setPrice] = useState('');
     const [quantity, setQuantity] = useState('1');
-    const [description, setDescription] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
-    const [myListings, setMyListings] = useState<ListingItem[]>([]);
-    const [myListingsLoading, setMyListingsLoading] = useState(false);
-    const [selectedListing, setSelectedListing] = useState<ListingItem | null>(null);
-    const [editPrice, setEditPrice] = useState('');
-    const [editQuantity, setEditQuantity] = useState('');
-    const [editSaving, setEditSaving] = useState(false);
-    const [editError, setEditError] = useState('');
+    // Quản lý listing chi tiết được chuyển sang trang /my-listings
+
+    // Flow "Card not in system": chuyển qua trang gửi yêu cầu (Seller -> Admin)
+    const requestSent = new URLSearchParams(location.search).get('requestSent') === '1';
+
+    const initialPageFromUrl = (() => {
+        const raw = pageParam ? parseInt(pageParam, 10) : 1;
+        if (!Number.isFinite(raw) || raw <= 1) return 0;
+        return raw - 1;
+    })();
+
+    // Phân trang & sort phía BE cho danh sách thẻ hệ thống
+    const [cardPage, setCardPage] = useState(initialPageFromUrl);
+    const [cardPageSize] = useState(24);
+    const [cardTotalPages, setCardTotalPages] = useState(0);
 
     // Nếu được chuyển từ lịch sử mở hộp bí ẩn: ?card={cardId}&fromBlindBox=1 → chỉ cho phép 1 thẻ
     const searchParams = new URLSearchParams(location.search);
     const preselectCardId = searchParams.get('card') || undefined;
     const fromBlindBox = searchParams.get('fromBlindBox') === '1';
 
-    useEffect(() => {
-        loadCards();
-        loadCategories();
-    }, []);
-
-    const loadMyListings = async () => {
-        if (!isAuthenticated) return;
-        setMyListingsLoading(true);
-        try {
-            const res = await listSellerApi.getMyListings(0, 24);
-            setMyListings(res.content ?? []);
-        } catch {
-            setMyListings([]);
-        } finally {
-            setMyListingsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (isAuthenticated) loadMyListings();
-    }, [isAuthenticated]);
-
-    const openListingDetail = (item: ListingItem) => {
-        setSelectedListing(item);
-        setEditPrice(String(item.price));
-        setEditQuantity(String(item.quantity));
-        setEditError('');
-    };
-
-    const handleSaveListing = async () => {
-        if (!selectedListing) return;
-        const priceNum = parseFloat(editPrice.replace(/\s/g, '').replace(/,/g, '.'));
-        const qty = parseInt(editQuantity, 10);
-        if (!Number.isFinite(priceNum) || priceNum <= 0) {
-            setEditError('Nhập giá hợp lệ.');
-            return;
-        }
-        if (!Number.isInteger(qty) || qty < 0) {
-            setEditError('Số lượng phải là số nguyên không âm.');
-            return;
-        }
-        setEditSaving(true);
-        setEditError('');
-        try {
-            await listSellerApi.updateMyListing(selectedListing.listSellerId, { price: priceNum, quantity: qty });
-            await loadMyListings();
-            setSelectedListing(null);
-        } catch (err) {
-            setEditError(err instanceof Error ? err.message : 'Không thể cập nhật bài đăng.');
-        } finally {
-            setEditSaving(false);
-        }
-    };
-
-    const loadCards = async () => {
+    const loadCards = async (pageOverride?: number) => {
         try {
             setIsLoading(true);
-            const data = await cardApi.getAllCards();
-            setCards(data);
+            const pageIndex = pageOverride ?? cardPage;
+            // sort ở BE: asc/desc theo basePrice; sortBy 'name' xử lý FE
+            const sortForApi: 'asc' | 'desc' = sortBy === 'price-desc' ? 'desc' : 'asc';
+            const res = await cardApi.searchCards(pageIndex, cardPageSize, searchQuery, sortForApi);
+            setCards(res.content ?? []);
+            setCardTotalPages(res.totalPages ?? 0);
+            setCardPage(res.number ?? pageIndex);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Không tải được danh sách thẻ');
         } finally {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        // Luôn load danh sách thẻ để seller có gì đó để chọn,
+        // đồng thời hỗ trợ case preselect/fromBlindBox & page trên URL.
+        loadCards(initialPageFromUrl);
+        loadCategories();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialPageFromUrl]);
 
     const loadCategories = async () => {
         try {
@@ -137,6 +101,23 @@ export const PostListingPage: React.FC = () => {
     };
 
     const RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SUPER_RARE', 'SECRET_RARE'] as const;
+
+    // Gợi ý giá theo khoảng min/max của thẻ (không chặn submit, chỉ cảnh báo mềm)
+    let priceSoftWarning: string | null = null;
+    let priceSoftWarningClass = 'text-xs mt-1 text-amber-300';
+    if (selectedCard && price.trim()) {
+        const priceStr = price.replace(/\s/g, '').replace(/\./g, '').replace(/,/g, '.');
+        const num = parseFloat(priceStr);
+        if (Number.isFinite(num) && num > 0) {
+            if (typeof selectedCard.minPrice === 'number' && num < selectedCard.minPrice) {
+                priceSoftWarning =
+                    'Giá thấp hơn khoảng tham khảo. Bạn vẫn có thể đăng, nhưng nên cân nhắc để không bán rẻ hơn thị trường.';
+            } else if (typeof selectedCard.maxPrice === 'number' && num > selectedCard.maxPrice) {
+                priceSoftWarning =
+                    'Giá cao hơn khoảng tham khảo. Bạn vẫn có thể đăng, nhưng giá cao có thể khó bán.';
+            }
+        }
+    }
 
     // Tự động chọn thẻ nếu có query param ?card=...
     useEffect(() => {
@@ -152,17 +133,14 @@ export const PostListingPage: React.FC = () => {
         if (fromBlindBox) setQuantity('1');
     }, [fromBlindBox]);
 
+    // Reload thẻ khi thay đổi search hoặc sort (luôn gọi BE, keyword có thể rỗng)
+    useEffect(() => {
+        loadCards(0);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchQuery, sortBy]);
+
     const filteredCards = useMemo(() => {
         let list = [...cards];
-
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            list = list.filter(
-                c =>
-                    c.name.toLowerCase().includes(q) ||
-                    (c.categoryName && c.categoryName.toLowerCase().includes(q))
-            );
-        }
 
         if (filterCategory !== 'all') {
             const cat = categories.find(x => x.categoryId === filterCategory);
@@ -178,10 +156,6 @@ export const PostListingPage: React.FC = () => {
 
         if (sortBy === 'name') {
             list.sort((a, b) => a.name.localeCompare(b.name));
-        } else if (sortBy === 'price-asc') {
-            list.sort((a, b) => a.basePrice - b.basePrice);
-        } else {
-            list.sort((a, b) => b.basePrice - a.basePrice);
         }
 
         return list;
@@ -221,9 +195,7 @@ export const PostListingPage: React.FC = () => {
             await listSellerApi.createListing(selectedCard.cardId, {
                 price: priceNum,
                 quantity: qty,
-                description: description.trim() || undefined,
             });
-            await loadMyListings();
             navigate('/marketplace');
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Tạo listing thất bại. Thử lại sau.');
@@ -247,87 +219,25 @@ export const PostListingPage: React.FC = () => {
                     <h1 className="text-3xl font-bold font-serif gradient-text">Đăng bán thẻ</h1>
                     <p className="text-muted-foreground mt-1 flex items-center gap-1.5">
                         <Package className="h-4 w-4 text-primary-400" />
-                        Chọn thẻ trong hệ thống và nhập giá, số lượng để đăng bán.
+                        Nhập/tìm thẻ bạn muốn bán. Nếu thẻ chưa có trong hệ thống, gửi yêu cầu để Admin thêm rồi quay lại đăng bán.
                     </p>
                 </div>
 
-                {/* Bài đăng bán của tôi */}
-                {isAuthenticated && (
-                    <Card className="glass-card-strong mb-6">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-base flex items-center gap-2">
-                                <Tag className="h-4 w-4 text-primary-400" />
-                                Bài đăng bán của tôi
-                                {myListings.length > 0 && (
-                                    <span className="text-sm font-normal text-muted-foreground">
-                                        ({myListings.length} tin)
-                                    </span>
-                                )}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {myListingsLoading ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                                </div>
-                            ) : myListings.length === 0 ? (
-                                <p className="text-sm text-muted-foreground py-4">Bạn chưa có bài đăng bán nào.</p>
-                            ) : (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-[220px] overflow-y-auto">
-                                    {myListings.map((item) => {
-                                        const soldOut = item.quantity <= 0;
-                                        return (
-                                            <button
-                                                key={item.listSellerId}
-                                                type="button"
-                                                onClick={() => openListingDetail(item)}
-                                                className="text-left rounded-xl overflow-hidden border border-white/10 hover:border-primary-500/50 transition-colors relative"
-                                            >
-                                                <div className="aspect-[2.5/3.5] relative">
-                                                    <img
-                                                        src={item.imageUrl || PLACEHOLDER_IMG}
-                                                        alt={item.cardName}
-                                                        className="w-full h-full object-cover"
-                                                        onError={(e) => {
-                                                            e.currentTarget.src = PLACEHOLDER_IMG;
-                                                        }}
-                                                    />
-                                                    {soldOut && (
-                                                        <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                                                            <span className="px-2 py-1 rounded text-xs font-bold bg-red-500/90 text-white uppercase">
-                                                                Hết hàng
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    {!soldOut && (
-                                                        <span className="absolute bottom-1 left-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary-500/80 text-center">
-                                                            SL: {item.quantity}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="p-2 bg-black/40">
-                                                    <p className="text-xs font-medium truncate">{item.cardName}</p>
-                                                    <p className="text-xs font-semibold text-yellow-400">
-                                                        {formatVND(item.price)}
-                                                    </p>
-                                                    {(item.sellerFeedbackCount != null && item.sellerFeedbackCount > 0) && (
-                                                        <p className="text-[10px] text-amber-400/90 mt-0.5 flex items-center gap-0.5 flex-wrap">
-                                                            <Star className="h-3 w-3 fill-amber-400 shrink-0" />
-                                                            <span>{Number(item.sellerAverageRating ?? 0).toFixed(1)}</span>
-                                                            {item.sellerFeedbackCount != null && item.sellerFeedbackCount > 0 && (
-                                                                <span className="text-muted-foreground">({item.sellerFeedbackCount} đánh giá)</span>
-                                                            )}
-                                                        </p>
-                                                    )}
-                                                    <p className="text-[10px] text-muted-foreground mt-0.5">Xem / Chỉnh sửa</p>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                {requestSent && (
+                    <div className="mb-6 p-3 rounded-lg border border-green-500/20 bg-green-500/10 text-green-200 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <span>
+                            Đã gửi yêu cầu thêm thẻ. Sau khi Admin duyệt, thẻ sẽ xuất hiện trong danh sách để bạn đăng bán.
+                        </span>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="border-green-500/40 text-green-200 hover:text-white"
+                            onClick={() => navigate('/my-card-requests')}
+                        >
+                            Xem danh sách yêu cầu
+                        </Button>
+                    </div>
                 )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -430,9 +340,37 @@ export const PostListingPage: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <p className="text-xs text-muted-foreground">
-                                    Hiển thị <span className="font-medium text-white">{filteredCards.length}</span> thẻ
+                                <p className="text-xs text-muted-foreground flex items-center justify-between gap-2">
+                                    <span>
+                                        Hiển thị <span className="font-medium text-white">{filteredCards.length}</span> thẻ
+                                    </span>
+                                    {cardTotalPages > 1 && (
+                                        <span>
+                                            Trang{' '}
+                                            <span className="font-medium text-white">
+                                                {cardPage + 1}/{cardTotalPages}
+                                            </span>
+                                        </span>
+                                    )}
                                 </p>
+
+                                {filteredCards.length === 0 && searchQuery.trim() && (
+                                    <div className="mt-3 p-3 rounded-lg border border-white/10 bg-white/5">
+                                        <p className="text-sm text-muted-foreground">
+                                            Không thấy thẻ trong hệ thống theo từ khóa hiện tại.
+                                        </p>
+                                        <div className="mt-2">
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => navigate(`/sell/request-card?q=${encodeURIComponent(searchQuery.trim())}`)}
+                                            >
+                                                Gửi yêu cầu thêm thẻ (Admin duyệt)
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
 
@@ -501,6 +439,99 @@ export const PostListingPage: React.FC = () => {
                                 )}
                             </CardContent>
                         </Card>
+
+                        {cardTotalPages > 1 && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs">
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="px-2 py-1 h-7"
+                                        disabled={cardPage <= 0 || isLoading}
+                                        onClick={() => {
+                                            const next = Math.max(0, cardPage - 1);
+                                            const search = location.search || '';
+                                            setCardPage(next);
+                                            loadCards(next);
+                                            navigate(`/post-listing/${next + 1}${search}`, { replace: true });
+                                        }}
+                                    >
+                                        Trang trước
+                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                        {(() => {
+                                            const pages: (number | 'ellipsis')[] = [];
+                                            const total = cardTotalPages;
+                                            const current = cardPage;
+
+                                            const pushPage = (p: number) => {
+                                                if (p >= 0 && p < total) pages.push(p);
+                                            };
+
+                                            pushPage(0);
+
+                                            const start = Math.max(1, current - 1);
+                                            const end = Math.min(total - 2, current + 1);
+
+                                            if (start > 1) pages.push('ellipsis');
+                                            for (let p = start; p <= end; p++) {
+                                                pushPage(p);
+                                            }
+                                            if (end < total - 2) pages.push('ellipsis');
+
+                                            if (total > 1) pushPage(total - 1);
+
+                                            return pages.map((p, idx) =>
+                                                p === 'ellipsis' ? (
+                                                    <span
+                                                        key={`e-${idx}`}
+                                                        className="px-1 text-muted-foreground"
+                                                    >
+                                                        …
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        key={p}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const search = location.search || '';
+                                                            setCardPage(p);
+                                                            loadCards(p);
+                                                            navigate(`/post-listing/${p + 1}${search}`, { replace: true });
+                                                        }}
+                                                        className={`min-w-[24px] px-1.5 py-1 rounded border ${
+                                                            p === cardPage
+                                                                ? 'bg-primary-500 text-white border-primary-500'
+                                                                : 'bg-transparent text-muted-foreground border-white/10 hover:border-primary-400 hover:text-white'
+                                                        }`}
+                                                        disabled={isLoading}
+                                                    >
+                                                        {p + 1}
+                                                    </button>
+                                                ),
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="px-2 py-1 h-7"
+                                    disabled={cardPage >= cardTotalPages - 1 || isLoading}
+                                    onClick={() => {
+                                        const next = Math.min(cardTotalPages - 1, cardPage + 1);
+                                        const search = location.search || '';
+                                        setCardPage(next);
+                                        loadCards(next);
+                                        navigate(`/post-listing/${next + 1}${search}`, { replace: true });
+                                    }}
+                                >
+                                    Trang sau
+                                </Button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Right: Listing form */}
@@ -569,6 +600,11 @@ export const PostListingPage: React.FC = () => {
                                                 className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                                                 required
                                             />
+                                            {priceSoftWarning && (
+                                                <p className={priceSoftWarningClass}>
+                                                    {priceSoftWarning}
+                                                </p>
+                                            )}
                                         </div>
 
                                         <div>
@@ -589,18 +625,14 @@ export const PostListingPage: React.FC = () => {
 
                                         <div>
                                             <label className="block text-sm font-medium mb-1">
-                                                Mô tả (tùy chọn)
+                                                Lưu ý
                                             </label>
-                                            <textarea
-                                                value={description}
-                                                onChange={(e) => setDescription(e.target.value)}
-                                                placeholder="Tình trạng, ghi chú..."
-                                                rows={2}
-                                                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary-500/50 resize-none text-sm"
-                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                Hệ thống hiện chỉ nhận <span className="font-medium text-white">giá</span> và <span className="font-medium text-white">số lượng</span> khi đăng bán.
+                                            </p>
                                         </div>
 
-                                        <div className="flex gap-2 pt-2">
+                                        <div className="flex gap-2 pt-3">
                                             <Button
                                                 type="submit"
                                                 variant="premium"
@@ -624,83 +656,6 @@ export const PostListingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Modal chi tiết + chỉnh sửa bài đăng */}
-                <Dialog open={!!selectedListing} onOpenChange={(open) => !open && setSelectedListing(null)}>
-                    <DialogContent className="max-w-md">
-                        {selectedListing && (
-                            <>
-                                <DialogHeader>
-                                    <DialogTitle className="flex items-center gap-2">
-                                        <Tag className="h-5 w-5 text-primary-400" />
-                                        Chi tiết bài đăng
-                                    </DialogTitle>
-                                </DialogHeader>
-                                <div className="space-y-4 mt-2">
-                                    <div className="flex gap-4 p-3 rounded-lg bg-white/5">
-                                        <img
-                                            src={selectedListing.imageUrl || PLACEHOLDER_IMG}
-                                            alt={selectedListing.cardName}
-                                            className="w-24 h-32 object-cover rounded-lg shrink-0"
-                                            onError={(e) => { e.currentTarget.src = PLACEHOLDER_IMG; }}
-                                        />
-                                        <div className="min-w-0 flex-1">
-                                            <h3 className="font-semibold line-clamp-2">{selectedListing.cardName}</h3>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                {selectedListing.categoryName || '—'} · {formatRarity(selectedListing.rarity)}
-                                            </p>
-                                            {selectedListing.quantity <= 0 && (
-                                                <span className="inline-block mt-2 px-2 py-0.5 rounded text-xs font-bold bg-red-500/90 text-white">
-                                                    Hết hàng
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="border-t border-white/10 pt-4 space-y-3">
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">Giá bán (VNĐ)</label>
-                                            <input
-                                                type="text"
-                                                inputMode="numeric"
-                                                value={editPrice}
-                                                onChange={(e) => setEditPrice(e.target.value)}
-                                                placeholder="50 000"
-                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">Số lượng</label>
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                value={editQuantity}
-                                                onChange={(e) => setEditQuantity(e.target.value)}
-                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-                                            />
-                                        </div>
-                                        {editError && (
-                                            <p className="text-sm text-red-400">{editError}</p>
-                                        )}
-                                    </div>
-
-                                    <div className="flex gap-2 pt-2">
-                                        <Button
-                                            size="sm"
-                                            className="flex-1"
-                                            disabled={editSaving}
-                                            onClick={handleSaveListing}
-                                        >
-                                            {editSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={() => setSelectedListing(null)}>
-                                            Đóng
-                                        </Button>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </DialogContent>
-                </Dialog>
             </div>
         </div>
     );

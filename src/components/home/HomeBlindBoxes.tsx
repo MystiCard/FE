@@ -50,11 +50,11 @@ export const HomeBlindBoxes: React.FC = () => {
             </div>
 
             {loading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                     {[1, 2, 3, 4].map((i) => (
                         <Card key={i} className="overflow-hidden animate-pulse">
                             <div className="aspect-[3/4] bg-white/10" />
-                            <CardContent className="p-4 space-y-2">
+                            <CardContent className="p-3 space-y-2">
                                 <div className="h-5 bg-white/10 rounded w-3/4" />
                                 <div className="h-4 bg-white/10 rounded w-1/2" />
                             </CardContent>
@@ -66,7 +66,7 @@ export const HomeBlindBoxes: React.FC = () => {
             ) : boxes.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">Chưa có Hộp bí ẩn</div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                     {boxes.map((box) => (
                         <Card
                             key={box.blindBoxId}
@@ -88,10 +88,10 @@ export const HomeBlindBoxes: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <CardContent className="p-4">
-                                    <h3 className="font-semibold text-lg mb-1 line-clamp-2">{box.name}</h3>
+                                <CardContent className="p-3">
+                                    <h3 className="font-semibold text-sm md:text-base mb-1 line-clamp-2">{box.name}</h3>
                                     {box.description && (
-                                        <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                                        <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
                                             {box.description}
                                         </p>
                                     )}

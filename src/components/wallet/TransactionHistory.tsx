@@ -167,11 +167,19 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                                 {/* Amount and Status */}
                                 <div className="text-right flex-shrink-0">
                                     {(() => {
+                                        // Xác định chiều tiền:
+                                        // - Nếu BE set incoming thì ưu tiên.
+                                        // - Nếu không, coi DEPOSIT là tiền vào.
+                                        // - Các giao dịch TRANSFER từ admin trả tiền / refund cho user cũng là tiền vào.
                                         const isIncoming =
                                             typeof transaction.incoming === 'boolean'
                                                 ? transaction.incoming
                                                 : transaction.transactionType === 'DEPOSTIE' ||
-                                                  transaction.transactionType === 'DEPOSIT';
+                                                  transaction.transactionType === 'DEPOSIT' ||
+                                                  (transaction.transactionType === 'TRANSFER' &&
+                                                      !!transaction.message &&
+                                                      (transaction.message.startsWith('Release price for orderItem') ||
+                                                          transaction.message.startsWith('Refund for orderItem')));
 
                                         const amountClass = isIncoming
                                             ? 'text-green-400'

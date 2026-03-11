@@ -24,11 +24,13 @@ import { AdminUsersPage } from '@/pages/AdminUsersPage';
 import { AdminTransactionsPage } from '@/pages/AdminTransactionsPage';
 import { AdminOrdersPage } from '@/pages/AdminOrdersPage';
 import { AdminBlindBoxesPage } from '@/pages/AdminBlindBoxesPage';
+import { AdminBlindBoxDetailPage } from '@/pages/AdminBlindBoxDetailPage';
 import { AdminRateConfigPage } from '@/pages/AdminRateConfigPage';
 import { AdminWithdrawPage } from '@/pages/AdminWithdrawPage';
 import { CartPage } from '@/pages/CartPage';
 import { CheckoutPage } from '@/pages/CheckoutPage';
 import { PostListingPage } from '@/pages/PostListingPage';
+import { MyListingsPage } from '@/pages/MyListingsPage';
 import { TrendsPage } from '@/pages/TrendsPage';
 import { WalletPage } from '@/pages/WalletPage';
 import { PaymentCallbackPage } from '@/pages/PaymentCallbackPage';
@@ -37,6 +39,10 @@ import { PrivacyPage } from '@/pages/PrivacyPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ShipmentPage } from '@/pages/ShipmentPage';
 import { OrdersPage } from '@/pages/OrdersPage';
+import { WishlistPage } from '@/pages/WishlistPage';
+import { WishlistDetailPage } from '@/pages/WishlistDetailPage';
+import { SellerCardRequestPage } from '@/pages/SellerCardRequestPage';
+import { MyCardRequestsPage } from '@/pages/MyCardRequestsPage';
 
 // Placeholder pages
 const ShopPage = () => {
@@ -106,8 +112,14 @@ function App() {
                         <Route path="portfolio" element={<PortfolioPage />} />
                         <Route path="trends" element={<TrendsPage />} />
                         <Route path="post-listing" element={<PostListingPage />} />
+                        <Route path="post-listing/:page" element={<PostListingPage />} />
+                        <Route path="my-listings" element={<MyListingsPage />} />
+                        <Route path="sell/request-card" element={<SellerCardRequestPage />} />
+                        <Route path="my-card-requests" element={<MyCardRequestsPage />} />
                         <Route path="profile" element={<ProfilePage />} />
                         <Route path="orders" element={<OrdersPage />} />
+                        <Route path="wishlist" element={<WishlistPage />} />
+                        <Route path="wishlist/:cardId" element={<WishlistDetailPage />} />
                         <Route path="wallet" element={<WalletPage />} />
                         <Route path="wallet/withdraw" element={<WalletWithdrawPage />} />
                         <Route path="payment/callback" element={<PaymentCallbackPage />} />
@@ -130,6 +142,7 @@ function App() {
                         <Route path="categories" element={<AdminCategoriesPage />} />
                         <Route path="cards" element={<AdminCardsPage />} />
                         <Route path="blind-boxes" element={<AdminBlindBoxesPage />} />
+                        <Route path="blind-boxes/:id" element={<AdminBlindBoxDetailPage />} />
                         <Route path="rate-configs" element={<AdminRateConfigPage />} />
                         <Route path="users" element={<AdminUsersPage />} />
                         <Route path="wallet" element={<WalletPage />} />

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { blindBoxApi, BlindBoxHistoryItem, cardApi, getCardImageUrl } from '@/utils/api';
+import { blindBoxApi, BlindBoxHistoryItem, getCardImageUrl } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,13 +52,12 @@ export const MysteryBoxHistoryPage: React.FC = () => {
         );
     };
 
-    // Thẻ đang đăng bán → không được chọn giao về nhà; thẻ đang/đã giao về nhà → không được đăng bán
-    const canSell = (item: BlindBoxHistoryItem) =>
-        !item.shipped && !item.soldAndDeliveredToBuyer && !item.shippedToHomeDelivered;
+    // Thẻ đang/đã giao về nhà hoặc đã giao buyer → không được chọn giao lần nữa
+    // Thẻ đang đăng bán cũng không được yêu cầu giao (để tránh xung đột với sàn giao dịch)
     const canShip = (item: BlindBoxHistoryItem) =>
         !item.shipped && !item.soldAndDeliveredToBuyer && !item.listedForSale;
-    // Chỉ được chọn khi chưa đăng bán và chưa giao về nhà (chưa dùng cho hành động nào)
-    const selectable = (item: BlindBoxHistoryItem) => canShip(item) && canSell(item);
+    // Chỉ được chọn khi còn đủ điều kiện giao về nhà
+    const selectable = (item: BlindBoxHistoryItem) => canShip(item);
 
     const handleSelectAll = () => {
         const selectableItems = filteredItems.filter(i => selectable(i));
@@ -77,26 +76,6 @@ export const MysteryBoxHistoryPage: React.FC = () => {
             return item.shippedToHomeDelivered ? 'Đã giao' : 'Đã yêu cầu giao';
         }
         return '';
-    };
-
-    const handleBulkSell = async () => {
-        const selectedItems = items.filter(
-            i => selectedIds.includes(i.blindBoxResultId) && canSell(i)
-        );
-        if (selectedItems.length === 0) return;
-        try {
-            for (const it of selectedItems) {
-                try {
-                    await cardApi.addToWishlist(it.card.cardId);
-                } catch {
-                    // bỏ qua lỗi từng thẻ, cố gắng add tối đa
-                }
-            }
-            window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
-            navigate(`/post-listing?card=${selectedItems[0].card.cardId}&fromBlindBox=1`);
-        } catch (err) {
-            alert(err instanceof Error ? err.message : 'Không thể chuẩn bị đăng bán các thẻ đã chọn.');
-        }
     };
 
     const handleBulkShip = async () => {
@@ -222,33 +201,36 @@ export const MysteryBoxHistoryPage: React.FC = () => {
                                     : 'Chọn tất cả'}
                             </Button>
                             {hasSelection && (
-                                <>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-xs border-yellow-400/60 text-yellow-300 hover:bg-yellow-500/10"
-                                        onClick={handleBulkSell}
-                                    >
-                                        Chuẩn bị bán ({selectedIds.length})
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-xs border-green-400/60 text-green-300 hover:bg-green-500/10"
-                                        onClick={handleBulkShip}
-                                    >
-                                        Giao về nhà ({selectedIds.length})
-                                    </Button>
-                                </>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-xs border-green-400/60 text-green-300 hover:bg-green-500/10"
+                                    onClick={handleBulkShip}
+                                >
+                                    Giao về nhà ({selectedIds.length})
+                                </Button>
                             )}
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredItems.map((item) => {
-                            const openedAt = new Date(item.openedAt);
-                            const dateStr = openedAt.toLocaleString('vi-VN');
-                            const profitPositive = item.profitOrLoss >= 0;
+                            const hasOpenedAt =
+                                !!item.openedAt &&
+                                !Number.isNaN(Date.parse(item.openedAt));
+                            const dateStr = hasOpenedAt
+                                ? new Date(item.openedAt).toLocaleString('vi-VN')
+                                : '—';
+                            const hasPriceInfo =
+                                typeof item.drawPrice === 'number' &&
+                                typeof item.profitOrLoss === 'number' &&
+                                !Number.isNaN(item.drawPrice) &&
+                                !Number.isNaN(item.profitOrLoss) &&
+                                (item.drawPrice !== 0 || item.profitOrLoss !== 0);
+                            const profitPositive = hasPriceInfo ? item.profitOrLoss >= 0 : false;
+                            const hasBasePrice =
+                                typeof item.card.basePrice === 'number' &&
+                                item.card.basePrice > 0;
                             const checked = selectedIds.includes(item.blindBoxResultId);
                             const canSelect = selectable(item);
                             const shipDisabled = !canShip(item);
@@ -300,30 +282,47 @@ export const MysteryBoxHistoryPage: React.FC = () => {
                                             <p className="text-xs text-muted-foreground">
                                                 Độ hiếm: <span className="font-semibold">{item.card.rarity}</span>
                                             </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                Giá thẻ: <span className="font-semibold text-yellow-300">
-                                                    {item.card.basePrice.toLocaleString('vi-VN')} VND
-                                                </span>
-                                            </p>
+                                            {hasBasePrice ? (
+                                                <p className="text-xs text-muted-foreground">
+                                                    Giá thẻ:{' '}
+                                                    <span className="font-semibold text-yellow-300">
+                                                        {item.card.basePrice.toLocaleString('vi-VN')} VND
+                                                    </span>
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-muted-foreground">
+                                                    Giá thẻ: —
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
 
                                     <div className="flex flex-col gap-2 pt-2 border-t border-white/10 text-sm">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">Giá đã trả</p>
-                                                <p className="font-semibold text-red-300">
-                                                    {item.drawPrice.toLocaleString('vi-VN')} VND
-                                                </p>
+                                        {hasPriceInfo ? (
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Giá đã trả</p>
+                                                    <p className="font-semibold text-red-300">
+                                                        {item.drawPrice.toLocaleString('vi-VN')} VND
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-xs text-muted-foreground">Kết quả</p>
+                                                    <p
+                                                        className={`font-semibold ${
+                                                            profitPositive ? 'text-green-400' : 'text-red-400'
+                                                        }`}
+                                                    >
+                                                        {profitPositive ? 'Lời' : 'Lỗ'}{' '}
+                                                        {Math.abs(item.profitOrLoss).toLocaleString('vi-VN')} VND
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-xs text-muted-foreground">Kết quả</p>
-                                                <p className={`font-semibold ${profitPositive ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {profitPositive ? 'Lời' : 'Lỗ'}{' '}
-                                                    {Math.abs(item.profitOrLoss).toLocaleString('vi-VN')} VND
-                                                </p>
-                                            </div>
-                                        </div>
+                                        ) : (
+                                            <p className="text-xs text-muted-foreground">
+                                                Thông tin giá chưa khả dụng cho lượt mở này.
+                                            </p>
+                                        )}
                                         {statusLabel && (
                                             <div className="flex items-center gap-1">
                                                 <span className="text-xs text-muted-foreground">Trạng thái:</span>
@@ -334,27 +333,6 @@ export const MysteryBoxHistoryPage: React.FC = () => {
                                         )}
                                         <div className="flex justify-between items-center">
                                             <div className="flex gap-2 justify-end flex-1">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    disabled={!canSell(item)}
-                                                    className="text-xs px-3 py-1 border-yellow-400/60 text-yellow-300 hover:bg-yellow-500/10 disabled:opacity-40"
-                                                    onClick={async () => {
-                                                        try {
-                                                            await cardApi.addToWishlist(item.card.cardId);
-                                                            window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
-                                                            navigate(`/post-listing?card=${item.card.cardId}&fromBlindBox=1`);
-                                                        } catch (err) {
-                                                            alert(
-                                                                err instanceof Error
-                                                                    ? err.message
-                                                                    : 'Không thể chuẩn bị đăng bán thẻ này.'
-                                                            );
-                                                        }
-                                                    }}
-                                                >
-                                                    Đăng bán
-                                                </Button>
                                                 <Button
                                                     size="sm"
                                                     variant="outline"

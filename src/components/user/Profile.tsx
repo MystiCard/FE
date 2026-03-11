@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-    User, Mail, Edit, Share2, Layers, Award, TrendingUp,
-    Settings, Image as ImageIcon, LifeBuoy, CreditCard,
+    User, Edit, Share2, Award, TrendingUp,
+    Settings, Image as ImageIcon, CreditCard,
     Briefcase, Activity, Heart, Trash2, Package, Star
 } from 'lucide-react';
 import { userApi, UserProfile, transactionApi, cardApi, listSellerApi, ListingItem, UpdateProfileRequest, WishlistItem, Card as CardType, getCardImageUrl } from '@/utils/api';
@@ -590,7 +590,7 @@ export const Profile: React.FC = () => {
                             </div>
                             {stats.listingsCount > 8 && (
                                 <div className="mt-4 text-center">
-                                    <Button variant="outline" size="sm" onClick={() => navigate('/post-listing')}>
+                                    <Button variant="outline" size="sm" onClick={() => navigate('/my-listings')}>
                                         Xem tất cả tin đăng
                                     </Button>
                                 </div>
@@ -785,7 +785,7 @@ export const Profile: React.FC = () => {
                                     value={editForm.address}
                                     onChange={(address) => setEditForm((f) => ({ ...f, address }))}
                                     showDetailInput={true}
-                                    onCodesChange={({ provinceId, districtId, wardCode }) =>
+                                        onCodesChange={({ districtId, wardCode }) =>
                                         setEditForm((f) => ({
                                             ...f,
                                             // Lưu districtId/wardId dạng string để gửi lên BE

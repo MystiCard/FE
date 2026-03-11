@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { orderApi, OrderItemResponse, ShippingStatus } from '@/utils/api';
-import { Search, Package, Truck, AlertCircle, RefreshCcw } from 'lucide-react';
+import { orderApi, OrderItemResponse, ShippingStatus, shipmentApi } from '@/utils/api';
+import { Search, Package, Truck, AlertCircle, RefreshCcw, MapPin, Phone } from 'lucide-react';
 
 type AdminShippingFilter = ShippingStatus | 'ALL';
 
@@ -58,27 +58,31 @@ export const AdminOrdersPage: React.FC = () => {
             setError('');
             const pageSize = 10;
 
-            if (shippingStatus === 'ALL') {
-                // Gọi tất cả trạng thái, gộp lại rồi phân trang ở FE
-                const allResults = await Promise.all(
-                    ALL_SHIPPING_STATUSES.map((st) =>
-                        orderApi
-                            .getByShippingStatusAdmin(st, 0, 1000)
-                            .then((res) => res.content ?? [])
-                            .catch(() => [])
-                    )
-                );
-                const merged: OrderItemResponse[] = allResults.flat();
-                const start = pageIndex * pageSize;
-                const paged = merged.slice(start, start + pageSize);
-                const pages = Math.max(1, Math.ceil(merged.length / pageSize));
-                setOrders(paged);
-                setTotalPages(pages);
-            } else {
-                const res = await orderApi.getByShippingStatusAdmin(shippingStatus, pageIndex, pageSize);
-                setOrders(res.content ?? []);
-                setTotalPages(res.totalPages || 1);
+            // Admin xem danh sách shipment chưa được gán shipper dựa trên ShipmentController (/api/shipments/not-asign)
+            const res = await shipmentApi.getNotAssignedShipments(pageIndex + 1, pageSize);
+            let shipments = res.content ?? [];
+
+            if (shippingStatus !== 'ALL') {
+                shipments = shipments.filter((s) => s.shipmentStatus === shippingStatus);
             }
+
+            const mapped: OrderItemResponse[] = shipments.map((s) => ({
+                shipfee: Number(s.shipmentFee ?? 0),
+                shipmentResponse: {
+                    shipmentId: s.shipmentId,
+                    toAddress: s.toAddress,
+                    toPhone: s.toPhone,
+                    fromAddress: s.fromAddress,
+                    fromPhone: s.fromPhone,
+                    shipmentStatus: s.shipmentStatus,
+                    shipmentFee: Number(s.shipmentFee ?? 0),
+                    createAt: s.createAt,
+                } as any,
+                orderDetailResponseList: [],
+            }));
+
+            setOrders(mapped);
+            setTotalPages(res.totalPages || 1);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Không tải được danh sách đơn hàng');
             setOrders([]);
@@ -96,9 +100,8 @@ export const AdminOrdersPage: React.FC = () => {
     const filtered = orders.filter((o) => {
         if (!search.trim()) return true;
         const s = search.trim().toLowerCase();
-        return (o.orderDetailResponseList || []).some((d) =>
-            String(d.orderItemId || '').toLowerCase().includes(s)
-        );
+        const shipmentId = String(o.shipmentResponse?.shipmentId || '');
+        return shipmentId.toLowerCase().includes(s);
     });
 
     return (
@@ -153,10 +156,10 @@ export const AdminOrdersPage: React.FC = () => {
                 </CardContent>
             </Card>
 
-            {/* Orders table */}
+            {/* Shipments table (admin xem shipment chưa gán shipper) */}
             <Card className="glass-card-strong">
                 <CardHeader>
-                    <CardTitle>Đơn hàng ({filtered.length})</CardTitle>
+                    <CardTitle>Shipment chưa gán shipper ({filtered.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
@@ -179,145 +182,52 @@ export const AdminOrdersPage: React.FC = () => {
                                 <thead>
                                     <tr className="border-b border-white/10">
                                         <th className="text-left p-3">Shipment</th>
-                                        <th className="text-left p-3">OrderItem</th>
                                         <th className="text-left p-3">Trạng thái</th>
-                                        <th className="text-right p-3">Số lượng</th>
-                                        <th className="text-right p-3">Giá</th>
+                                        <th className="text-left p-3">Địa chỉ nhận</th>
+                                        <th className="text-left p-3">SĐT nhận</th>
                                         <th className="text-right p-3">Phí ship</th>
-                                        <th className="text-right p-3">Tổng</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filtered.flatMap((o, sIdx) => {
+                                    {filtered.map((o, sIdx) => {
                                         const shipmentId =
                                             o.shipmentResponse?.shipmentId || `shipment-${sIdx}`;
                                         const shipmentStatus =
                                             o.shipmentResponse?.shipmentStatus || 'UNKNOWN';
                                         const ship = Number(o.shipfee || 0);
-                                        const items = o.orderDetailResponseList || [];
-                                        const blindBox = o.blindBoxDetails || [];
-                                        const isBlindBox = blindBox.length > 0;
-
-                                        // Shipment không có OrderItem: Hộp bí ẩn hoặc —
-                                        if (items.length === 0) {
-                                            const qty = isBlindBox ? blindBox.length : 0;
-                                            const refValue = isBlindBox
-                                                ? blindBox.reduce((sum, c) => sum + (c.basePrice ?? 0), 0)
-                                                : 0;
-                                            const cardNames = isBlindBox
-                                                ? blindBox.map((c) => c.cardName || '—').join(', ')
-                                                : '';
-                                            return [
-                                                <tr
-                                                    key={shipmentId}
-                                                    className="border-b border-white/5 hover:bg-white/5"
-                                                >
-                                                    <td className="p-3 font-mono text-xs">
-                                                        {shipmentId.slice(0, 8)}
-                                                    </td>
-                                                    <td
-                                                        className="p-3 text-xs"
-                                                        title={cardNames || undefined}
-                                                    >
-                                                        {isBlindBox ? (
-                                                            <span className="text-yellow-200">
-                                                                Hộp bí ẩn ({qty} thẻ)
-                                                            </span>
-                                                        ) : (
-                                                            '—'
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3">
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-primary-500/10 text-primary-200">
-                                                            <Package className="w-3 h-3" />
-                                                            {shipmentStatus}
+                                        return (
+                                            <tr
+                                                key={shipmentId}
+                                                className="border-b border-white/5 hover:bg-white/5"
+                                            >
+                                                <td className="p-3 font-mono text-xs">
+                                                    {shipmentId.slice(0, 8)}
+                                                </td>
+                                                <td className="p-3">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-primary-500/10 text-primary-200">
+                                                        <Package className="w-3 h-3" />
+                                                        {shipmentStatus}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3 text-xs max-w-xs">
+                                                    <div className="flex items-start gap-2">
+                                                        <MapPin className="w-3 h-3 text-muted-foreground mt-0.5" />
+                                                        <span className="line-clamp-2">
+                                                            {o.shipmentResponse?.toAddress || '—'}
                                                         </span>
-                                                    </td>
-                                                    <td className="p-3 text-right">{qty}</td>
-                                                    <td className="p-3 text-right">
-                                                        {refValue > 0 ? `${refValue.toLocaleString('vi-VN')} đ` : '0 đ'}
-                                                    </td>
-                                                    <td className="p-3 text-right">
-                                                        {ship.toLocaleString('vi-VN')} đ
-                                                    </td>
-                                                    <td className="p-3 text-right font-semibold">
-                                                        {ship.toLocaleString('vi-VN')} đ
-                                                    </td>
-                                                </tr>,
-                                                // Dòng chi tiết thẻ (Hộp bí ẩn): hiện từng thẻ
-                                                ...(isBlindBox
-                                                    ? blindBox.map((card, i) => (
-                                                          <tr
-                                                              key={`${shipmentId}-bb-${i}`}
-                                                              className="border-b border-white/5 bg-white/[0.02]"
-                                                          >
-                                                              <td className="p-2 pl-8 font-mono text-xs text-muted-foreground">
-                                                                  —
-                                                              </td>
-                                                              <td className="p-2 text-xs text-muted-foreground">
-                                                                  {card.cardImageUrl ? (
-                                                                      <span className="inline-flex items-center gap-2">
-                                                                          <img
-                                                                              src={card.cardImageUrl}
-                                                                              alt=""
-                                                                              className="w-8 h-10 object-cover rounded"
-                                                                          />
-                                                                          {card.cardName || '—'}
-                                                                      </span>
-                                                                  ) : (
-                                                                      card.cardName || '—'
-                                                                  )}
-                                                              </td>
-                                                              <td className="p-2">—</td>
-                                                              <td className="p-2 text-right">1</td>
-                                                              <td className="p-2 text-right">
-                                                                  {(card.basePrice ?? 0).toLocaleString('vi-VN')} đ
-                                                              </td>
-                                                              <td className="p-2 text-right">—</td>
-                                                              <td className="p-2 text-right">—</td>
-                                                          </tr>
-                                                      ))
-                                                    : []),
-                                            ];
-                                        }
-
-                                        // Có OrderItem: render theo từng item
-                                        return items.map((d, idx) => {
-                                            const unitPrice = Number(d.price || 0);
-                                            const qty = Number(d.quantity || 0);
-                                            const idStr = String(d.orderItemId || '');
-                                            const rowTotal = unitPrice * qty + ship;
-
-                                            return (
-                                                <tr
-                                                    key={`${shipmentId}-${idStr || idx}`}
-                                                    className="border-b border-white/5 hover:bg-white/5"
-                                                >
-                                                    <td className="p-3 font-mono text-xs">
-                                                        {shipmentId.slice(0, 8)}
-                                                    </td>
-                                                    <td className="p-3 font-mono text-xs">
-                                                        {idStr.slice(0, 8) || '—'}
-                                                    </td>
-                                                    <td className="p-3">
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-primary-500/10 text-primary-200">
-                                                            <Package className="w-3 h-3" />
-                                                            {d.orderItemStatus || shipmentStatus}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-3 text-right">{qty}</td>
-                                                    <td className="p-3 text-right">
-                                                        {unitPrice.toLocaleString('vi-VN')} đ
-                                                    </td>
-                                                    <td className="p-3 text-right">
-                                                        {ship.toLocaleString('vi-VN')} đ
-                                                    </td>
-                                                    <td className="p-3 text-right font-semibold">
-                                                        {rowTotal.toLocaleString('vi-VN')} đ
-                                                    </td>
-                                                </tr>
-                                            );
-                                        });
+                                                    </div>
+                                                </td>
+                                                <td className="p-3 text-xs">
+                                                    <div className="flex items-center gap-2">
+                                                        <Phone className="w-3 h-3 text-muted-foreground" />
+                                                        <span>{o.shipmentResponse?.toPhone || '—'}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-3 text-right">
+                                                    {ship.toLocaleString('vi-VN')} đ
+                                                </td>
+                                            </tr>
+                                        );
                                     })}
                                 </tbody>
                             </table>

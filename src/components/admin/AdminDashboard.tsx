@@ -8,12 +8,12 @@ import {
     Package,
     AlertCircle,
     ArrowUp,
-    ArrowDown
 } from 'lucide-react';
 import { AdminWithdrawPanel } from '@/components/admin/AdminWithdrawPanel';
 import {
     transactionApi,
-    TransactionResponse,
+    paymentApi,
+    PaymentResponse,
     PageResponse,
     TransactionReportResponse,
     userApi,
@@ -26,7 +26,7 @@ export const AdminDashboard: React.FC = () => {
     const [productCount, setProductCount] = useState<number>(0);
     const [statsLoading, setStatsLoading] = useState(false);
 
-    const [recentTransactions, setRecentTransactions] = useState<TransactionResponse[]>([]);
+    const [recentTransactions, setRecentTransactions] = useState<PaymentResponse[]>([]);
     const [txLoading, setTxLoading] = useState(false);
     const [txError, setTxError] = useState<string | null>(null);
 
@@ -63,8 +63,8 @@ export const AdminDashboard: React.FC = () => {
             setTxLoading(true);
             setTxError(null);
             try {
-                // Admin: lấy các giao dịch mới nhất của TẤT CẢ user
-                const res: PageResponse<TransactionResponse> = await transactionApi.getAllTransactionsAdmin(
+                // Admin: lấy các payment mới nhất của TẤT CẢ user
+                const res: PageResponse<PaymentResponse> = await paymentApi.getAllPaymentsAdmin(
                     undefined,
                     0,
                     10
@@ -270,30 +270,32 @@ export const AdminDashboard: React.FC = () => {
                                 <thead>
                                     <tr className="border-b border-white/10 text-left">
                                         <th className="py-2 pr-2">Thời gian</th>
-                                        <th className="py-2 pr-2">Loại</th>
+                                        <th className="py-2 pr-2">Nội dung</th>
                                         <th className="py-2 pr-2">Trạng thái</th>
                                         <th className="py-2 pr-2 text-right">Số tiền</th>
-                                        <th className="py-2 pr-2 text-right">ID</th>
+                                        <th className="py-2 pr-2 text-right">Payment ID</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {recentTransactions.map((tx) => (
                                         <tr
-                                            key={tx.walletTransactionId}
+                                            key={tx.paymentId}
                                             className="border-b border-white/5 last:border-0"
                                         >
                                             <td className="py-2 pr-2">
-                                                {tx.createAt
-                                                    ? new Date(tx.createAt).toLocaleString('vi-VN')
+                                                {tx.createdAt
+                                                    ? new Date(tx.createdAt).toLocaleString('vi-VN')
                                                     : '—'}
                                             </td>
-                                            <td className="py-2 pr-2">{tx.transactionType}</td>
-                                            <td className="py-2 pr-2">{tx.statusTransaction}</td>
+                                            <td className="py-2 pr-2">
+                                                {tx.content || 'Giao dịch ví'}
+                                            </td>
+                                            <td className="py-2 pr-2">{tx.statusPayment}</td>
                                             <td className="py-2 pr-2 text-right font-semibold">
-                                                {tx.amount.toLocaleString('vi-VN')} đ
+                                                {Number(tx.amount).toLocaleString('vi-VN')} đ
                                             </td>
                                             <td className="py-2 pr-2 text-right text-xs text-muted-foreground">
-                                                {tx.walletTransactionId?.slice(0, 8)}
+                                                {tx.paymentId?.slice(0, 8)}
                                             </td>
                                         </tr>
                                     ))}
