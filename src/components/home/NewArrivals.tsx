@@ -118,6 +118,11 @@ export const NewArrivals: React.FC = () => {
                                 <p className="text-xs md:text-sm text-muted-foreground mb-1">
                                     {item.categoryName || 'Thẻ sưu tầm'} · SL: {item.quantity}
                                 </p>
+                                {(item.minPrice != null && item.maxPrice != null) && (
+                                    <p className="text-[11px] md:text-xs text-muted-foreground mb-1">
+                                        Giới hạn giá: {Number(item.minPrice).toLocaleString('vi-VN')} – {Number(item.maxPrice).toLocaleString('vi-VN')} đ
+                                    </p>
+                                )}
                                 <p className="text-[11px] md:text-xs text-muted-foreground mb-2">
                                     Sàn giao dịch · Seller: <span className="font-medium text-white/90">{item.sellerName || '—'}</span>
                                     {(item.sellerFeedbackCount != null && item.sellerFeedbackCount > 0) && (

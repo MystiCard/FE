@@ -96,6 +96,18 @@ const formatDate = (dateString: string) => {
     }).format(date);
 };
 
+const getTransactionMessage = (t: TransactionResponse) => {
+    const raw = (t.message ?? '').trim();
+    if (raw) return raw;
+    // Fallback nội dung nếu BE không trả message
+    if (t.transactionType === 'DEPOSTIE' || t.transactionType === 'DEPOSIT') return 'Nạp tiền vào ví';
+    if (t.transactionType === 'REQUEST_WITHDRAW') return 'Tạo yêu cầu rút tiền';
+    if (t.transactionType === 'WITHDRAW') return 'Rút tiền về ngân hàng';
+    if (t.transactionType === 'PAYMENT') return 'Thanh toán';
+    if (t.transactionType === 'TRANSFER') return 'Chuyển khoản';
+    return '';
+};
+
 export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
     transactions,
     isLoading,
@@ -161,6 +173,12 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                                         <div className="text-xs text-muted-foreground">
                                             {formatDate(transaction.createAt)}
                                         </div>
+                                        {getTransactionMessage(transaction) && (
+                                            <div className="text-xs text-muted-foreground mt-1 truncate">
+                                                <span className="text-white/80">Nội dung:</span>{' '}
+                                                {getTransactionMessage(transaction)}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

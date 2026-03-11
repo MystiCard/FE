@@ -527,6 +527,56 @@ export interface NotificationItem {
     notiType: 'wishList' | 'shipment' | 'wallet';
 }
 
+// Notification API
+export const notificationApi = {
+    getMyNotifications: async (
+        page: number = 0,
+        size: number = 50
+    ): Promise<PageResponse<NotificationItem>> => {
+        const params = new URLSearchParams({
+            page: String(page),
+            size: String(size),
+        });
+        const response = await apiRequest<ApiResponse<PageResponse<NotificationItem> | any>>(
+            `/notification?${params.toString()}`,
+            { method: 'GET' }
+        );
+        const raw = response.data as any;
+        const originalContent = raw?.content ?? [];
+        const content: NotificationItem[] = (originalContent as any[]).map((n) => {
+            const isRead =
+                typeof n.isRead === 'boolean'
+                    ? n.isRead
+                    : typeof n.read === 'boolean'
+                    ? n.read
+                    : false;
+            return {
+                notificationId: n.notificationId,
+                cardId: n.cardId,
+                userId: n.userId,
+                message: n.message,
+                isRead,
+                createdAt: n.createdAt,
+                notiType: n.notiType,
+            } as NotificationItem;
+        });
+        return {
+            content,
+            totalPages: raw?.totalPages ?? 0,
+            totalElements: raw?.totalElements ?? content.length,
+            size: raw?.size ?? size,
+            number: raw?.number ?? page,
+        };
+    },
+
+    markAsRead: async (notificationId: string): Promise<void> => {
+        await apiRequest<ApiResponse<string>>(
+            `/notification/mark-as-read/${notificationId}`,
+            { method: 'PUT' }
+        );
+    },
+};
+
 /** Mục wishlist có tin bán <= giá mong muốn (để thông báo người mua). */
 export interface WishlistPriceAlert {
     wishListId: string;
@@ -930,38 +980,58 @@ export const listSellerApi = {
     ): Promise<{ content: ListingItem[]; totalPages: number; totalElements: number; size: number; number: number }> => {
         const cards = await cardApi.getAllCards();
         const allListings: ListingItem[] = [];
-        // Gọi listing cho TẤT CẢ card (trước đây chỉ 60 card đầu → dễ bỏ sót)
-        await Promise.all(
-            cards.map(async (card) => {
-                try {
-                    const res = await listSellerApi.getListingsByCardId(card.cardId, 0, 50);
-                    const content = (res.content || []) as SellResponse[];
-                    content.forEach((sell) => {
-                        allListings.push({
-                            listSellerId: sell.listSellerId,
-                            price: sell.price,
-                            quantity: sell.quantity,
-                            status: typeof sell.status === 'string' ? sell.status : String(sell.status),
-                            sellerId: sell.sellerId,
-                            sellerName: sell.sellerName,
-                            cardId: sell.cardId ?? card.cardId,
-                            cardName: card.name,
-                            imageUrl: getCardImageUrl(card),
-                            categoryName: card.categoryName,
-                            rarity: card.rarity,
-                            basePrice: card.basePrice,
-                            sellerAverageRating: sell.sellerAverageRating,
-                            sellerFeedbackCount: sell.sellerFeedbackCount,
+        // Gọi listing cho TẤT CẢ card nhưng giới hạn concurrency để tránh overload/rate-limit BE
+        const CONCURRENCY = 8;
+        for (let i = 0; i < cards.length; i += CONCURRENCY) {
+            const batch = cards.slice(i, i + CONCURRENCY);
+            await Promise.all(
+                batch.map(async (card) => {
+                    try {
+                        const res = await listSellerApi.getListingsByCardId(card.cardId, 0, 50);
+                        const content = (res.content || []) as SellResponse[];
+                        content.forEach((sell) => {
+                            allListings.push({
+                                listSellerId: sell.listSellerId,
+                                price: sell.price,
+                                quantity: sell.quantity,
+                                status: typeof sell.status === 'string' ? sell.status : String(sell.status),
+                                sellerId: sell.sellerId,
+                                sellerName: sell.sellerName,
+                                cardId: sell.cardId ?? card.cardId,
+                                cardName: card.name,
+                                imageUrl: getCardImageUrl(card),
+                                categoryName: card.categoryName,
+                                rarity: card.rarity,
+                                basePrice: card.basePrice,
+                                minPrice: card.minPrice,
+                                maxPrice: card.maxPrice,
+                                sellerAverageRating: sell.sellerAverageRating,
+                                sellerFeedbackCount: sell.sellerFeedbackCount,
+                            });
                         });
-                    });
-                } catch {
-                    // Bỏ qua card không có listing hoặc lỗi
-                }
-            })
-        );
-        const totalElements = allListings.length;
+                    } catch {
+                        // Bỏ qua card không có listing hoặc lỗi
+                    }
+                })
+            );
+        }
+
+        // Ổn định thứ tự để việc slice/pagination nhất quán giữa các lần load
+        const isActiveStatus = (s: string | undefined | null) => {
+            if (!s) return true;
+            const v = String(s).toUpperCase();
+            // Theo code hiện có ở TrendsPage: ON / AVAILABLE là active
+            return v === 'ON' || v === 'AVAILABLE';
+        };
+
+        const filteredAll = allListings
+            .filter((l) => (l.quantity ?? 0) > 0)
+            .filter((l) => isActiveStatus(l.status));
+
+        filteredAll.sort((a, b) => a.price - b.price);
+        const totalElements = filteredAll.length;
         const start = page * size;
-        const content = allListings.slice(start, start + size);
+        const content = filteredAll.slice(start, start + size);
         const totalPages = Math.max(1, Math.ceil(totalElements / size));
         return { content, totalPages, totalElements, size, number: page };
     },
