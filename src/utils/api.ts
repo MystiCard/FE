@@ -1438,6 +1438,18 @@ export const transactionApi = {
         return response.data;
     },
 
+    /**
+     * Pay shipping fee for a return request (BE naming: returnItemId but it's ReturnRequestId).
+     * BE: POST /api/transactions/pay-for-return/{returnItemId}
+     */
+    payForReturn: async (returnRequestId: string): Promise<TransactionResponse> => {
+        const res = await apiRequest<ApiResponse<TransactionResponse>>(
+            `/transactions/pay-for-return/${returnRequestId}`,
+            { method: 'POST' }
+        );
+        return res.data;
+    },
+
     // Admin: approve withdraw transaction → trả về URL thanh toán (MoMo)
     approveWithdraw: async (transactionId: string, provider: string): Promise<string> => {
         // Dùng kiểu xử lý linh hoạt giống hàm deposit: BE đôi khi trả thẳng string hoặc bọc trong ApiResponse.
@@ -1644,6 +1656,183 @@ export const orderApi = {
                 body: JSON.stringify(shippingStatus),
             }
         );
+        return res.data;
+    },
+};
+
+// Return Request API (Trả hàng / hoàn tiền)
+export type ReturnRequestStatus = 'REQUESTED' | 'APPROVED' | 'PAID' | 'REJECTED' | 'CANCELED';
+
+export interface ReturnRequestCreate {
+    orderItemIds: string[];
+    reason: string;
+    sendAddress?: string;
+    sendDistrictId: number;
+    sendWardId: number;
+    sendPhone: string;
+}
+
+export interface ReturnRequestCanDo {
+    canCancle: boolean;
+    /** BE typo: canjectOrApproved = canReject/canApprove for seller */
+    canjectOrApproved: boolean;
+    canPayment: boolean;
+}
+
+export interface ReturnRequestItem {
+    returnRequestId: string;
+    reason: string;
+    status: ReturnRequestStatus;
+    createdAt?: string;
+    sellerId?: string;
+    sellerName?: string;
+    buyerId?: string;
+    buyerName?: string;
+    /** List of order items (OrderDetailResponse) */
+    orderItems?: Array<{
+        orderItemId: string;
+        quantity: number;
+        price: number;
+        orderItemStatus?: string;
+        cardName?: string;
+        cardImageUrl?: string;
+        cardResponse?: any;
+    }>;
+    listImages?: Array<{ imageId?: string; imageUrl?: string; url?: string }>;
+    shipmentResponse?: ShipmentResponse | null;
+}
+
+export const returnRequestApi = {
+    canReturn: async (shipmentId: string): Promise<boolean> => {
+        const res = await apiRequest<ApiResponse<boolean>>(`/return-requests/${shipmentId}/can-return`, {
+            method: 'GET',
+        });
+        return !!res.data;
+    },
+
+    send: async (payload: ReturnRequestCreate, files: File[]): Promise<ReturnRequestItem> => {
+        const formData = new FormData();
+        formData.append('request', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+        (files || []).forEach((f) => formData.append('files', f));
+
+        const token = tokenManager.getAccessToken();
+        const response = await fetch(`${API_BASE_URL}/return-requests/send`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: formData,
+        });
+        if (response.status === 401) {
+            tokenManager.clearTokens();
+            window.location.href = '/login';
+            throw new Error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
+        }
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            let message = `Request failed (${response.status})`;
+            try {
+                if (contentType.includes('application/json')) {
+                    const err: any = await response.json();
+                    message = err?.message || err?.error || err?.title || message;
+                } else {
+                    const text = await response.text();
+                    const trimmed = (text || '').trim();
+                    if (trimmed) message = trimmed;
+                }
+            } catch {
+                // ignore
+            }
+            throw new Error(message);
+        }
+        const result: ApiResponse<ReturnRequestItem> = await response.json();
+        return result.data;
+    },
+
+    myRequests: async (
+        status?: ReturnRequestStatus,
+        page: number = 0,
+        size: number = 10
+    ): Promise<PageResponse<ReturnRequestItem>> => {
+        const pageOneBased = Math.max(1, page + 1);
+        const params = new URLSearchParams({
+            page: String(pageOneBased),
+            size: String(size),
+        });
+        if (status) params.set('status', status);
+        const res = await apiRequest<ApiResponse<PageResponse<ReturnRequestItem> | any>>(
+            `/return-requests/my-requests?${params.toString()}`,
+            { method: 'GET' }
+        );
+        const data = res.data as any;
+        // BE trả Page<ReturnResponse> (Spring Page) -> map về PageResponse shape
+        if (data && Array.isArray(data.content)) {
+            return {
+                content: data.content,
+                totalPages: data.totalPages ?? 1,
+                totalElements: data.totalElements ?? data.content.length,
+                size: data.size ?? size,
+                number: (data.number ?? (pageOneBased - 1)) as number,
+            };
+        }
+        // fallback nếu BE trả thẳng
+        return {
+            content: Array.isArray(data) ? (data as ReturnRequestItem[]) : [],
+            totalPages: 1,
+            totalElements: Array.isArray(data) ? data.length : 0,
+            size,
+            number: page,
+        };
+    },
+
+    received: async (
+        status?: ReturnRequestStatus,
+        page: number = 0,
+        size: number = 10
+    ): Promise<PageResponse<ReturnRequestItem>> => {
+        const pageOneBased = Math.max(1, page + 1);
+        const params = new URLSearchParams({
+            page: String(pageOneBased),
+            size: String(size),
+        });
+        if (status) params.set('status', status);
+        const res = await apiRequest<ApiResponse<any>>(`/return-requests/received?${params.toString()}`, {
+            method: 'GET',
+        });
+        const raw = res.data as any;
+        return {
+            content: Array.isArray(raw?.content) ? (raw.content as ReturnRequestItem[]) : [],
+            totalPages: raw?.totalPages ?? 1,
+            totalElements: raw?.totalElements ?? (Array.isArray(raw?.content) ? raw.content.length : 0),
+            size: raw?.size ?? size,
+            number: raw?.page ?? page,
+        };
+    },
+
+    canDo: async (returnRequestId: string): Promise<ReturnRequestCanDo> => {
+        const res = await apiRequest<ApiResponse<ReturnRequestCanDo>>(`/return-requests/can-do/${returnRequestId}`, {
+            method: 'GET',
+        });
+        return res.data;
+    },
+
+    approve: async (returnRequestId: string): Promise<ReturnRequestItem> => {
+        const res = await apiRequest<ApiResponse<ReturnRequestItem>>(`/return-requests/approve/${returnRequestId}`, {
+            method: 'POST',
+        });
+        return res.data;
+    },
+
+    reject: async (returnRequestId: string): Promise<boolean> => {
+        const res = await apiRequest<ApiResponse<any>>(`/return-requests/reject/${returnRequestId}`, {
+            method: 'GET',
+        });
+        // BE trả ReturnResponse trong data, nhưng UI chỉ cần biết ok
+        return !!res.data;
+    },
+
+    cancel: async (returnRequestId: string): Promise<ReturnRequestItem> => {
+        const res = await apiRequest<ApiResponse<ReturnRequestItem>>(`/return-requests/cancel/${returnRequestId}`, {
+            method: 'POST',
+        });
         return res.data;
     },
 };
@@ -2003,6 +2192,7 @@ export interface ShipmentResponse {
     shipmentStatus: ShippingStatus;
     shipmentFee: number;
     createAt?: string;
+    trackingResponses?: TrackingResponse[];
 }
 
 export interface TrackingResponse {
