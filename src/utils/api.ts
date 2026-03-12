@@ -151,11 +151,16 @@ export const apiRequest = async <T>(
     const token = tokenManager.getAccessToken();
 
     // Add authorization header if token exists
-    const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers,
+    const headers: HeadersInit = {
+        ...(options.headers || {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
+
+    // Nếu body là string (JSON) và chưa set Content-Type thì tự set application/json.
+    // Với FormData hoặc body khác, KHÔNG set Content-Type để browser tự xử lý.
+    if (typeof options.body === 'string' && !(headers as any)['Content-Type']) {
+        (headers as any)['Content-Type'] = 'application/json';
+    }
 
     let response = await fetch(`${API_BASE_URL}${url}`, {
         ...options,
@@ -784,9 +789,20 @@ export const cardApi = {
 export const cardRequiredApi = {
     /** Seller gửi yêu cầu thêm thẻ mới. */
     requireNewCard: async (payload: NewCardRequiredRequest): Promise<CardRequired> => {
+        // BE: /api/card/required nhận multipart/form-data với
+        // @RequestPart NewCardRequest request + @RequestPart(required = false) MultipartFile file.
+        // NewCardRequest có các field: cardName, rate, basePrice, category, categoryId (UUID)
+        const formData = new FormData();
+        // Gửi toàn bộ payload trong part tên "request" dạng JSON, giống các endpoint khác dùng @RequestPart.
+        formData.append(
+            'request',
+            new Blob([JSON.stringify(payload)], { type: 'application/json' })
+        );
+        // Hiện tại FE chưa hỗ trợ upload ảnh cho yêu cầu này, nên không append 'file'.
+
         const response = await apiRequest<ApiResponse<CardRequired>>('/card/required', {
             method: 'POST',
-            body: JSON.stringify(payload),
+            body: formData,
         });
         return response.data;
     },

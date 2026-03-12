@@ -58,7 +58,8 @@ export const PostListingPage: React.FC = () => {
 
     // Phân trang & sort phía BE cho danh sách thẻ hệ thống
     const [cardPage, setCardPage] = useState(initialPageFromUrl);
-    const [cardPageSize] = useState(24);
+    // Hiển thị tối đa 8 thẻ mỗi trang trong danh sách chọn thẻ
+    const [cardPageSize] = useState(8);
     const [cardTotalPages, setCardTotalPages] = useState(0);
 
     // Nếu được chuyển từ lịch sử mở hộp bí ẩn: ?card={cardId}&fromBlindBox=1 → chỉ cho phép 1 thẻ
@@ -139,6 +140,17 @@ export const PostListingPage: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchQuery, sortBy]);
 
+    // Những set thực sự có card (để lọc dropdown)
+    const categoryNamesWithCards = useMemo(() => {
+        const set = new Set<string>();
+        for (const card of cards) {
+            if (card.categoryName) {
+                set.add(card.categoryName.toLowerCase());
+            }
+        }
+        return set;
+    }, [cards]);
+
     const filteredCards = useMemo(() => {
         let list = [...cards];
 
@@ -208,16 +220,16 @@ export const PostListingPage: React.FC = () => {
         <div className="min-h-screen py-6 px-4">
             <div className="max-w-6xl mx-auto">
                 {/* Header */}
-                <div className="mb-6">
+                <div className="mb-4 md:mb-6">
                     <Link
                         to="/marketplace"
-                        className="inline-flex items-center text-primary-400 hover:text-primary-300 text-sm mb-4"
+                        className="inline-flex items-center text-primary-400 hover:text-primary-300 text-xs md:text-sm mb-3"
                     >
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Về Marketplace
                     </Link>
-                    <h1 className="text-3xl font-bold font-serif gradient-text">Đăng bán thẻ</h1>
-                    <p className="text-muted-foreground mt-1 flex items-center gap-1.5">
+                    <h1 className="text-2xl md:text-3xl font-bold font-serif gradient-text">Đăng bán thẻ</h1>
+                    <p className="text-xs md:text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
                         <Package className="h-4 w-4 text-primary-400" />
                         Nhập/tìm thẻ bạn muốn bán. Nếu thẻ chưa có trong hệ thống, gửi yêu cầu để Admin thêm rồi quay lại đăng bán.
                     </p>
@@ -240,64 +252,70 @@ export const PostListingPage: React.FC = () => {
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
                     {/* Left: Browse cards */}
                     <div className="lg:col-span-2 space-y-4">
                         {/* Bộ lọc */}
                         <Card className="glass-card-strong">
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                                    <Filter className="h-4 w-4" />
+                            <CardHeader className="py-2 pb-1.5 md:py-2 md:pb-2">
+                                <CardTitle className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 text-muted-foreground">
+                                    <Filter className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                     Bộ lọc
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-4">
+                            <CardContent className="space-y-3 md:space-y-4">
                                 {/* Tìm kiếm */}
                                 <div>
                                     <label className="block text-xs font-medium text-muted-foreground mb-1.5">
                                         Tìm kiếm
                                     </label>
                                     <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                                         <input
                                             type="text"
                                             placeholder="Tên thẻ hoặc tên set..."
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
-                                            className="w-full pl-10 pr-4 py-2.5 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                                            className="w-full pl-9 pr-3.5 py-2 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                                     {/* Danh mục */}
                                     <div>
-                                        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                                        <label className="block text-[11px] font-medium text-muted-foreground mb-1">
                                             Danh mục
                                         </label>
                                         <select
                                             value={filterCategory}
                                             onChange={(e) => setFilterCategory(e.target.value)}
-                                            className="w-full px-3 py-2.5 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer bg-black/60"
+                                            className="w-full px-2.5 py-2 glass-card rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer bg-black/60"
                                         >
                                             <option value="all">Tất cả</option>
-                                            {categories.map((c) => (
-                                                <option key={c.categoryId} value={c.categoryId}>
-                                                    {c.categoryName}
-                                                </option>
-                                            ))}
+                                            {categories
+                                                .filter((c) =>
+                                                    c.categoryName
+                                                        ? categoryNamesWithCards.has(c.categoryName.toLowerCase())
+                                                        : false,
+                                                )
+                                                .map((c) => (
+                                                    <option key={c.categoryId} value={c.categoryId}>
+                                                        {c.categoryName}
+                                                    </option>
+                                                ))}
                                         </select>
                                     </div>
 
                                     {/* Độ hiếm */}
                                     <div>
-                                        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                                        <label className="block text-[11px] font-medium text-muted-foreground mb-1">
                                             Độ hiếm
                                         </label>
                                         <select
                                             value={filterRarity}
                                             onChange={(e) => setFilterRarity(e.target.value)}
-                                            className="w-full px-3 py-2.5 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer bg-black/60"
+                                            className="w-full px-2.5 py-2 glass-card rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer bg-black/60"
                                         >
                                             <option value="all">Tất cả</option>
                                             {RARITIES.map((r) => (
@@ -310,13 +328,13 @@ export const PostListingPage: React.FC = () => {
 
                                     {/* Sắp xếp */}
                                     <div>
-                                        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                                        <label className="block text-[11px] font-medium text-muted-foreground mb-1">
                                             Sắp xếp
                                         </label>
                                         <select
                                             value={sortBy}
                                             onChange={(e) => setSortBy(e.target.value as 'name' | 'price-asc' | 'price-desc')}
-                                            className="w-full px-3 py-2.5 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer bg-black/60"
+                                            className="w-full px-2.5 py-2 glass-card rounded-md text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer bg-black/60"
                                         >
                                             <option value="name">Tên A → Z</option>
                                             <option value="price-asc">Giá thấp → cao</option>
@@ -332,7 +350,7 @@ export const PostListingPage: React.FC = () => {
                                             size="sm"
                                             onClick={clearFilters}
                                             disabled={!hasActiveFilters}
-                                            className="w-full gap-1.5 text-muted-foreground hover:text-white"
+                                            className="w-full gap-1.5 text-[11px] md:text-xs text-muted-foreground hover:text-white"
                                         >
                                             <X className="h-4 w-4" />
                                             Xóa bộ lọc
