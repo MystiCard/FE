@@ -74,7 +74,7 @@ export const About: React.FC = () => {
     return (
         <div className="py-8">
             {/* Hero Section */}
-            <section className="relative min-h-[400px] flex items-center justify-center overflow-hidden rounded-2xl mb-16">
+            <section className="relative min-h-[320px] md:min-h-[360px] flex items-center justify-center overflow-hidden rounded-2xl mb-12">
                 {/* Background */}
                 <div
                     className="absolute inset-0 z-0"
@@ -94,17 +94,17 @@ export const About: React.FC = () => {
                 <div className="absolute bottom-20 right-20 w-40 h-40 bg-accent-500/20 rounded-full blur-3xl " style={{ animationDelay: '1s' }} />
 
                 {/* Content */}
-                <div className="relative z-20 text-center px-4 max-w-4xl mx-auto">
-                    <div className="inline-flex items-center space-x-2 glass-card-strong px-4 py-2 rounded-full mb-6 ">
-                        <Sparkles className="h-4 w-4 text-accent-400" />
-                        <span className="text-sm font-medium">Về MysticCard</span>
+                <div className="relative z-20 text-center px-4 max-w-2xl mx-auto">
+                    <div className="inline-flex items-center space-x-2 glass-card-strong px-3 py-1.5 rounded-full mb-4 ">
+                        <Sparkles className="h-3.5 w-3.5 text-accent-400" />
+                        <span className="text-xs font-medium">Về MysticCard</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-6xl font-bold mb-6 font-serif">
+                    <h1 className="text-3xl md:text-4xl font-bold mb-3 md:mb-4 font-serif">
                         Nền tảng <span className="gradient-text">Giao dịch thẻ</span> đáng tin cậy
                     </h1>
 
-                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto ">
+                    <p className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto ">
                         Kết nối người sưu tầm toàn cầu với thẻ hiếm và có giá trị từ năm 2020
                     </p>
                 </div>
@@ -207,15 +207,15 @@ export const About: React.FC = () => {
             </section>
 
             {/* Core Values */}
-            <section className="mb-16">
-                <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold mb-4 font-serif">Giá trị cốt lõi</h2>
-                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <section className="mb-12">
+                <div className="text-center mb-6 md:mb-8">
+                    <h2 className="text-2xl md:text-3xl font-bold mb-2 md:mb-3 font-serif">Giá trị cốt lõi</h2>
+                    <p className="text-xs md:text-sm text-muted-foreground max-w-2xl mx-auto">
                         Những nguyên tắc dẫn dắt mọi hoạt động của chúng tôi
                     </p>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid md:grid-cols-2 gap-4 md:gap-6">
                     {values.map((value, index) => {
                         const Icon = value.icon;
                         return (
@@ -227,12 +227,12 @@ export const About: React.FC = () => {
                                 {/* Glow Effect */}
                                 <div className={`absolute inset-0 bg-gradient-to-br ${value.color} opacity-0 group-hover:opacity-10 `} />
 
-                                <CardContent className="p-6 relative">
-                                    <div className={`w-14 h-14 mb-4 rounded-xl bg-gradient-to-br ${value.color} flex items-center justify-center`}>
-                                        <Icon className="h-7 w-7 text-white" />
+                                <CardContent className="p-4 md:p-5 relative">
+                                    <div className={`w-10 h-10 mb-3 rounded-xl bg-gradient-to-br ${value.color} flex items-center justify-center`}>
+                                        <Icon className="h-5 w-5 text-white" />
                                     </div>
-                                    <h3 className="text-xl font-bold mb-3">{value.title}</h3>
-                                    <p className="text-muted-foreground">{value.description}</p>
+                                    <h3 className="text-sm md:text-base font-bold mb-2">{value.title}</h3>
+                                    <p className="text-[11px] md:text-sm text-muted-foreground">{value.description}</p>
                                 </CardContent>
                             </Card>
                         );
@@ -241,22 +241,22 @@ export const About: React.FC = () => {
             </section>
 
             {/* Team Section */}
-            <section className="mb-16">
-                <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold mb-4 font-serif">Đội ngũ của chúng tôi</h2>
-                    <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <section className="mb-10">
+                <div className="text-center mb-4 md:mb-6">
+                    <h2 className="text-2xl md:text-3xl font-bold mb-1 md:mb-2 font-serif">Đội ngũ của chúng tôi</h2>
+                    <p className="text-xs md:text-sm text-muted-foreground max-w-2xl mx-auto">
                         Chuyên gia tâm huyết phục vụ cộng đồng người sưu tầm
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 max-w-5xl mx-auto">
                     {team.map((member, index) => (
                         <Card
                             key={index}
                             className="group text-center overflow-hidden flex flex-col h-full"
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
-                            <div className="relative aspect-square overflow-hidden">
+                            <div className="relative aspect-[3/4] overflow-hidden">
                                 <img
                                     src={member.image}
                                     alt={member.name}
@@ -264,10 +264,10 @@ export const About: React.FC = () => {
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 " />
                             </div>
-                            <CardContent className="p-6 flex-1 flex flex-col justify-center">
-                                <h3 className="font-bold text-lg mb-1">{member.name}</h3>
-                                <p className="text-sm text-accent-400 mb-2">{member.role}</p>
-                                <p className="text-xs text-muted-foreground">{member.bio}</p>
+                            <CardContent className="p-3 md:p-4 flex-1 flex flex-col justify-center">
+                                <h3 className="font-bold text-sm md:text-base mb-1">{member.name}</h3>
+                                <p className="text-[11px] md:text-xs text-accent-400 mb-1">{member.role}</p>
+                                <p className="text-[10px] md:text-[11px] text-muted-foreground">{member.bio}</p>
                             </CardContent>
                         </Card>
                     ))}

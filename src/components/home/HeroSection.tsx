@@ -5,7 +5,7 @@ import { Sparkles } from 'lucide-react';
 
 export const HeroSection: React.FC = () => {
     return (
-        <section className="relative min-h-[600px] flex items-center justify-center overflow-hidden rounded-2xl mb-12">
+        <section className="relative min-h-[320px] md:min-h-[380px] flex items-center justify-center overflow-hidden rounded-2xl mb-8">
             {/* Background Image */}
             <div
                 className="absolute inset-0 z-0"
@@ -27,45 +27,45 @@ export const HeroSection: React.FC = () => {
             <div className="absolute top-40 right-40 w-24 h-24 bg-primary-400/20 rounded-full blur-3xl " style={{ animationDelay: '2s' }} />
 
             {/* Content */}
-            <div className="relative z-20 text-center px-4 max-w-4xl mx-auto">
-                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full mb-6">
-                    <Sparkles className="h-4 w-4 text-accent-400" />
-                    <span className="text-sm font-medium">Đã có Hộp bí ẩn mới</span>
+            <div className="relative z-20 text-center px-4 max-w-2xl mx-auto">
+                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full mb-3">
+                    <Sparkles className="h-3.5 w-3.5 text-accent-400" />
+                    <span className="text-[11px] md:text-xs font-medium">Đã có Hộp bí ẩn mới</span>
                 </div>
 
-                <h1 className="text-5xl md:text-7xl font-bold mb-6 font-serif">
+                <h1 className="text-3xl md:text-5xl font-bold mb-3 md:mb-4 font-serif">
                     Sưu tầm <span className="gradient-text">những thẻ hiếm nhất</span>
                 </h1>
 
-                <p className="text-xl md:text-2xl text-muted-foreground mb-8">
+                <p className="text-base md:text-lg text-muted-foreground mb-4 md:mb-5">
                     Giao dịch, thi đấu và xây dựng bộ sưu tập thẻ đỉnh cao
                 </p>
 
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-4">
                     <Link to="/portfolio">
-                        <Button variant="premium" size="lg" className="text-lg px-8">
+                        <Button variant="premium" size="lg" className="text-sm md:text-base px-5 md:px-6 py-2 md:py-2.5">
                             Khám phá bộ sưu tập
                         </Button>
                     </Link>
                     <Link to="/marketplace">
-                        <Button variant="outline" size="lg" className="text-lg px-8 glass-card hover:bg-white/20">
+                        <Button variant="outline" size="lg" className="text-sm md:text-base px-5 md:px-6 py-2 md:py-2.5 glass-card hover:bg-white/20">
                             Xem sàn giao dịch
                         </Button>
                     </Link>
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-3 gap-8 mt-16">
-                    <div className="glass-card p-6 rounded-xl">
-                        <div className="text-3xl font-bold gradient-text">10K+</div>
+                <div className="grid grid-cols-3 gap-3 md:gap-4 mt-8 md:mt-10">
+                    <div className="glass-card p-3 md:p-4 rounded-lg">
+                        <div className="text-xl md:text-2xl font-bold gradient-text">10K+</div>
                         <div className="text-sm text-muted-foreground mt-1">Thẻ có sẵn</div>
                     </div>
-                    <div className="glass-card p-6 rounded-xl">
-                        <div className="text-3xl font-bold gradient-text">5K+</div>
+                    <div className="glass-card p-3 md:p-4 rounded-lg">
+                        <div className="text-xl md:text-2xl font-bold gradient-text">5K+</div>
                         <div className="text-sm text-muted-foreground mt-1">Người giao dịch</div>
                     </div>
-                    <div className="glass-card p-6 rounded-xl">
-                        <div className="text-3xl font-bold gradient-text">99%</div>
+                    <div className="glass-card p-3 md:p-4 rounded-lg">
+                        <div className="text-xl md:text-2xl font-bold gradient-text">99%</div>
                         <div className="text-sm text-muted-foreground mt-1">Hài lòng</div>
                     </div>
                 </div>

@@ -51,7 +51,7 @@ export const HomeBlindBoxes: React.FC = () => {
             </div>
 
             {loading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 md:gap-4">
                     {[1, 2, 3, 4].map((i) => (
                         <Card key={i} className="overflow-hidden animate-pulse">
                             <div className="aspect-[3/4] bg-white/10" />
@@ -67,7 +67,7 @@ export const HomeBlindBoxes: React.FC = () => {
             ) : boxes.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">Chưa có Hộp bí ẩn</div>
             ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 md:gap-4">
                     {boxes.map((box) => {
                         const soldOut = String(box.blindBoxStatus || '').toUpperCase() === 'OUT_OF_STOCK';
                         const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) =>
