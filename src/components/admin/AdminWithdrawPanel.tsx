@@ -124,11 +124,20 @@ export const AdminWithdrawPanel: React.FC = () => {
                                             {tx.amount.toLocaleString('vi-VN')} đ
                                         </td>
                                         <td className="p-3 text-right">
-                                            {tx.statusTransaction === 'PENDING' ? (
+                                            {tx.statusTransaction === 'PENDING' || tx.statusTransaction === 'FAILED' ? (
                                                 <Button
                                                     size="xs"
                                                     variant="outline"
-                                                    className="border-green-500/50 text-green-300 hover:bg-green-500/10 flex items-center gap-1"
+                                                    className={`flex items-center gap-1 ${
+                                                        tx.statusTransaction === 'FAILED'
+                                                            ? 'border-red-500/60 text-red-300 hover:bg-red-500/10'
+                                                            : 'border-green-500/50 text-green-300 hover:bg-green-500/10'
+                                                    }`}
+                                                    title={
+                                                        tx.statusTransaction === 'FAILED'
+                                                            ? 'Retry MoMo payment for this withdraw request'
+                                                            : 'Approve withdraw via MoMo'
+                                                    }
                                                     onClick={async () => {
                                                         try {
                                                             const url =
@@ -150,7 +159,7 @@ export const AdminWithdrawPanel: React.FC = () => {
                                                     }}
                                                 >
                                                     <ArrowUpCircle className="w-3 h-3" />
-                                                    Approve
+                                                    {tx.statusTransaction === 'FAILED' ? 'Retry' : 'Approve'}
                                                 </Button>
                                             ) : (
                                                 <span className="text-xs text-muted-foreground">

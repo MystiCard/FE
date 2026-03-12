@@ -27,13 +27,13 @@ const features = [
 
 export const Features: React.FC = () => {
     return (
-        <section className="py-16">
-            <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold mb-4 font-serif">Tại sao chọn MysticCard?</h2>
-                <p className="text-xl text-muted-foreground">Nền tảng hàng đầu cho người sưu tầm thẻ</p>
+        <section className="py-8 md:py-10 min-h-[320px] flex flex-col justify-center">
+            <div className="text-center mb-6 md:mb-8">
+                <h2 className="text-2xl md:text-3xl font-bold mb-2 md:mb-3 font-serif">Tại sao chọn MysticCard?</h2>
+                <p className="text-sm md:text-base text-muted-foreground">Nền tảng hàng đầu cho người sưu tầm thẻ</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 {features.map((feature, index) => {
                     const Icon = feature.icon;
                     return (
@@ -42,14 +42,14 @@ export const Features: React.FC = () => {
                             className=""
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
-                            <CardHeader>
-                                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center mb-4">
-                                    <Icon className="h-6 w-6 text-white" />
+                            <CardHeader className="pb-3">
+                                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center mb-3">
+                                    <Icon className="h-5 w-5 text-white" />
                                 </div>
-                                <CardTitle>{feature.title}</CardTitle>
+                                <CardTitle className="text-base md:text-lg">{feature.title}</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <CardDescription>{feature.description}</CardDescription>
+                            <CardContent className="pt-0">
+                                <CardDescription className="text-xs md:text-sm">{feature.description}</CardDescription>
                             </CardContent>
                         </Card>
                     );

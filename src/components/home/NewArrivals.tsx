@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Star, Heart } from 'lucide-react';
+import { Star, Heart, Plus } from 'lucide-react';
 import { useWishlist } from '@/hooks/useWishlist';
 import { Link, useNavigate } from 'react-router-dom';
 import { listSellerApi, ListingItem } from '@/utils/api';
@@ -16,21 +16,49 @@ const formatRarity = (rarity: string) =>
               .replace(/\b\w/g, (c) => c.toUpperCase())
         : '';
 
+const formatPriceShort = (value: number) => {
+    if (!Number.isFinite(value)) return '—';
+    const abs = Math.abs(value);
+
+    // Chỉ rút gọn thành M khi >= 1 triệu
+    if (abs >= 1_000_000) {
+        return (value / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+    }
+
+    // Còn lại hiển thị dạng số bình thường (1.000; 10.000; 500.000; ...)
+    return value.toLocaleString('vi-VN');
+};
+
+const getRarityClasses = (rarity: string) => {
+    const r = String(rarity || '').toLowerCase();
+
+    if (r.includes('secret')) return 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900';
+    if (r.includes('ultra')) return 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white';
+    if (r.includes('rare')) return 'bg-gradient-to-r from-sky-500 to-blue-500 text-white';
+    if (r.includes('uncommon')) return 'bg-emerald-500/90 text-white';
+    if (r.includes('common')) return 'bg-slate-200 text-slate-900';
+
+    return 'bg-slate-300 text-slate-900';
+};
+
 export const NewArrivals: React.FC = () => {
     const { addItem: addToWishlist, isInWishlist } = useWishlist();
     const navigate = useNavigate();
     const [listings, setListings] = useState<ListingItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [page, setPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
 
     useEffect(() => {
         const load = async () => {
             setLoading(true);
             setError(null);
             try {
-                const res = await listSellerApi.getListings(0, 8);
+                const res = await listSellerApi.getListings(page, 12);
                 const list = (res.content || []).filter((item) => item.quantity > 0);
                 setListings(list);
+                setTotalPages(res.totalPages || 1);
             } catch (e) {
                 setError(e instanceof Error ? e.message : 'Không tải được sản phẩm');
                 setListings([]);
@@ -39,7 +67,7 @@ export const NewArrivals: React.FC = () => {
             }
         };
         load();
-    }, []);
+    }, [page]);
 
     return (
         <section className="py-16">
@@ -56,7 +84,7 @@ export const NewArrivals: React.FC = () => {
             </div>
 
             {loading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 md:gap-4">
                     {[1, 2, 3, 4].map((i) => (
                         <Card key={i} className="overflow-hidden animate-pulse">
                             <div className="aspect-[3/4] bg-white/10" />
@@ -73,88 +101,119 @@ export const NewArrivals: React.FC = () => {
             ) : listings.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">Chưa có thẻ nào đăng bán</div>
             ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 md:gap-3">
                     {listings.map((item, index) => (
                         <Card
                             key={item.listSellerId}
-                            className="group overflow-hidden"
+                            className="group relative overflow-hidden bg-background border border-border shadow-sm hover:shadow-md transition-shadow"
                             style={{ animationDelay: `${index * 0.1}s` }}
                         >
-                            <div className="relative aspect-[3/4] overflow-hidden">
-                                <img
-                                    src={item.imageUrl || PLACEHOLDER_IMG}
-                                    alt={item.cardName}
-                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                                    onError={(e) => {
-                                        e.currentTarget.src = PLACEHOLDER_IMG;
-                                    }}
-                                />
-                                <div className="absolute top-2 right-2">
-                                    <div className="glass-card-strong px-2 py-1 rounded-full text-xs font-medium">
-                                        {formatRarity(item.rarity)}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        addToWishlist({
-                                            id: item.cardId,
-                                            name: item.cardName,
-                                            price: item.price,
-                                            image: item.imageUrl || '',
-                                            rarity: item.rarity,
-                                        });
-                                    }}
-                                    className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20"
+                            {/* Rarity badge at top-right of card */}
+                            <div className="absolute top-1 right-1 z-10">
+                                <div
+                                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold shadow-md border border-white/40 ${getRarityClasses(
+                                        item.rarity
+                                    )}`}
                                 >
-                                    <Heart
-                                        className={`h-4 w-4 ${isInWishlist(item.cardId) ? 'fill-red-500 text-red-500' : ''}`}
-                                    />
-                                </button>
+                                    {formatRarity(item.rarity)}
+                                </div>
                             </div>
 
-                            <CardContent className="p-3">
-                                <h3 className="font-semibold text-sm md:text-base mb-1 line-clamp-2">{item.cardName}</h3>
-                                <p className="text-xs md:text-sm text-muted-foreground mb-1">
-                                    {item.categoryName || 'Thẻ sưu tầm'} · SL: {item.quantity}
-                                </p>
-                                {(item.minPrice != null && item.maxPrice != null) && (
-                                    <p className="text-[11px] md:text-xs text-muted-foreground mb-1">
-                                        Giới hạn giá: {Number(item.minPrice).toLocaleString('vi-VN')} – {Number(item.maxPrice).toLocaleString('vi-VN')} đ
-                                    </p>
-                                )}
-                                <p className="text-[11px] md:text-xs text-muted-foreground mb-2">
-                                    Sàn giao dịch · Seller: <span className="font-medium text-white/90">{item.sellerName || '—'}</span>
-                                    {(item.sellerFeedbackCount != null && item.sellerFeedbackCount > 0) && (
-                                        <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90">
-                                            <Star className="h-3 w-3 fill-amber-400 shrink-0" />
-                                            {Number(item.sellerAverageRating ?? 0).toFixed(1)}
-                                            <span className="text-muted-foreground">({item.sellerFeedbackCount} đánh giá)</span>
-                                        </span>
-                                    )}
-                                </p>
-
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm md:text-base font-bold gradient-text">
-                                        {Number(item.price).toLocaleString('vi-VN')} đ
-                                    </span>
-                                    <Button
-                                        size="sm"
-                                        variant="premium"
-                                        onClick={() => navigate('/marketplace')}
+                            <div className="p-2.5 md:p-3 flex flex-col">
+                                <div className="relative aspect-[5/7] overflow-hidden rounded-xl mb-1.5 bg-background">
+                                    <img
+                                        src={item.imageUrl || PLACEHOLDER_IMG}
+                                        alt={item.cardName}
+                                        className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                                        onError={(e) => {
+                                            e.currentTarget.src = PLACEHOLDER_IMG;
+                                        }}
+                                    />
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            addToWishlist({
+                                                id: item.cardId,
+                                                name: item.cardName,
+                                                price: item.price,
+                                                image: item.imageUrl || '',
+                                                rarity: item.rarity,
+                                            });
+                                        }}
+                                        className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20"
                                     >
-                                        Xem trên sàn
-                                    </Button>
+                                        <Heart
+                                            className={`h-4 w-4 ${isInWishlist(item.cardId) ? 'fill-red-500 text-red-500' : ''}`}
+                                        />
+                                    </button>
                                 </div>
 
-                                <div className="flex items-center mt-3 text-xs text-muted-foreground">
-                                    <Star className="h-3 w-3 fill-accent-500 text-accent-500 mr-1" />
-                                    <span>Sàn giao dịch</span>
-                                </div>
-                            </CardContent>
+                                <CardContent className="p-0 text-left -ml-3">
+                                    {/* Name */}
+                                    <h3 className="font-semibold text-xs md:text-sm mb-1.5 line-clamp-2">
+                                        {item.cardName}
+                                    </h3>
+                                    {/* Set name */}
+                                    <p className="text-[11px] md:text-xs text-muted-foreground">
+                                        {item.categoryName || 'Thẻ sưu tầm'}
+                                    </p>
+                                    {/* SL xuống hàng riêng */}
+                                    <p className="text-[11px] md:text-xs text-muted-foreground mb-1">
+                                        SL: {item.quantity}
+                                    </p>
+                                    {/* Min ~ Max */}
+                                    {item.minPrice != null && item.maxPrice != null && (
+                                        <p className="text-[10px] md:text-[11px] text-muted-foreground mb-2">
+                                            {formatPriceShort(Number(item.minPrice))} ~{' '}
+                                            {formatPriceShort(Number(item.maxPrice))}
+                                        </p>
+                                    )}
+
+                                    {/* Current price */}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs md:text-sm font-semibold gradient-text">
+                                            {formatPriceShort(Number(item.price))}
+                                        </span>
+                                        <Button
+                                            size="sm"
+                                            variant="premium"
+                                            className="h-6 w-6 md:h-7 md:w-7 p-0 flex items-center justify-center"
+                                            onClick={() => navigate('/marketplace')}
+                                            aria-label="Thêm / xem chi tiết trên sàn"
+                                        >
+                                            <Plus className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </div>
                         </Card>
                     ))}
                 </div>
+
+                {/* Pagination */}
+                <div className="flex items-center justify-center gap-2 mt-6">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={page === 0 || loading}
+                        onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    >
+                        Trước
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                        Trang {page + 1} / {totalPages}
+                    </span>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={page + 1 >= totalPages || loading}
+                        onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    >
+                        Sau
+                    </Button>
+                </div>
+                </>
             )}
         </section>
     );
