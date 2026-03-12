@@ -444,24 +444,24 @@ export function MysteryBox() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-5">
             {/* Header */}
-            <div className="rounded-2xl p-6 shadow-lg backdrop-blur-md bg-[#1a0a2e]/90 border border-[#D4AF37]/20">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-[#D4AF37]/20 rounded-full flex items-center justify-center border-2 border-[#D4AF37]/50">
-                            <Gift className="w-7 h-7 text-[#D4AF37]" />
+            <div className="rounded-xl md:rounded-2xl px-4 py-3 md:px-5 md:py-4 shadow-md backdrop-blur-md bg-[#1a0a2e]/90 border border-[#D4AF37]/20">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
+                    <div className="flex items-center gap-2.5 md:gap-3">
+                        <div className="w-9 h-9 md:w-10 md:h-10 bg-[#D4AF37]/20 rounded-full flex items-center justify-center border border-[#D4AF37]/50">
+                            <Gift className="w-5 h-5 md:w-6 md:h-6 text-[#D4AF37]" />
                         </div>
                         <div>
                             <h3
-                                className="font-bold text-2xl flex items-center gap-2 text-white"
+                                className="font-bold text-lg md:text-xl flex items-center gap-1.5 md:gap-2 text-white"
                                 style={{ fontFamily: "'Cormorant Garamond', serif" }}
                             >
                                 Hộp bí ẩn
-                                <Sparkles className="w-6 h-6 text-[#D4AF37]" />
+                                <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-[#D4AF37]" />
                             </h3>
                             <p
-                                className="text-[#E0E0E0]/90"
+                                className="text-xs md:text-sm text-[#E0E0E0]/90"
                                 style={{ fontFamily: "'Open Sans', sans-serif" }}
                             >
                                 Mua hộp, mở thẻ ngẫu nhiên — giá trị thẻ có thể cao hơn giá mua!
@@ -470,10 +470,10 @@ export function MysteryBox() {
                     </div>
                     <button
                         onClick={() => navigate('/mystery-box/history')}
-                        className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-[#D4AF37]/40 text-sm font-semibold text-[#D4AF37] bg-white/5 hover:bg-[#D4AF37]/10 transition-colors"
+                        className="inline-flex items-center justify-center px-3 py-1.5 md:px-4 md:py-2 rounded-full border border-[#D4AF37]/40 text-xs md:text-sm font-semibold text-[#D4AF37] bg-white/5 hover:bg-[#D4AF37]/10 transition-colors"
                         style={{ fontFamily: "'Open Sans', sans-serif" }}
                     >
-                        <Star className="w-4 h-4 mr-2" />
+                        <Star className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1.5" />
                         Lịch sử mở hộp
                     </button>
                 </div>

@@ -37,11 +37,11 @@ export const HomeBlindBoxes: React.FC = () => {
     }, []);
 
     return (
-        <section className="py-16">
-            <div className="flex items-center justify-between mb-8">
+        <section className="py-8 md:py-10">
+            <div className="flex items-center justify-between mb-6 md:mb-8">
                 <div>
-                    <h2 className="text-4xl font-bold mb-2 font-serif">Hộp bí ẩn</h2>
-                    <p className="text-muted-foreground">Mở hộp, nhận thẻ ngẫu nhiên và thử vận may</p>
+                    <h2 className="text-2xl md:text-3xl font-bold mb-1 md:mb-2 font-serif">Hộp bí ẩn</h2>
+                    <p className="text-sm md:text-base text-muted-foreground">Mở hộp, nhận thẻ ngẫu nhiên và thử vận may</p>
                 </div>
                 <Link to="/mystery-box">
                     <Button variant="outline" className="glass-card hover:bg-white/20">
@@ -51,7 +51,7 @@ export const HomeBlindBoxes: React.FC = () => {
             </div>
 
             {loading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 md:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 md:gap-2">
                     {[1, 2, 3, 4].map((i) => (
                         <Card key={i} className="overflow-hidden animate-pulse">
                             <div className="aspect-[3/4] bg-white/10" />
@@ -67,7 +67,7 @@ export const HomeBlindBoxes: React.FC = () => {
             ) : boxes.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">Chưa có Hộp bí ẩn</div>
             ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 md:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 md:gap-3">
                     {boxes.map((box) => {
                         const soldOut = String(box.blindBoxStatus || '').toUpperCase() === 'OUT_OF_STOCK';
                         const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) =>
@@ -82,10 +82,10 @@ export const HomeBlindBoxes: React.FC = () => {
                         return (
                             <Card
                                 key={box.blindBoxId}
-                                className={`group overflow-hidden transition-colors ${soldOut ? 'opacity-80' : 'hover:border-yellow-400/50'}`}
+                                className={`group overflow-hidden transition-colors border border-border/60 bg-background/70 ${soldOut ? 'opacity-80' : 'hover:border-yellow-400/60'} text-left`}
                             >
                                 <Wrapper>
-                                    <div className="relative aspect-[3/4] overflow-hidden">
+                                    <div className="relative aspect-[4/5] overflow-hidden">
                                         <img
                                             src={box.imageUrl || PLACEHOLDER_BOX}
                                             alt={box.name}
@@ -101,20 +101,20 @@ export const HomeBlindBoxes: React.FC = () => {
                                                 </div>
                                             </div>
                                         )}
-                                        <div className="absolute bottom-2 left-2 right-2">
-                                            <div className="glass-card-strong px-2 py-1 rounded text-xs font-medium text-yellow-300">
+                                        <div className="absolute bottom-0.5 left-0.5 right-0.5">
+                                            <div className="glass-card-strong px-1 py-0.5 rounded text-[9px] font-medium text-yellow-300">
                                                 {formatVND(box.drawPrice)} / lần mở
                                             </div>
                                         </div>
                                     </div>
-                                    <CardContent className="p-3">
-                                        <h3 className="font-semibold text-sm md:text-base mb-1 line-clamp-2">{box.name}</h3>
+                                    <CardContent className="p-1.5 md:p-2">
+                                        <h3 className="font-semibold text-[10px] md:text-[11px] mb-0.5 line-clamp-2">{box.name}</h3>
                                         {box.description && (
-                                            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                                            <p className="text-[9px] md:text-[10px] text-muted-foreground line-clamp-2 mb-1.5">
                                                 {box.description}
                                             </p>
                                         )}
-                                        <Button variant="premium" size="sm" className="w-full" disabled={soldOut}>
+                                        <Button variant="premium" size="sm" className="w-full h-7 md:h-8 text-[10px]" disabled={soldOut}>
                                             {soldOut ? 'Đã hết hàng' : 'Mở hộp ngay'}
                                         </Button>
                                     </CardContent>

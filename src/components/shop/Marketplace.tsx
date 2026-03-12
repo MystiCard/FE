@@ -12,6 +12,7 @@ import {
     DollarSign,
     ChevronDown,
     Users,
+    ShoppingCart,
 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { listSellerApi, ListingItem, categoryApi, Category, cardApi } from '@/utils/api';
@@ -32,6 +33,14 @@ const formatRarity = (rarity: string) =>
 
 const formatCurrencyVND = (value: number) => {
     const safe = Number.isFinite(value) ? value : 0;
+    const abs = Math.abs(safe);
+
+    // Nếu >= 1 triệu thì hiển thị dạng 1M, 1.5M, ...
+    if (abs >= 1_000_000) {
+        return (safe / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+    }
+
+    // Còn lại hiển thị số bình thường
     return safe.toLocaleString('vi-VN') + ' đ';
 };
 
@@ -42,6 +51,17 @@ const rarityClass: Record<string, string> = {
     RARE: 'bg-blue-500/20 text-blue-400',
     UNCOMMON: 'bg-green-500/20 text-green-400',
     COMMON: 'bg-gray-500/20 text-gray-400',
+};
+
+// Badge màu theo rarity (giống HomePage NewArrivals)
+const getRarityBadgeClasses = (rarity: string) => {
+    const r = String(rarity || '').toLowerCase();
+    if (r.includes('secret')) return 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900';
+    if (r.includes('ultra')) return 'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white';
+    if (r.includes('rare')) return 'bg-gradient-to-r from-sky-500 to-blue-500 text-white';
+    if (r.includes('uncommon')) return 'bg-emerald-500/90 text-white';
+    if (r.includes('common')) return 'bg-slate-200 text-slate-900';
+    return 'bg-slate-300 text-slate-900';
 };
 
 const RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SUPER_RARE', 'SECRET_RARE'];
@@ -83,7 +103,8 @@ export const Marketplace: React.FC = () => {
     const [_totalElements, setTotalElements] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [currentPage, setCurrentPage] = useState(0);
-    const [pageSize] = useState(24);
+    // Hiển thị tối đa 10 sản phẩm mỗi trang
+    const [pageSize] = useState(10);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -168,6 +189,17 @@ export const Marketplace: React.FC = () => {
             setIsLoading(false);
         }
     };
+
+    // Chỉ những set thực sự có listing mới cho vào dropdown
+    const categoryNamesWithListings = useMemo(() => {
+        const set = new Set<string>();
+        for (const item of listings) {
+            if (item.categoryName) {
+                set.add(item.categoryName.toLowerCase());
+            }
+        }
+        return set;
+    }, [listings]);
 
     const filteredListings = useMemo(() => {
         let list = [...listings];
@@ -370,7 +402,7 @@ export const Marketplace: React.FC = () => {
     }, [searchParams, products]);
 
     return (
-        <div className="py-8">
+        <div className="py-4 md:py-6">
             {error && (
                 <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
                     {error}
@@ -378,31 +410,31 @@ export const Marketplace: React.FC = () => {
             )}
 
             {/* Header giống Cardmarket: tiêu đề + search nổi bật */}
-            <div className="mb-8">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            <div className="mb-4 md:mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2.5 md:gap-3 mb-3 md:mb-4">
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-bold font-serif gradient-text">Sàn giao dịch</h1>
-                        <p className="text-muted-foreground mt-1">
+                        <h1 className="text-xl md:text-2xl font-bold font-serif gradient-text">Sàn giao dịch</h1>
+                        <p className="text-[11px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">
                             Mua thẻ từ người bán — mỗi thẻ có nhiều lời chào giá, chọn giá tốt nhất
                         </p>
                     </div>
                     <Link to="/post-listing">
-                        <Button variant="premium" className="shadow-lg">
-                            <PlusCircle className="w-5 h-5 mr-2" />
+                        <Button variant="premium" className="shadow-lg px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm">
+                            <PlusCircle className="w-4 h-4 mr-1.5 md:mr-2" />
                             Đăng bán
                         </Button>
                     </Link>
                 </div>
 
                 {/* Ô tìm kiếm lớn */}
-                <div className="relative max-w-2xl">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <div className="relative max-w-lg md:max-w-xl">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <input
                         type="search"
                         placeholder="Tìm thẻ hoặc set (ví dụ: Pikachu, Ascended Heroes)..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 glass-card-strong rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                        className="w-full pl-9 pr-3.5 py-2 glass-card-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                     />
                 </div>
             </div>
@@ -421,59 +453,65 @@ export const Marketplace: React.FC = () => {
                 </div>
             )}
 
-            <div className="space-y-6">
+            <div className="space-y-2.5 md:space-y-3">
                 {/* Thanh bộ lọc ngang */}
                 <Card className="glass-card-strong">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <Filter className="h-4 w-4" />
+                    <CardHeader className="py-1.5 pb-1 md:py-2 md:pb-1.5">
+                        <CardTitle className="text-[11px] md:text-xs flex items-center gap-1.5 md:gap-2">
+                            <Filter className="h-3.5 w-3.5 md:h-4 md:w-4" />
                             Bộ lọc
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-6">
-                        <div className="w-full lg:max-w-xs">
-                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Giá (đ)</label>
-                            <div className="flex gap-2">
+                    <CardContent className="pt-1.5 flex flex-col lg:flex-row lg:items-end gap-2 lg:gap-2.5">
+                        <div className="w-full lg:max-w-[11rem]">
+                            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Giá (đ)</label>
+                            <div className="flex gap-1.5">
                                 <input
                                     type="number"
                                     min={0}
                                     step={0.01}
                                     value={priceRange[0]}
                                     onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])}
-                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm"
+                                    className="w-full px-2 py-1 glass-card rounded-md text-[11px]"
                                 />
-                                <span className="self-center text-muted-foreground">–</span>
+                                <span className="self-center text-[10px] text-muted-foreground">–</span>
                                 <input
                                     type="number"
                                     min={0}
                                     step={0.01}
                                     value={priceRange[1]}
                                     onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
-                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm"
+                                    className="w-full px-2 py-1 glass-card rounded-md text-[11px]"
                                 />
                             </div>
                         </div>
-                        <div className="w-full lg:max-w-xs">
-                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Set</label>
+                        <div className="w-full lg:max-w-[11rem]">
+                            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Set</label>
                             <select
                                 value={filterCategory}
                                 onChange={(e) => setFilterCategory(e.target.value)}
-                                className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
+                                className="w-full px-2 py-1 glass-card rounded-md text-[11px] appearance-none cursor-pointer bg-black/60"
                             >
                                 <option value="all">Tất cả set</option>
-                                {categories.map((c) => (
-                                    <option key={c.categoryId} value={c.categoryId}>
-                                        {c.categoryName}
-                                    </option>
-                                ))}
+                                {categories
+                                    .filter((c) =>
+                                        c.categoryName
+                                            ? categoryNamesWithListings.has(c.categoryName.toLowerCase())
+                                            : false,
+                                    )
+                                    .map((c) => (
+                                        <option key={c.categoryId} value={c.categoryId}>
+                                            {c.categoryName}
+                                        </option>
+                                    ))}
                             </select>
                         </div>
-                        <div className="w-full lg:max-w-xs">
-                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Độ hiếm</label>
+                        <div className="w-full lg:max-w-[11rem]">
+                            <label className="block text-[10px] font-medium text-muted-foreground mb-0.5">Độ hiếm</label>
                             <select
                                 value={filterRarity}
                                 onChange={(e) => setFilterRarity(e.target.value)}
-                                className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
+                                className="w-full px-2 py-1 glass-card rounded-md text-[11px] appearance-none cursor-pointer bg-black/60"
                             >
                                 <option value="all">Tất cả</option>
                                 {RARITIES.map((r) => (
@@ -487,7 +525,7 @@ export const Marketplace: React.FC = () => {
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="w-full"
+                                className="w-full px-2 py-0.5 text-[10px] md:text-[11px] h-7 md:h-8"
                                 onClick={() => {
                                     setSearchQuery('');
                                     setPriceRange([0, 5000]);
@@ -526,7 +564,7 @@ export const Marketplace: React.FC = () => {
                             <p className="text-muted-foreground">Đang tải...</p>
                         </div>
                     ) : products.length > 0 ? (
-                        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-6 gap-1.5 md:gap-2">
                             {products.map((product) => {
                                 const prices = product.offers.map((o) => o.price);
                                 const quantities = product.offers.map((o) => o.quantity ?? 0);
@@ -539,14 +577,25 @@ export const Marketplace: React.FC = () => {
                                     <div
                                         key={product.cardId}
                                         id={`marketplace-card-${product.cardId}`}
-                                        className="group relative rounded-2xl glass-card-strong border border-white/5 hover:border-primary-500/50 hover:shadow-lg cursor-pointer overflow-hidden flex flex-col"
+                                        className="group relative rounded-xl glass-card-strong border border-white/5 hover:border-primary-500/50 hover:shadow-lg cursor-pointer overflow-hidden flex flex-col"
                                         onClick={() => setSelectedProduct(product)}
                                     >
-                                        <div className="relative aspect-[2.5/3.5] overflow-hidden bg-black/40">
+                                        {/* Rarity badge giống HomePage */}
+                                        <div className="absolute top-1 right-1 z-10">
+                                            <div
+                                                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold shadow-md border border-white/40 ${getRarityBadgeClasses(
+                                                    product.rarity,
+                                                )}`}
+                                            >
+                                                {formatRarity(product.rarity)}
+                                            </div>
+                                        </div>
+
+                                        <div className="relative aspect-[5/7] overflow-hidden bg-black/40 rounded-lg md:rounded-xl">
                                             <img
                                                 src={product.imageUrl || PLACEHOLDER_IMG}
                                                 alt={product.cardName}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                className="w-[88%] h-[88%] object-cover mx-auto my-[6%] rounded-md md:rounded-lg group-hover:scale-105 transition-transform duration-300"
                                                 onError={(e) => {
                                                     e.currentTarget.src = PLACEHOLDER_IMG;
                                                 }}
@@ -574,53 +623,53 @@ export const Marketplace: React.FC = () => {
                                                 )}
                                             </button>
                                         </div>
-                                        <div className="p-2.5 flex-1 flex flex-col gap-1">
-                                            <p className="text-xs md:text-sm font-semibold line-clamp-2">
+                                        <div className="p-1 md:p-1.5 flex-1 flex flex-col gap-0.5">
+                                            <p className="text-[9px] md:text-[10px] font-semibold line-clamp-2">
                                                 {product.cardName}
                                             </p>
-                                            <p className="text-[11px] text-muted-foreground">
-                                                {product.categoryName || '—'} ·{' '}
-                                                {formatRarity(product.rarity)}
+                                            <p className="text-[8px] md:text-[9px] text-muted-foreground">
+                                                {product.categoryName || '—'}
                                             </p>
-                                            <div className="mt-1 flex items-center justify-between">
-                                                <span className="text-base font-bold text-accent-400">
+                                            <div className="mt-0.5 flex items-center justify-between">
+                                                <span className="text-[11px] md:text-xs font-bold text-accent-400">
                                                     {formatCurrencyVND(minPrice)}
                                                 </span>
-                                                <span className="text-[11px] text-muted-foreground">
+                                                <span className="text-[8px] md:text-[9px] text-muted-foreground">
                                                     Còn {totalQuantity} thẻ
                                                 </span>
                                             </div>
-                                            <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
+                                            <div className="flex items-center justify-between text-[8px] md:text-[9px] text-muted-foreground mt-0.5">
                                                 <span className="inline-flex items-center gap-1">
                                                     <Users className="h-3 w-3" />
                                                     {product.offers.length} đề nghị
                                                 </span>
                                             </div>
-                                            <div className="mt-2 flex gap-2">
+                                            <div className="mt-0.5 flex gap-1.5 items-center">
                                                 <Button
                                                     type="button"
                                                     variant="premium"
                                                     size="sm"
-                                                    className="flex-1"
+                                                    className="w-6 h-6 md:w-7 md:h-7 p-0 flex items-center justify-center"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         addCardToCart(product, e);
                                                     }}
+                                                    aria-label="Thêm vào giỏ"
                                                 >
-                                                    Thêm vào giỏ
+                                                    <ShoppingCart className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                                 </Button>
                                                 <Button
                                                     type="button"
                                                     variant="outline"
                                                     size="sm"
-                                                    className="flex-1 gap-1"
+                                                    className="flex-1 gap-0.5 h-6 md:h-7 text-[8px] md:text-[9px]"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setSelectedProduct(product);
                                                     }}
                                                 >
                                                     Xem đề nghị
-                                                    <ChevronDown className="h-3 w-3" />
+                                                    <ChevronDown className="h-2.5 w-2.5 md:h-3 md:w-3" />
                                                 </Button>
                                             </div>
                                         </div>
@@ -949,63 +998,74 @@ function ListingOffersModal({
 
     return (
         <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="w-[96vw] max-w-[1400px] max-h-[90vh] overflow-y-auto glass-card-strong border-white/10">
+            <DialogContent className="w-[98vw] max-w-[1600px] glass-card-strong border-white/10">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-4">
-                        <img
-                            src={product.imageUrl || placeholderImg}
-                            alt={product.cardName}
-                            className="w-20 h-28 object-cover rounded-lg shadow-lg"
-                            onError={(e) => {
-                                e.currentTarget.src = placeholderImg;
-                            }}
-                        />
-                        <div className="text-left space-y-1">
-                            <div className="flex items-center gap-2">
-                                <span className="px-2 py-0.5 rounded bg-white/10 text-[10px] uppercase tracking-wider">
-                                    {formatRarity(product.rarity)}
-                                </span>
-                                {product.categoryName && (
-                                    <span className="text-xs text-muted-foreground">{product.categoryName}</span>
-                                )}
+                    <DialogTitle>
+                        {/* Layout 1: chia 3 cột như mô tả */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+                            {/* Cột 1: Ảnh (phóng to và căn giữa) */}
+                            <div className="flex items-center justify-center h-full">
+                                <img
+                                    src={product.imageUrl || placeholderImg}
+                                    alt={product.cardName}
+                                    className="w-32 h-44 md:w-40 md:h-56 object-cover rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.6)]"
+                                    onError={(e) => {
+                                        e.currentTarget.src = placeholderImg;
+                                    }}
+                                />
                             </div>
-                            <div className="text-2xl font-semibold">{product.cardName}</div>
-                            {activeOffers.length > 0 ? (
-                                <div className="text-xs text-muted-foreground">
-                                    Tổng {activeOffers.length} đề nghị · {totalQuantity} bản có sẵn
+
+                            {/* Cột 2: Set, tên card, rarity + giá min/max/TB */}
+                            <div className="space-y-2 text-left h-full flex flex-col justify-between">
+                                <div>
+                                    <div className="text-xs text-muted-foreground"></div>
+                                    <div className="text-sm md:text-base font-medium"> Set:
+                                        {product.categoryName || '—'}
+                                    </div>
                                 </div>
-                            ) : (
-                                <div className="text-xs text-muted-foreground">
-                                    Hiện không còn đề nghị nào còn hàng
+                                <div>
+                                    <div className="text-xs text-muted-foreground"></div>
+                                    <div className="text-lg md:text-xl font-semibold"> Card:
+                                        {product.cardName}
+                                    </div>
                                 </div>
-                            )}
+                                <div>
+                                    <div className="text-xs text-muted-foreground">R</div>
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded bg-white/10 text-[11px] uppercase tracking-wider">
+                                        {formatRarity(product.rarity)}
+                                    </span>
+                                </div>
+
+                                    <div>
+                                        <div className="text-[11px] text-muted-foreground">Giá min</div>
+                                        <div className="text-sm md:text-base font-bold text-accent-400"> 
+                                            {formatCurrencyVND(minPrice)}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[11px] text-muted-foreground">Giá max</div>
+                                        <div className="text-sm md:text-base font-bold">
+                                            {formatCurrencyVND(maxPrice)}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[11px] text-muted-foreground">Giá TB</div>
+                                        <div className="text-sm md:text-base font-bold">
+                                            {formatCurrencyVND(avgPrice)}
+                                        </div>
+                                    </div>
+                                
+                            </div>
+
+                            {/* Cột 3: placeholder bản đồ xu hướng */}
+                            <div className="w-full h-full flex">
+                                <div className="h-full w-full rounded-xl border border-white/10 bg-gradient-to-br from-white/5 via-white/0 to-white/5 flex items-center justify-center text-[11px] md:text-xs text-muted-foreground">
+                                    Trend chart (coming soon)
+                                </div>
+                            </div>
                         </div>
                     </DialogTitle>
                 </DialogHeader>
-
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="p-3 rounded-lg bg-white/5">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            Giá thấp nhất
-                        </div>
-                        <div className="text-lg font-bold text-accent-400">{formatCurrencyVND(minPrice)}</div>
-                    </div>
-                    <div className="p-3 rounded-lg bg-white/5">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            Giá trung bình
-                        </div>
-                        <div className="text-lg font-bold">{formatCurrencyVND(avgPrice)}</div>
-                    </div>
-                    <div className="p-3 rounded-lg bg-white/5">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            Giá cao nhất
-                        </div>
-                        <div className="text-lg font-bold">{formatCurrencyVND(maxPrice)}</div>
-                    </div>
-                </div>
 
                 {activeOffers.length > 0 && (
                     <div className="mt-6">
@@ -1013,52 +1073,56 @@ function ListingOffersModal({
                             Danh sách người bán
                         </div>
                         <div className="rounded-lg border border-white/10 overflow-x-auto">
-                            <table className="w-full min-w-[600px] text-sm">
+                            <table className="w-full min-w-[520px] text-sm">
                                 <thead className="bg-white/5 text-muted-foreground">
                                     <tr>
                                         <th className="px-4 py-2 text-left whitespace-nowrap">Người bán</th>
-                                        <th className="px-4 py-2 text-right whitespace-nowrap">Giá</th>
-                                        <th className="px-4 py-2 text-center whitespace-nowrap">Số lượng</th>
-                                        <th className="px-4 py-2 text-right whitespace-nowrap">Thao tác</th>
+                                        <th className="px-4 py-2 text-left whitespace-nowrap">Giá</th>
+                                        <th className="px-4 py-2 text-right whitespace-nowrap">Số lượng / Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {activeOffers.map((offer) => (
                                         <tr key={offer.listSellerId} className="border-t border-white/5">
+                                            {/* Cột 1: tên seller */}
                                             <td className="px-4 py-2 text-sm text-muted-foreground">
-                                                <span>{offer.sellerName || '—'}</span>
-                                                {(offer.sellerFeedbackCount != null && offer.sellerFeedbackCount > 0) && (
-                                                    <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90 text-xs">
-                                                        <Star className="h-3 w-3 fill-amber-400 shrink-0" />
-                                                        {Number(offer.sellerAverageRating ?? 0).toFixed(1)}
-                                                        <span className="text-muted-foreground">({offer.sellerFeedbackCount} đánh giá)</span>
-                                                    </span>
-                                                )}
+                                                {offer.sellerName || '—'}
                                             </td>
-                                            <td className="px-4 py-2 text-right font-semibold text-accent-400">
+                                            {/* Cột 2: giá */}
+                                            <td className="px-4 py-2 text-left font-semibold text-accent-400">
                                                 {formatCurrencyVND(offer.price)}
                                             </td>
-                                            <td className="px-4 py-2 text-center">
-                                                {offer.quantity}
-                                            </td>
-                                            <td className="px-4 py-2 text-right flex gap-2 justify-end">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onAddCardToCart(product);
-                                                    }}
-                                                >
-                                                    Thêm thẻ vào giỏ
-                                                </Button>
-                                                <Button
-                                                    variant="premium"
-                                                    size="sm"
-                                                    onClick={() => onSelectOffer(offer)}
-                                                >
-                                                    Xem chi tiết
-                                                </Button>
+                                            {/* Cột 3: số lượng + icon */}
+                                            <td className="px-4 py-2 text-right whitespace-nowrap">
+                                                <div className="flex items-right justify-right gap-3">
+                                                    <span className="text-sm">
+                                                        SL:{' '}
+                                                        <span className="font-semibold">
+                                                            {offer.quantity}
+                                                        </span>
+                                                    </span>
+                                                    <div className="flex gap-1.5">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="icon"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onAddCardToCart(product);
+                                                            }}
+                                                            aria-label="Thêm vào giỏ hàng"
+                                                        >
+                                                            <ShoppingCart className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="premium"
+                                                            size="icon"
+                                                            onClick={() => onSelectOffer(offer)}
+                                                            aria-label="Xem chi tiết đề nghị"
+                                                        >
+                                                            <ChevronRight className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
