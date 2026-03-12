@@ -548,8 +548,8 @@ export const notificationApi = {
                 typeof n.isRead === 'boolean'
                     ? n.isRead
                     : typeof n.read === 'boolean'
-                    ? n.read
-                    : false;
+                        ? n.read
+                        : false;
             return {
                 notificationId: n.notificationId,
                 cardId: n.cardId,
@@ -585,8 +585,26 @@ export interface WishlistPriceAlert {
     expectPrice: number | null;
     matchingListings: Array<{ listSellerId: string; price: number; quantity: number; sellerName?: string }>;
 }
+export interface CardSellResponse {
+  cardResponse: {
+    cardId: string
+    name: string
+    rarity: string
+    imageResponse: ImageResponse[]
+    categoryName: string
+    basePrice: number
+    minPrice: number
+    maxPrice: number
+  }
+  numberOfCard: number
+  numberOfSeller: number
+}
+export interface ImageResponse {
+imageId:string,
+imageUrl:string
 
-export const cardApi = {
+}
+    export const cardApi = {
     getAllCards: async (): Promise<Card[]> => {
         // BE: GET /api/card trả về Spring Page<CardResponse>
         // Một số môi trường có thể trả thẳng array → fallback để không phá UI cũ.
@@ -778,6 +796,31 @@ export const cardApi = {
             method: 'PUT',
         });
     },
+    searchCardByImage : async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+     const response = await fetch(`${API_BASE_URL}/card/search-image`, {
+            method: 'POST',
+             headers: {
+                'Authorization': `Bearer ${tokenManager.getAccessToken()}`,
+            },
+            body: formData,
+        }
+    );
+    return response.json();
+    },
+      getCardSelling: async (page:number,size:number,request:any) => {
+    const res = await fetch(`${API_BASE_URL}/card/card-selling?page=${page}&size=${size}`,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+         'Authorization': `Bearer ${tokenManager.getAccessToken()}`
+      },
+      body: JSON.stringify(request)
+    })
+
+    return res.json()
+  },
 };
 
 // Card Required API (yêu cầu thêm thẻ mới)

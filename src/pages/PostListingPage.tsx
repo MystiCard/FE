@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Search, Package, Tag, Filter, X } from 'lucide-react';
+import { ArrowLeft, Search, Package, Tag, Filter, X, ImagePlus } from 'lucide-react';
 import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { cardApi, categoryApi, listSellerApi, Card as CardType, Category, getCardImageUrl } from '@/utils/api';
-
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
 
 const formatRarity = (rarity: string) =>
     rarity
         ? rarity
-              .toLowerCase()
-              .replace(/_/g, ' ')
-              .replace(/\b\w/g, c => c.toUpperCase())
+            .toLowerCase()
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase())
         : '';
 
 const formatVND = (value: number) => {
@@ -30,6 +29,7 @@ const rarityClass: Record<string, string> = {
 };
 
 export const PostListingPage: React.FC = () => {
+    const [imageSearching, setImageSearching] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
     const { page: pageParam } = useParams<{ page?: string }>();
@@ -45,6 +45,7 @@ export const PostListingPage: React.FC = () => {
     const [quantity, setQuantity] = useState('1');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [searchImage, setSearchImage] = useState<File | null>(null);
     // Quản lý listing chi tiết được chuyển sang trang /my-listings
 
     // Flow "Card not in system": chuyển qua trang gửi yêu cầu (Seller -> Admin)
@@ -65,7 +66,27 @@ export const PostListingPage: React.FC = () => {
     const searchParams = new URLSearchParams(location.search);
     const preselectCardId = searchParams.get('card') || undefined;
     const fromBlindBox = searchParams.get('fromBlindBox') === '1';
+    const handleSearchByImage = async (file: File) => {
+        try {
+            setImageSearching(true);
+            setError('');
+            setSearchImage(file);
+            const data = await cardApi.searchCardByImage(file);
+            console.log("Data search image ", data);
 
+            if (data.success) {
+                setCards(data.data || []);
+                setCardTotalPages(1);
+                setCardPage(0);
+            } else {
+                setError("Không tìm thấy thẻ từ hình ảnh");
+            }
+        } catch (err) {
+            setError("Search image thất bại");
+        } finally {
+            setImageSearching(false);
+        }
+    };
     const loadCards = async (pageOverride?: number) => {
         try {
             setIsLoading(true);
@@ -257,6 +278,7 @@ export const PostListingPage: React.FC = () => {
                                     <label className="block text-xs font-medium text-muted-foreground mb-1.5">
                                         Tìm kiếm
                                     </label>
+
                                     <div className="relative">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                         <input
@@ -266,6 +288,54 @@ export const PostListingPage: React.FC = () => {
                                             onChange={(e) => setSearchQuery(e.target.value)}
                                             className="w-full pl-10 pr-4 py-2.5 glass-card rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
                                         />
+                                    </div>
+                                    {/* Search bằng hình ảnh */}
+                                    <div>
+                                        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                                            Tìm bằng hình ảnh
+                                        </label>
+                                        <div className="flex items-center gap-4 mt-2">
+
+                                            {/* Upload button */}
+                                            <label className="flex items-center gap-2 cursor-pointer px-4 py-2.5 glass-card rounded-lg text-sm hover:bg-white/5 border border-dashed border-white/20">
+                                                <ImagePlus className="h-4 w-4 text-primary-400" />
+                                                <span>{imageSearching ? "Đang tìm..." : "Upload ảnh"}</span>
+
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            handleSearchByImage(file);
+                                                        }
+                                                        e.target.value = "";
+                                                    }}
+                                                />
+                                            </label>
+
+                                            {/* Preview */}
+                                            {searchImage && (
+                                                <div className="relative group">
+                                                    <img
+                                                        src={URL.createObjectURL(searchImage)}
+                                                        alt="search preview"
+                                                        className="w-20 h-28 object-cover rounded-lg border border-white/20 shadow-md transition-transform group-hover:scale-105"
+                                                    />
+
+                                                    {/* remove button */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>{ setSearchImage(null);setSearchQuery(''); }}
+                                                        className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs shadow"
+                                                    >
+                                                        ×
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                        </div>
                                     </div>
                                 </div>
 
@@ -403,11 +473,10 @@ export const PostListingPage: React.FC = () => {
                                                     key={card.cardId}
                                                     type="button"
                                                     onClick={() => setSelectedCard(card)}
-                                                    className={`text-left rounded-xl overflow-hidden border-2 transition-all ${
-                                                        isSelected
-                                                            ? 'border-primary-500 ring-2 ring-primary-500/30'
-                                                            : 'border-white/10 hover:border-white/30'
-                                                    }`}
+                                                    className={`text-left rounded-xl overflow-hidden border-2 transition-all ${isSelected
+                                                        ? 'border-primary-500 ring-2 ring-primary-500/30'
+                                                        : 'border-white/10 hover:border-white/30'
+                                                        }`}
                                                 >
                                                     <div className="aspect-[2.5/3.5] relative">
                                                         <img
@@ -419,9 +488,8 @@ export const PostListingPage: React.FC = () => {
                                                             }}
                                                         />
                                                         <span
-                                                            className={`absolute bottom-1 left-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                                                rarityClass[card.rarity] || 'bg-gray-500/20'
-                                                            }`}
+                                                            className={`absolute bottom-1 left-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${rarityClass[card.rarity] || 'bg-gray-500/20'
+                                                                }`}
                                                         >
                                                             {formatRarity(card.rarity)}
                                                         </span>
@@ -500,11 +568,10 @@ export const PostListingPage: React.FC = () => {
                                                             loadCards(p);
                                                             navigate(`/post-listing/${p + 1}${search}`, { replace: true });
                                                         }}
-                                                        className={`min-w-[24px] px-1.5 py-1 rounded border ${
-                                                            p === cardPage
-                                                                ? 'bg-primary-500 text-white border-primary-500'
-                                                                : 'bg-transparent text-muted-foreground border-white/10 hover:border-primary-400 hover:text-white'
-                                                        }`}
+                                                        className={`min-w-[24px] px-1.5 py-1 rounded border ${p === cardPage
+                                                            ? 'bg-primary-500 text-white border-primary-500'
+                                                            : 'bg-transparent text-muted-foreground border-white/10 hover:border-primary-400 hover:text-white'
+                                                            }`}
                                                         disabled={isLoading}
                                                     >
                                                         {p + 1}
@@ -569,9 +636,8 @@ export const PostListingPage: React.FC = () => {
                                                     {selectedCard.categoryName || '—'}
                                                 </p>
                                                 <span
-                                                    className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] ${
-                                                        rarityClass[selectedCard.rarity] || 'bg-gray-500/20'
-                                                    }`}
+                                                    className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] ${rarityClass[selectedCard.rarity] || 'bg-gray-500/20'
+                                                        }`}
                                                 >
                                                     {formatRarity(selectedCard.rarity)}
                                                 </span>
