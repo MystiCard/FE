@@ -591,25 +591,25 @@ export interface WishlistPriceAlert {
     matchingListings: Array<{ listSellerId: string; price: number; quantity: number; sellerName?: string }>;
 }
 export interface CardSellResponse {
-  cardResponse: {
-    cardId: string
-    name: string
-    rarity: string
-    imageResponse: ImageResponse[]
-    categoryName: string
-    basePrice: number
-    minPrice: number
-    maxPrice: number
-  }
-  numberOfCard: number
-  numberOfSeller: number
+    cardResponse: {
+        cardId: string
+        name: string
+        rarity: string
+        imageResponse: ImageResponse[]
+        categoryName: string
+        basePrice: number
+        minPrice: number
+        maxPrice: number
+    }
+    numberOfCard: number
+    numberOfSeller: number
 }
 export interface ImageResponse {
-imageId:string,
-imageUrl:string
+    imageId: string,
+    imageUrl: string
 
 }
-    export const cardApi = {
+export const cardApi = {
     getAllCards: async (): Promise<Card[]> => {
         // BE: GET /api/card trả về Spring Page<CardResponse>
         // Một số môi trường có thể trả thẳng array → fallback để không phá UI cũ.
@@ -801,31 +801,31 @@ imageUrl:string
             method: 'PUT',
         });
     },
-    searchCardByImage : async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-     const response = await fetch(`${API_BASE_URL}/card/search-image`, {
+    searchCardByImage: async (file: File) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await fetch(`${API_BASE_URL}/card/search-image`, {
             method: 'POST',
-             headers: {
+            headers: {
                 'Authorization': `Bearer ${tokenManager.getAccessToken()}`,
             },
             body: formData,
         }
-    );
-    return response.json();
+        );
+        return response.json();
     },
-      getCardSelling: async (page:number,size:number,request:any) => {
-    const res = await fetch(`${API_BASE_URL}/card/card-selling?page=${page}&size=${size}`,{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-         'Authorization': `Bearer ${tokenManager.getAccessToken()}`
-      },
-      body: JSON.stringify(request)
-    })
+    getCardSelling: async (page: number, size: number, request: any) => {
+        const res = await fetch(`${API_BASE_URL}/card/card-selling?page=${page}&size=${size}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                'Authorization': `Bearer ${tokenManager.getAccessToken()}`
+            },
+            body: JSON.stringify(request)
+        })
 
-    return res.json()
-  },
+        return res.json()
+    },
 };
 
 // 1x1 transparent PNG (base64) – dùng làm placeholder khi BE bắt buộc part "file"
@@ -1712,6 +1712,19 @@ export const orderApi = {
         });
         return res.data;
     },
+    createOrder2: async (payload: CreateOrderRequest) => {
+        const token = tokenManager.getAccessToken();
+        const response = await fetch(`${API_BASE_URL}/orders/create`, {
+            method: 'POST',
+            headers: {
+                "Content-Type": "application/json",
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload),
+        });
+        return response.json();
+    },
+
 
     /** Buyer: hủy đơn (BE: POST /api/orders/cancel-order/{orderId}) */
     cancelOrder: async (orderId: string): Promise<OrderCardResponse> => {
@@ -2217,6 +2230,68 @@ export const blindBoxApi = {
         return response.data;
     },
 };
+// Cart response
+
+export interface Cart {
+    cardResponse: Card
+    sellResponse: SellResponse
+    quantity: number
+    price: number
+}
+
+export interface CartRequest {
+    listSellerId: string
+    quantity: number
+}
+
+export const cartApi = {
+
+    createCart: async (data: CartRequest) => {
+        const res = await fetch(`${API_BASE_URL}/carts`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                'Authorization': `Bearer ${tokenManager.getAccessToken()}`
+            },
+            body: JSON.stringify(data)
+        })
+
+        return res.json()
+    },
+
+    getAllCarts: async (page: number, size: number) => {
+        const res = await fetch(`${API_BASE_URL}/carts?page=${page}&size=${size}`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${tokenManager.getAccessToken()}`
+            }
+        });
+        return res.json();
+    },
+
+    updateCart: async (id: string, data: CartRequest): Promise<Cart> => {
+        const res = await fetch(`${API_BASE_URL}/carts/${id}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${tokenManager.getAccessToken()}`
+            },
+            body: JSON.stringify(data)
+        })
+        return res.json();
+    },
+
+    deleteCart: async (id: string): Promise<string> => {
+        const res = await fetch(`${API_BASE_URL}/carts/${id}`, {
+            method: "DELETE",
+            headers: {
+                "Authorization": `Bearer ${tokenManager.getAccessToken()}`
+            }
+        })
+        return res.json();
+    },
+}
+
 
 // Rate Config API (frontend uses id/rarity/rate; backend uses rateConfigId/cardRarity/dropRate)
 export interface RateConfig {
@@ -2491,24 +2566,37 @@ export const shipmentApi = {
     /** Tính lại phí ship khi đổi địa chỉ (BE: POST /shipments/calculate-fee). Dùng sau khi đã tạo order, trước khi thanh toán. */
     recalculateFee: async (params: {
         orderId: string;
-        listSellerId: string;
         toDistrictId: number;
         toWardId: number;
-        oldShipmentFee: number;
-        totalPrice: number;
+        newAddress: string
+
     }): Promise<number> => {
-        const res = await apiRequest<ApiResponse<number>>('/shipments/calculate-fee', {
-            method: 'POST',
-            body: JSON.stringify({
+        // const res = await apiRequest<ApiResponse<number>>('/shipments/calculate-fee', {
+        //     method: 'POST',
+        //     body: JSON.stringify({
+        //         orderId: params.orderId,
+        //         toDistrictId: params.toDistrictId,
+        //         toWardId: params.toWardId,
+        //         newAddress: params.newAddress
+
+        //     }),
+        // });
+        const res = await fetch(`${API_BASE_URL}/shipments/calculate-fee`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                'Authorization': `Bearer ${tokenManager.getAccessToken()}`
+            },
+             body: JSON.stringify({
                 orderId: params.orderId,
-                listsellerId: params.listSellerId,
                 toDistrictId: params.toDistrictId,
                 toWardId: params.toWardId,
-                oldShipmentFee: params.oldShipmentFee,
-                totalPrice: params.totalPrice,
+                newAddress: params.newAddress
+
             }),
-        });
-        return res.data;
+        })
+
+        return res.json();
     },
 
     // Tính phí ship trực tiếp (dùng cho Hộp bí ẩn)

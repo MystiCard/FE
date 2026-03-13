@@ -6,7 +6,7 @@ import { useWishlist } from '@/hooks/useWishlist';
 import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { MobileMenu } from '@/components/shared/MobileMenu';
-import { userApi, cardApi, notificationApi, type NotificationItem } from '@/utils/api';
+import { userApi, cardApi, notificationApi, cartApi, type NotificationItem } from '@/utils/api';
 
 export const Header: React.FC = () => {
     const navigate = useNavigate();
@@ -27,6 +27,7 @@ export const Header: React.FC = () => {
     const { user, isAuthenticated, logout } = useAuth();
     const [walletBalance, setWalletBalance] = useState<number>(0);
     const [apiWishlistCount, setApiWishlistCount] = useState<number>(0);
+    const [carts,setCarts] = useState([]);
 
     // Khi đã đăng nhập: số wishlist lấy từ API (DB)
     const wishlistCount = isAuthenticated ? apiWishlistCount : wishlistLocalCount;
@@ -39,10 +40,18 @@ export const Header: React.FC = () => {
             setApiWishlistCount(0);
         }
     };
-
+  const fetchCarts = async () => {
+        try {
+            const res = await cartApi.getAllCarts(1,1000)
+            setCarts(res.data.content)
+        } catch {
+           
+        }
+    };
     useEffect(() => {
         if (!isAuthenticated) return;
         fetchWishlistCount();
+        fetchCarts();
         const onUpdated = () => fetchWishlistCount();
         window.addEventListener('wishlist-api-updated', onUpdated);
         return () => window.removeEventListener('wishlist-api-updated', onUpdated);
@@ -289,18 +298,21 @@ export const Header: React.FC = () => {
                                 )}
                             </Button>
                         </Link>
+                       
                         <Button
                             variant="ghost"
                             size="icon"
                             className="relative"
-                            onClick={() => navigate('/marketplace' + (marketplaceCartCount > 0 ? '?openCart=1' : ''))}
+                            onClick={() => navigate('/cart')}
                         >
                             <ShoppingCart className="h-5 w-5" />
-                            {marketplaceCartCount > 0 && (
+                            {carts.length > 0 && (
                                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent-500 rounded-full text-xs font-bold flex items-center justify-center text-black">
-                                    {marketplaceCartCount}
+                                    {carts.length }
                                 </span>
                             )}
+                       
+                        {/* </Link> */}
                         </Button>
                         <div
                             className="relative"
