@@ -32,6 +32,7 @@ export const SellerCardRequestPage: React.FC = () => {
     const [cardSetName, setCardSetName] = useState('');
     const [basePrice, setBasePrice] = useState('');
     const [imageUrl, setImageUrl] = useState('');
+    const [imageFile, setImageFile] = useState<File | null>(null);
     const [note, setNote] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
@@ -77,15 +78,17 @@ export const SellerCardRequestPage: React.FC = () => {
         setSubmitting(true);
         try {
             const chosenCategory = categories.find((c) => c.categoryId === categoryId);
-            await cardRequiredApi.requireNewCard({
-                cardName: n,
-                rate: rarity,
-                basePrice: basePriceNum,
-                imageUrl: imageUrl.trim() || null,
-                // BE: nếu categoryId null hoặc không tồn tại, sẽ dùng category (string) để tạo cate mới
-                category: cardSetName.trim() || chosenCategory?.categoryName || 'UNKNOWN',
-                categoryId,
-            });
+            await cardRequiredApi.requireNewCard(
+                {
+                    cardName: n,
+                    rate: rarity,
+                    basePrice: basePriceNum,
+                    imageUrl: imageUrl.trim() || null,
+                    category: cardSetName.trim() || chosenCategory?.categoryName || 'UNKNOWN',
+                    categoryId,
+                },
+                imageFile && imageFile.size > 0 ? imageFile : undefined
+            );
             navigate('/post-listing?requestSent=1');
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Không thể gửi yêu cầu.');
@@ -185,7 +188,22 @@ export const SellerCardRequestPage: React.FC = () => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium mb-1">Ảnh (URL) (tùy chọn)</label>
+                            <label className="block text-sm font-medium mb-1">Ảnh thẻ (tùy chọn)</label>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary-500/50 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:bg-primary-500/20 file:text-primary-400"
+                            />
+                            {imageFile && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Đã chọn: {imageFile.name} ({(imageFile.size / 1024).toFixed(1)} KB)
+                                </p>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Ảnh (URL tham khảo) (tùy chọn)</label>
                             <input
                                 value={imageUrl}
                                 onChange={(e) => setImageUrl(e.target.value)}

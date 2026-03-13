@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     Search,
     Filter,
@@ -18,8 +18,7 @@ import { listSellerApi, ListingItem, categoryApi, Category, cardApi, CardSellRes
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
-import { Heart, Loader2, Trash2, Star } from 'lucide-react';
-import 'bootstrap-icons/font/bootstrap-icons.css';
+import { Heart, Loader2, Trash2, Star, ShoppingCart } from 'lucide-react';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
 
@@ -58,7 +57,7 @@ export const Marketplace: React.FC = () => {
     const [min, setMin] = useState<number | "">("");
     const [max, setMax] = useState<number | "">("");
     const [sortBy, setSortBy] = useState('desc');
-    const [rarity, setRarity] = useState(null);
+    const [rarity, setRarity] = useState<string | null>(null);
     // const [filterCategory, setFilterCategory] = useState<string>('all');
     // const [filterRarity, setFilterRarity] = useState<string>('all');
     const [categories, setCategories] = useState<Category[]>([]);
@@ -68,6 +67,7 @@ export const Marketplace: React.FC = () => {
     const [orderLoading, setOrderLoading] = useState(false);
     const [orderError, setOrderError] = useState<string | null>(null);
     const [paymentMethod] = useState<'WALLET'>('WALLET');
+    const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
     const [cartOpen, setCartOpen] = useState(false);
     const { items: cartItems, addCard, setSelectedListing: setCartSelectedListing, updateQuantity: updateCartQuantity, removeCard: removeCartCard } = useMarketplaceCart();
     const { isAuthenticated } = useAuth();
@@ -340,7 +340,6 @@ export const Marketplace: React.FC = () => {
     //         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     //     }
     // }, [searchParams, products]);
-
     return (
         <div className="py-8">
             {error && (
@@ -450,9 +449,9 @@ export const Marketplace: React.FC = () => {
                         <div className="w-full lg:max-w-xs">
                             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Độ hiếm</label>
                             <select
-                                value={rarity ?? "ALL"}
+                                value={rarity ?? 'ALL'}
                                 onChange={(e) =>
-                                    setRarity(e.target.value === "ALL" ? null : e.target.value)
+                                    setRarity(e.target.value === 'ALL' ? null : e.target.value)
                                 }
                                 className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
                             >
@@ -471,9 +470,8 @@ export const Marketplace: React.FC = () => {
                                 className="w-full"
                                 onClick={() => {
                                     setSearchQuery('');
-                                    setMin("");
-                                    setMax("")
-
+                                    setMin('');
+                                    setMax('');
                                     setRarity(null);
                                 }}
                             >
@@ -481,10 +479,11 @@ export const Marketplace: React.FC = () => {
                             </Button>
                         </div>
                     </CardContent>
-                </Card>
+                    </Card>
+                </div>
 
                 {/* Khu vực danh sách sản phẩm kiểu Cardmarket */}
-                <div>
+                <div className="lg:col-span-3">
                     <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                         <div className="text-sm text-muted-foreground">
                             <span className="font-medium text-white">{totalElemests}</span> thẻ
@@ -585,7 +584,7 @@ export const Marketplace: React.FC = () => {
                                                         setSelectedProduct(s);
                                                     }}
                                                 >
-                                                    <i className="bi bi-cart fs-5"></i>
+                                                    <ShoppingCart className="h-5 w-5" />
                                                 </Button>
                                                 <Button
                                                     type="button"
@@ -647,9 +646,7 @@ export const Marketplace: React.FC = () => {
                         </div>
                     )}
                 </div>
-            </div>
 
-            {/* Modal danh sách offer của 1 thẻ (kiểu Cardmarket) */}
             <ListingOffersModal
                 product={selectedProduct}
                 onClose={() => {
@@ -685,9 +682,6 @@ export const Marketplace: React.FC = () => {
                         <>
                             <DialogHeader>
                                 <DialogTitle className="text-lg">Chi tiết đề nghị</DialogTitle>
-                                <DialogDescription>
-                                    Xem người bán, giá và số lượng trước khi checkout.
-                                </DialogDescription>
                             </DialogHeader>
                             <div className="flex gap-4 mt-4">
                                 <img
@@ -847,9 +841,6 @@ export const Marketplace: React.FC = () => {
                 >
                     <DialogHeader>
                         <DialogTitle className="text-lg">Giỏ hàng sàn giao dịch</DialogTitle>
-                        <DialogDescription>
-                            Chọn người bán cho từng thẻ rồi chuyển sang checkout để tính phí ship.
-                        </DialogDescription>
                     </DialogHeader>
                     {cartItems.length === 0 ? (
                         <p className="text-sm text-muted-foreground mt-4">
@@ -977,14 +968,15 @@ type ListingOffersModalProps = {
     formatRarity: (r: string) => string;
     rarityClass: Record<string, string>;
     placeholderImg: string;
-}; function ListingOffersModal({
+};
+function ListingOffersModal({
     product,
     onClose,
     onSelectOffer,
     onAddCardToCart,
     formatRarity,
     rarityClass,
-    placeholderImg
+    placeholderImg,
 }: ListingOffersModalProps) {
 
     if (!product) return null;
@@ -1005,8 +997,8 @@ type ListingOffersModalProps = {
                 pageSize
             );
 
-            setListSeller(res.content);
-            setTotalPages(res.totalPages);
+            setListSeller(res.content as ListingItem[]);
+            setTotalPages(res.totalPages ?? 0);
 
         } catch (err) {
             console.error(err);
