@@ -3,7 +3,7 @@ import { Card as UICard, CardContent, CardHeader, CardTitle } from '@/components
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ToastProvider, ToastViewport, Toast, ToastTitle, ToastDescription, ToastClose } from '@/components/ui/toast';
-import { listSellerApi, orderApi, OrderItemResponse, ShippingStatus, transactionApi, OrderSummaryResponse, OrderStatus, shipmentApi, TrackingResponse, cardApi, Card, getCardImageUrl, returnRequestApi, ReturnRequestItem, ReturnRequestStatus, ReturnRequestCreate, userApi, UserProfile } from '@/utils/api';
+import { listSellerApi, orderApi, OrderItemResponse, OrderDetailResponse, ShippingStatus, transactionApi, OrderSummaryResponse, OrderStatus, shipmentApi, TrackingResponse, cardApi, Card, getCardImageUrl, returnRequestApi, ReturnRequestItem, ReturnRequestStatus, ReturnRequestCreate, userApi, UserProfile } from '@/utils/api';
 import { AlertCircle, Package, Search, Truck, MapPin, Phone, CreditCard, Star } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -84,8 +84,8 @@ const SHIPPING_FILTERS: { value: UserShippingFilter; label: string }[] = [
     { value: 'ASIGNED', label: 'Chờ lấy hàng' },
     { value: 'PICKED_UP', label: 'Đã lấy hàng' },
     { value: 'IN_TRANSIT', label: 'Đang giao' },
-    { value: 'DELIVERED', label: 'Đã giao kho' },
-    { value: 'RECEIVED', label: 'Đã giao' },
+    { value: 'DELIVERED', label: 'Đã giao' },
+    { value: 'RECEIVED', label: 'Đã nhận' },
     { value: 'FAILED', label: 'Giao thất bại' },
     { value: 'LOST', label: 'Thất lạc' },
     { value: 'CANCELLED', label: 'Đã hủy' },
@@ -98,7 +98,7 @@ const BUY_FILTERS: { value: BuyOrderFilter; label: string }[] = [
     { value: 'WAIT_PICKUP', label: 'Chờ lấy hàng' },
     { value: 'WAIT_SHIP', label: 'Chờ giao' },
     { value: 'DELIVERED', label: 'Đã giao' },
-    { value: 'RETURN', label: 'Trả hàng' },
+    // { value: 'RETURN', label: 'Trả hàng' }, // Ẩn filter Trả hàng ở tab Đơn mua (đã có tab riêng "Trả hàng")
     { value: 'CANCELLED', label: 'Đã hủy' },
 ];
 
@@ -118,8 +118,8 @@ const SHIPPING_STATUS_LABELS: Record<ShippingStatus, string> = {
     ASIGNED: 'Đã gán shipper',
     PICKED_UP: 'Đã lấy hàng',
     IN_TRANSIT: 'Đang giao',
-    DELIVERED: 'Đã giao kho',
-    RECEIVED: 'Đã giao',
+    DELIVERED: 'Đã giao',
+    RECEIVED: 'Đã nhận',
     FAILED: 'Giao thất bại',
     LOST: 'Thất lạc',
     CANCELLED: 'Đã hủy',
@@ -194,7 +194,7 @@ export const OrdersPage: React.FC = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
     const [selectedShipment, setSelectedShipment] = useState<OrderItemResponse | null>(null);
-    const [viewMode, setViewMode] = useState<'BUY' | 'UNPAID' | 'SELL' | 'RETURNS'>('BUY');
+    const [viewMode, setViewMode] = useState<'BUY' | 'UNPAID' | 'SELL' | 'PENDING_SELL' | 'RETURNS'>('BUY');
     const [actionLoading, setActionLoading] = useState(false);
     const [buyOrders, setBuyOrders] = useState<OrderSummaryResponse[]>([]);
     const [buyLoading, setBuyLoading] = useState(false);
@@ -256,6 +256,13 @@ export const OrdersPage: React.FC = () => {
     const [returnCreateItems, setReturnCreateItems] = useState<Array<{ orderItemId: string; cardName?: string; cardImageUrl?: string; quantity?: number; price?: number }>>([]);
     const [myProfile, setMyProfile] = useState<UserProfile | null>(null);
     const [returnShowRefundDetail, setReturnShowRefundDetail] = useState(false);
+    // Seller: đơn chờ duyệt (pendings)
+    const [pendingList, setPendingList] = useState<OrderDetailResponse[]>([]);
+    const [pendingLoading, setPendingLoading] = useState(false);
+    const [pendingError, setPendingError] = useState('');
+    const [pendingPage, setPendingPage] = useState(0);
+    const [pendingTotalPages, setPendingTotalPages] = useState(1);
+    const [approvingOrderItemId, setApprovingOrderItemId] = useState<string | null>(null);
     const [returnShowReasonDetail, setReturnShowReasonDetail] = useState(false);
     // Thông tin bổ sung cho list Đơn mua: join thêm item/shipper từ API chi tiết theo orderId
     const [buyOrderExtras, setBuyOrderExtras] = useState<
@@ -369,7 +376,7 @@ export const OrdersPage: React.FC = () => {
         setToasts((prev) => [...prev, { id, ...t }]);
     };
 
-    const loadOrders = async (pageIndex: number, shippingStatus: UserShippingFilter, mode: 'BUY' | 'UNPAID' | 'SELL' | 'RETURNS') => {
+    const loadOrders = async (pageIndex: number, shippingStatus: UserShippingFilter, mode: 'BUY' | 'UNPAID' | 'SELL' | 'PENDING_SELL' | 'RETURNS') => {
         try {
             setIsLoading(true);
             setError('');
@@ -420,7 +427,16 @@ export const OrdersPage: React.FC = () => {
                 setBuyOrders(res.content ?? []);
                 setTotalPages(res.totalPages || 1);
                 setOrders([]); // tránh lẫn dữ liệu table shipment/seller
-            } else {
+            } else if (mode === 'PENDING_SELL') {
+                setPendingLoading(true);
+                setPendingError('');
+                const res = await orderApi.getPendings(pageIndex, pageSize);
+                setPendingList(res.content ?? []);
+                setPendingTotalPages(res.totalPages ?? 1);
+                setOrders([]);
+                setBuyOrders([]);
+                setUnpaidOrders([]);
+            } else if (mode === 'SELL') {
                 // Seller: xem các đơn trả thẻ về cho tôi (my-card-return) theo trạng thái shipment.
                 if (shippingStatus === 'ALL') {
                     const allResults = await Promise.all(
@@ -452,6 +468,10 @@ export const OrdersPage: React.FC = () => {
                 setBuyError(e instanceof Error ? e.message : 'Không tải được danh sách đơn mua');
                 setBuyOrders([]);
                 setTotalPages(1);
+            } else if (mode === 'PENDING_SELL') {
+                setPendingError(e instanceof Error ? e.message : 'Không tải được đơn chờ duyệt');
+                setPendingList([]);
+                setPendingTotalPages(1);
             } else {
                 setError(e instanceof Error ? e.message : 'Không tải được danh sách đơn hàng');
                 setOrders([]);
@@ -461,6 +481,7 @@ export const OrdersPage: React.FC = () => {
             setIsLoading(false);
             setUnpaidLoading(false);
             setBuyLoading(false);
+            setPendingLoading(false);
         }
     };
 
@@ -777,6 +798,16 @@ export const OrdersPage: React.FC = () => {
                         Đơn bán
                     </Button>
                     <Button
+                        variant={viewMode === 'PENDING_SELL' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => {
+                            setViewMode('PENDING_SELL');
+                            setPage(0);
+                        }}
+                    >
+                        Đơn chờ duyệt
+                    </Button>
+                    <Button
                         variant={viewMode === 'RETURNS' ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => {
@@ -902,6 +933,8 @@ export const OrdersPage: React.FC = () => {
                             ? `Đơn chưa thanh toán (${filteredUnpaid.length})`
                             : viewMode === 'RETURNS'
                             ? `Trả hàng (${returnList.length})`
+                            : viewMode === 'PENDING_SELL'
+                            ? `Đơn chờ duyệt (${pendingList.length})`
                             : `Đơn hàng (${filtered.length})`}
                     </CardTitle>
                 </CardHeader>
@@ -912,6 +945,8 @@ export const OrdersPage: React.FC = () => {
                         ? unpaidLoading
                         : viewMode === 'RETURNS'
                         ? returnLoading
+                        : viewMode === 'PENDING_SELL'
+                        ? pendingLoading
                         : isLoading) ? (
                         <div className="text-center py-12">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
@@ -923,6 +958,8 @@ export const OrdersPage: React.FC = () => {
                         ? unpaidError
                         : viewMode === 'RETURNS'
                         ? returnError
+                        : viewMode === 'PENDING_SELL'
+                        ? pendingError
                         : error) ? (
                         <div className="flex items-center gap-2 text-sm text-red-400 py-4">
                             <AlertCircle className="w-4 h-4" />
@@ -933,6 +970,8 @@ export const OrdersPage: React.FC = () => {
                                     ? unpaidError
                                     : viewMode === 'RETURNS'
                                     ? returnError
+                                    : viewMode === 'PENDING_SELL'
+                                    ? pendingError
                                     : error}
                             </span>
                         </div>
@@ -942,6 +981,8 @@ export const OrdersPage: React.FC = () => {
                         ? filteredBuy.length === 0
                         : viewMode === 'UNPAID'
                         ? filteredUnpaid.length === 0
+                        : viewMode === 'PENDING_SELL'
+                        ? pendingList.length === 0
                         : filtered.length === 0) ? (
                         <div className="text-center py-12 text-muted-foreground text-sm">
                             Bạn chưa có đơn hàng nào.
@@ -1515,6 +1556,106 @@ export const OrdersPage: React.FC = () => {
                                     </tbody>
                                 </table>
                             </div>
+                        ) : viewMode === 'PENDING_SELL' ? (
+                            <div className="space-y-3">
+                                <p className="text-xs text-muted-foreground">
+                                    Đơn hàng do người mua đặt, bạn (seller) cần duyệt để bắt đầu xử lý giao hàng. Mỗi dòng là một order item; duyệt từng item hoặc duyệt hết các item trong cùng một shipment để kích hoạt giao hàng.
+                                </p>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b border-white/10">
+                                                <th className="text-left p-3">Thẻ</th>
+                                                <th className="text-left p-3">Mã order item</th>
+                                                <th className="text-right p-3">Số lượng</th>
+                                                <th className="text-right p-3">Giá</th>
+                                                <th className="text-left p-3">Trạng thái</th>
+                                                <th className="text-right p-3">Thao tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {pendingList.map((item) => {
+                                                const card = item.cardResponse;
+                                                const cardName = card?.name ?? '—';
+                                                const cardImg = card ? getCardImageUrl(card as any) : undefined;
+                                                const id = String(item.orderItemId);
+                                                const isApproving = approvingOrderItemId === id;
+                                                return (
+                                                    <tr key={id} className="border-b border-white/5 hover:bg-white/5">
+                                                        <td className="p-3">
+                                                            <div className="flex items-center gap-2">
+                                                                {cardImg ? (
+                                                                    <img src={cardImg} alt={cardName} className="w-12 h-16 rounded object-cover bg-white/5" />
+                                                                ) : (
+                                                                    <div className="w-12 h-16 rounded bg-white/5 flex items-center justify-center text-lg">🎴</div>
+                                                                )}
+                                                                <span className="font-medium line-clamp-2">{cardName}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-3 font-mono text-xs">{id.slice(0, 8)}</td>
+                                                        <td className="p-3 text-right">{item.quantity}</td>
+                                                        <td className="p-3 text-right">{Number(item.price ?? 0).toLocaleString('vi-VN')} đ</td>
+                                                        <td className="p-3">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-amber-500/10 text-amber-200">
+                                                                <Package className="w-3 h-3" />
+                                                                {item.orderItemStatus || 'PENDING_CONFIRM'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-3 text-right">
+                                                            <Button
+                                                                size="sm"
+                                                                className="bg-green-600 hover:bg-green-700 text-white"
+                                                                disabled={isApproving || item.orderItemStatus !== 'PENDING_CONFIRM'}
+                                                                onClick={async () => {
+                                                                    setApprovingOrderItemId(id);
+                                                                    try {
+                                                                        await orderApi.approveOrderItem(id);
+                                                                        await loadOrders(page, status, viewMode);
+                                                                        pushToast({
+                                                                            title: 'Đã duyệt',
+                                                                            description: 'Order item đã được duyệt.',
+                                                                            variant: 'success',
+                                                                        });
+                                                                    } catch (e) {
+                                                                        const msg = e instanceof Error ? e.message : String(e ?? '');
+                                                                        if (/shipment_shipment_status_check|violates check constraint[\\s\\S]*shipment/i.test(msg)) {
+                                                                            pushToast({
+                                                                                title: 'Lỗi cấu hình cơ sở dữ liệu',
+                                                                                description:
+                                                                                    'Không duyệt được do cấu hình trạng thái shipment trong database chưa cho phép giá trị PENDING_APPROVED. ' +
+                                                                                    'Quản trị viên vui lòng chạy script fix-shipment-status-check.sql trong thư mục db của backend rồi thử lại.',
+                                                                                variant: 'error',
+                                                                            });
+                                                                        } else if (/tracking_shipping_status_check|violates check constraint[\\s\\S]*tracking/i.test(msg)) {
+                                                                            pushToast({
+                                                                                title: 'Lỗi cấu hình cơ sở dữ liệu',
+                                                                                description:
+                                                                                    'Không duyệt được do cấu hình trạng thái giao hàng trong database chưa cho phép giá trị PENDING_APPROVED. ' +
+                                                                                    'Quản trị viên vui lòng chạy script fix-tracking-shipping-status-check.sql trong thư mục db của backend rồi thử lại.',
+                                                                                variant: 'error',
+                                                                            });
+                                                                        } else {
+                                                                            pushToast({
+                                                                                title: 'Lỗi',
+                                                                                description: msg || 'Không duyệt được.',
+                                                                                variant: 'error',
+                                                                            });
+                                                                        }
+                                                                    } finally {
+                                                                        setApprovingOrderItemId(null);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {isApproving ? 'Đang duyệt...' : 'Duyệt'}
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
@@ -1615,7 +1756,7 @@ export const OrdersPage: React.FC = () => {
                     {viewMode !== 'RETURNS' && (
                         <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
                         <span>
-                            Trang {page + 1} / {totalPages}
+                            Trang {page + 1} / {viewMode === 'PENDING_SELL' ? Math.max(1, pendingTotalPages) : totalPages}
                         </span>
                         <div className="flex items-center gap-2">
                             <button
@@ -1626,7 +1767,7 @@ export const OrdersPage: React.FC = () => {
                                 Trước
                             </button>
                             <button
-                                disabled={page + 1 >= totalPages}
+                                disabled={page + 1 >= (viewMode === 'PENDING_SELL' ? pendingTotalPages : totalPages)}
                                 onClick={() => setPage((p) => p + 1)}
                                 className="px-3 py-1 rounded-lg glass-card disabled:opacity-50 disabled:cursor-not-allowed"
                             >

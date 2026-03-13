@@ -785,20 +785,49 @@ export const cardApi = {
     },
 };
 
+// 1x1 transparent PNG (base64) – dùng làm placeholder khi BE bắt buộc part "file"
+const MINIMAL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+function getMinimalPngBlob(): Blob {
+    const bin = Uint8Array.from(atob(MINIMAL_PNG_BASE64), (c) => c.charCodeAt(0));
+    return new Blob([bin], { type: 'image/png' });
+}
+
+/** Placeholder 64x64 PNG để BE approve có thể getVector() thành công (1x1 thường bị IMAGE_CONVERT). */
+function getApprovePlaceholderBlob(): Promise<Blob> {
+    return new Promise((resolve) => {
+        if (typeof document === 'undefined' || !document.createElement) {
+            resolve(getMinimalPngBlob());
+            return;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            resolve(getMinimalPngBlob());
+            return;
+        }
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(0, 0, 64, 64);
+        canvas.toBlob((blob) => resolve(blob || getMinimalPngBlob()), 'image/png', 0.95);
+    });
+}
+
 // Card Required API (yêu cầu thêm thẻ mới)
 export const cardRequiredApi = {
     /** Seller gửi yêu cầu thêm thẻ mới. */
-    requireNewCard: async (payload: NewCardRequiredRequest): Promise<CardRequired> => {
-        // BE: /api/card/required nhận multipart/form-data với
-        // @RequestPart NewCardRequest request + @RequestPart(required = false) MultipartFile file.
-        // NewCardRequest có các field: cardName, rate, basePrice, category, categoryId (UUID)
+    requireNewCard: async (payload: NewCardRequiredRequest, imageFile?: File | null): Promise<CardRequired> => {
+        // BE: /api/card/required bắt buộc part "request" + part "file". Gửi ảnh thật nếu có, không thì gửi placeholder.
         const formData = new FormData();
-        // Gửi toàn bộ payload trong part tên "request" dạng JSON, giống các endpoint khác dùng @RequestPart.
         formData.append(
             'request',
             new Blob([JSON.stringify(payload)], { type: 'application/json' })
         );
-        // Hiện tại FE chưa hỗ trợ upload ảnh cho yêu cầu này, nên không append 'file'.
+        if (imageFile && imageFile.size > 0) {
+            formData.append('file', imageFile);
+        } else {
+            formData.append('file', getMinimalPngBlob(), 'placeholder.png');
+        }
 
         const response = await apiRequest<ApiResponse<CardRequired>>('/card/required', {
             method: 'POST',
@@ -825,12 +854,19 @@ export const cardRequiredApi = {
         return response.data;
     },
 
-    /** Admin duyệt yêu cầu và tạo thẻ mới. */
-    approveRequiredCard: async (cardRequiredId: string, note?: string | null): Promise<CardRequired> => {
-        const body: AddCardRequiredRequest = { note: note ?? null };
+    /** Admin duyệt yêu cầu và tạo thẻ mới. BE: PUT /card/{id}/approve nhận multipart (request + file). Dùng ảnh 64x64 khi không có file để tránh IMAGE_CONVERT. */
+    approveRequiredCard: async (cardRequiredId: string, note?: string | null, imageFile?: File | null): Promise<CardRequired> => {
+        const formData = new FormData();
+        formData.append('request', new Blob([JSON.stringify({ note: note ?? null })], { type: 'application/json' }));
+        if (imageFile && imageFile.size > 0) {
+            formData.append('file', imageFile);
+        } else {
+            const placeholder = await getApprovePlaceholderBlob();
+            formData.append('file', placeholder, 'placeholder.png');
+        }
         const response = await apiRequest<ApiResponse<CardRequired>>(`/card/${cardRequiredId}/approve`, {
             method: 'PUT',
-            body: JSON.stringify(body),
+            body: formData,
         });
         return response.data;
     },
@@ -1286,6 +1322,15 @@ export interface BlindBoxShipmentItemResponse {
     basePrice?: number;
 }
 
+/** Một dòng order item (BE OrderItemResponse.OrderDetailResponse) - dùng cho seller đơn chờ duyệt */
+export interface OrderDetailResponse {
+    orderItemId: string;
+    quantity: number;
+    price: number;
+    orderItemStatus: string;
+    cardResponse?: { cardId?: string; name?: string; imageUrl?: unknown };
+}
+
 // OrderItem (dùng cho đơn hàng + màn Orders)
 export interface OrderItemResponse {
     shipfee: number;
@@ -1648,6 +1693,38 @@ export const orderApi = {
         const res = await apiRequest<ApiResponse<PageResponse<OrderSummaryResponse>>>(`/orders/my-orders?${params.toString()}`, {
             method: 'GET',
         });
+        return res.data;
+    },
+
+    /**
+     * Seller: danh sách đơn chờ duyệt (buyer đã mua, seller cần duyệt).
+     * BE: GET /api/orders/pendings?page=&size=
+     */
+    getPendings: async (
+        page: number = 0,
+        size: number = 10
+    ): Promise<PageResponse<OrderDetailResponse>> => {
+        const pageOneBased = Math.max(1, page + 1);
+        const params = new URLSearchParams({
+            page: String(pageOneBased),
+            size: String(size),
+        });
+        const res = await apiRequest<ApiResponse<PageResponse<OrderDetailResponse>>>(
+            `/orders/pendings?${params.toString()}`,
+            { method: 'GET' }
+        );
+        return res.data;
+    },
+
+    /**
+     * Seller: duyệt một order item (chuyển PENDING_CONFIRM -> CONFIRMED).
+     * BE: POST /api/orders/aproved/{orderItemId} (note: BE path typo "aproved")
+     */
+    approveOrderItem: async (orderItemId: string): Promise<OrderDetailResponse> => {
+        const res = await apiRequest<ApiResponse<OrderDetailResponse>>(
+            `/orders/aproved/${orderItemId}`,
+            { method: 'POST' }
+        );
         return res.data;
     },
 
