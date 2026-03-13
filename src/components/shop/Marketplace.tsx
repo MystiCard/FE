@@ -14,7 +14,7 @@ import {
     Users,
 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { listSellerApi, ListingItem, categoryApi, Category, cardApi, CardSellResponse } from '@/utils/api';
+import { listSellerApi, ListingItem, categoryApi, Category, cardApi, CardSellResponse, getCardImageUrl, cartApi, CartRequest } from '@/utils/api';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
@@ -46,39 +46,6 @@ const rarityClass: Record<string, string> = {
 };
 
 const RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SUPER_RARE', 'SECRET_RARE'];
-
-// /** Nhóm listing theo cardId → mỗi thẻ một dòng, nhiều offer bên dưới (kiểu Cardmarket) */
-// type CardProduct = {
-//     cardId: string;
-//     cardName: string;
-//     imageUrl?: string;
-//     categoryName?: string;
-//     rarity: string;
-//     basePrice: number;
-//     offers: ListingItem[];
-// };
-
-// function groupListingsByCard(listings: ListingItem[]): CardProduct[] {
-//     const byCard = new Map<string, ListingItem[]>();
-//     for (const item of listings) {
-//         const list = byCard.get(item.cardId) || [];
-//         list.push(item);
-//         byCard.set(item.cardId, list);
-//     }
-//     return Array.from(byCard.entries()).map(([cardId, offers]) => {
-//         const first = offers[0];
-//         return {
-//             cardId,
-//             cardName: first.cardName,
-//             imageUrl: first.imageUrl,
-//             categoryName: first.categoryName,
-//             rarity: first.rarity,
-//             basePrice: first.basePrice,
-//             offers: offers.sort((a, b) => a.price - b.price),
-//         };
-//     });
-// }
-
 export const Marketplace: React.FC = () => {
     const [listings, setListings] = useState<ListingItem[]>([]);
     const [totalPages, setTotalPages] = useState(0);
@@ -111,7 +78,9 @@ export const Marketplace: React.FC = () => {
     const [wishlistLoadingCardId, setWishlistLoadingCardId] = useState<string | null>(null);
     const [sellCards, setSellCards] = useState<CardSellResponse[]>([])
     const [listSeller, setListSeller] = useState<ListingItem[]>([])
-
+    const [addCartOpen, setAddCartOpen] = useState(false);
+    const [cartListing, setCartListing] = useState<ListingItem | null>(null);
+    const [cartQuantity, setCartQuantity] = useState(1);
     useEffect(() => {
         loadListings();
     }, [currentPage, searchQuery, sortBy, min, max, rarity]);
@@ -187,7 +156,29 @@ export const Marketplace: React.FC = () => {
             setIsLoading(false);
         }
     };
+    const handleAddCartApi = async () => {
+        if (!cartListing) return;
 
+        try {
+            const res = await cartApi.createCart({
+                listSellerId: cartListing.listSellerId,
+                quantity: cartQuantity
+            });
+
+            setAddCartOpen(false);
+            setCartListing(null);
+            setCartQuantity(1);
+            if (res.code === 1000) {
+                alert("Thêm vào giỏ hàng thành công")
+            } else {
+                alert("Thêm vào giỏ hàng thất bại " + res.message);
+            }
+
+        } catch (err) {
+            console.error(err);
+            alert(err?.messsage);
+        }
+    };
 
     const toggleWishlistForCard = async (product: CardSellResponse, e?: React.MouseEvent) => {
         if (e) {
@@ -336,14 +327,6 @@ export const Marketplace: React.FC = () => {
             setOrderLoading(false);
         }
     };
-
-    // const products = useMemo(() => {
-    //     const grouped = groupListingsByCard(filteredListings);
-    //     if (sortBy === 'name') grouped.sort((a, b) => a.cardName.localeCompare(b.cardName));
-    //     else if (sortBy === 'price-asc') grouped.sort((a, b) => a.offers[0].price - b.offers[0].price);
-    //     else if (sortBy === 'price-desc') grouped.sort((a, b) => b.offers[0].price - a.offers[0].price);
-    //     return grouped;
-    // }, [ sortBy]);
 
     // Tự động mở chi tiết thẻ khi đi từ thông báo giá: ?card={cardId}
     // useEffect(() => {
@@ -505,7 +488,7 @@ export const Marketplace: React.FC = () => {
                     <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                         <div className="text-sm text-muted-foreground">
                             <span className="font-medium text-white">{totalElemests}</span> thẻ
-                            
+
                             {/* <span className="font-medium text-white">{filteredListings.length}</span> lời chào giá */}
                         </div>
                         <select
@@ -526,11 +509,6 @@ export const Marketplace: React.FC = () => {
                     ) : sellCards.length > 0 ? (
                         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
                             {sellCards.map((s) => {
-                                // const prices = s.offers.map((o) => o.price);
-                                // const quantities = product.offers.map((o) => o.quantity ?? 0);
-                                // const minPrice = prices.length ? Math.min(...prices) : product.basePrice;
-                                // const totalQuantity = quantities.reduce((sum, q) => sum + q, 0);
-
                                 const inWishlist =
                                     wishlistCardIds.has(s.cardResponse.cardId) || isInWishlist(s.cardResponse.cardId);
 
@@ -682,7 +660,10 @@ export const Marketplace: React.FC = () => {
                     setSelectedListing(offer);
                     setSelectedProduct(null);
                 }}
-                onAddCardToCart={(product, offer) => addCardToCart(product, offer)}
+                onAddCardToCart={(product, offer) => {
+                    setCartListing(offer);
+                    setAddCartOpen(true);
+                }}
                 formatRarity={formatRarity}
                 rarityClass={rarityClass}
                 placeholderImg={PLACEHOLDER_IMG}
@@ -692,7 +673,7 @@ export const Marketplace: React.FC = () => {
             <Dialog open={!!selectedListing} onOpenChange={(o) => !o && setSelectedListing(null)}>
                 <DialogContent
                     className="
-    w-[40vw]
+    w-[90vw]
     max-w-[1200px]
     max-h-[90vh]
     overflow-y-auto
@@ -797,8 +778,63 @@ export const Marketplace: React.FC = () => {
                     )}
                 </DialogContent>
             </Dialog>
+            <Dialog open={addCartOpen} onOpenChange={setAddCartOpen}>
+                <DialogContent className="max-w-md glass-card-strong">
+                    <DialogHeader>
+                        <DialogTitle>Thêm vào giỏ</DialogTitle>
+                        <DialogDescription>
+                            Nhập số lượng muốn mua
+                        </DialogDescription>
+                    </DialogHeader>
 
-            {/* Giỏ hàng: mỗi thẻ chọn 1 seller + số lượng */}
+                    {cartListing && (
+                        <div className="space-y-4">
+                            <div className="flex gap-3 items-center">
+                                <img
+                                    src={cartListing.imageUrl || PLACEHOLDER_IMG}
+                                    className="w-16 h-20 rounded object-cover"
+                                />
+
+                                <div>
+                                    <div className="font-medium">{cartListing.cardName}</div>
+                                    <div className="text-sm text-muted-foreground">
+                                        Giá: {formatCurrencyVND(cartListing.price)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-sm">Số lượng</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={cartListing.quantity}
+                                    value={cartQuantity}
+                                    onChange={(e) =>
+                                        setCartQuantity(
+                                            Math.max(
+                                                1,
+                                                Math.min(Number(e.target.value), cartListing.quantity)
+                                            )
+                                        )
+                                    }
+                                    className="w-full mt-1 px-3 py-2 rounded bg-white/5 border border-white/10"
+                                />
+                            </div>
+
+                            <Button
+                                variant="premium"
+                                className="w-full"
+                                onClick={handleAddCartApi}
+                            >
+                                Thêm vào giỏ
+                            </Button>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Giỏ hàng: mỗi thẻ chọn 1 seller + số lượng
             <Dialog open={cartOpen} onOpenChange={(o) => setCartOpen(o)}>
                 <DialogContent
                     className="
@@ -927,10 +963,12 @@ export const Marketplace: React.FC = () => {
                         </div>
                     )}
                 </DialogContent>
-            </Dialog>
+            </Dialog> */}
         </div>
     );
+
 };
+
 type ListingOffersModalProps = {
     product: CardSellResponse | null;
     onClose: () => void;
@@ -950,18 +988,6 @@ type ListingOffersModalProps = {
 }: ListingOffersModalProps) {
 
     if (!product) return null;
-
-    // const activeOffers = offers.filter(o => (o.quantity ?? 0) > 0);
-
-    // const prices = activeOffers.map(o => o.price);
-    // const quantities = activeOffers.map(o => o.quantity ?? 0);
-
-    // const minPrice = prices.length ? Math.min(...prices) : 0;
-    // const maxPrice = prices.length ? Math.max(...prices) : 0;
-    // const avgPrice =
-    //     prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
-
-    // const totalQuantity = quantities.reduce((a, b) => a + b, 0);
     const [page, setPage] = useState(0);
     const pageSize = 5;
     const [totalPages, setTotalPages] = useState(0);
@@ -990,7 +1016,7 @@ type ListingOffersModalProps = {
         <Dialog open={!!product} onOpenChange={(o) => !o && onClose()}>
             <DialogContent
                 className="
-    w-[50vw]
+    w-[80vw]
     max-w-[1000px]
     max-h-[90vh]
     overflow-y-auto
@@ -1159,7 +1185,7 @@ type ListingOffersModalProps = {
                                                     size="sm"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onAddCardToCart(product,offer);
+                                                        onAddCardToCart(product, offer);
                                                     }}
                                                 >
                                                     Thêm thẻ vào giỏ

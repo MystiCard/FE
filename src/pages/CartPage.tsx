@@ -1,311 +1,386 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Minus, Trash2, ShoppingBag, Tag, CheckCircle2, XCircle, ArrowLeft, ShoppingCart } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useCart } from '@/hooks/useCart';
+import React, { useEffect, useState } from "react";
+import { Minus, Plus, Trash2, ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cartApi, listSellerApi, getCardImageUrl, Card, SellResponse,CreateOrderRequest,userApi,orderApi } from "@/utils/api";
+import { useNavigate } from "react-router-dom";
+
+interface CartItem {
+    id: string;
+    card: Card;
+    seller: SellResponse;
+    quantity: number;
+    sellers?: SellResponse[];
+}
 
 export const CartPage: React.FC = () => {
     const navigate = useNavigate();
-    const {
-        items,
-        selectedItems,
-        voucher,
-        updateQuantity,
-        removeItem,
-        clearCart,
-        toggleItemSelection,
-        toggleSelectAll,
-        applyVoucher,
-        removeVoucher,
-        total,
-        subtotal,
-        discountAmount,
-        itemCount,
-        selectedItemCount,
-        isAllSelected,
-    } = useCart();
 
-    const [voucherInput, setVoucherInput] = useState('');
-    const [voucherError, setVoucherError] = useState('');
+    const [items, setItems] = useState<CartItem[]>([]);
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
-    const formatCurrencyVND = (value: number) => {
-        const safe = Number.isFinite(value) ? value : 0;
-        return safe.toLocaleString('vi-VN') + ' đ';
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalElements, setTotalElements] = useState(0);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 5;
+
+    useEffect(() => {
+        loadCart();
+    }, [currentPage]);
+    const handleCheckout = async () => {
+        
+        if (selectedItems.size === 0) return;
+
+        try {
+           
+            const profile = await userApi.getMyProfile();
+
+            if (!profile.address || !profile.phone || !profile.districtId || !profile.wardId) {
+                alert("Vui lòng cập nhật đầy đủ địa chỉ và số điện thoại trong hồ sơ trước khi thanh toán.");
+                navigate("/profile");
+                return;
+            }
+            console.log("Profile ",profile)
+            // 3. Lọc sản phẩm đã chọn và chuẩn bị Payload
+            const selectedProducts = items.filter(item => selectedItems.has(item.id));
+
+            const orderPayload: CreateOrderRequest = {
+                buyerAddress: profile.address,
+                buyerPhone: profile.phone,
+                toDistrictId: Number(profile.districtId),
+                toWardId: Number(profile.wardId),
+                orderItemsList: selectedProducts.map(item => ({
+                    listSellerId: item.seller.listSellerId,
+                    quantity: item.quantity > item.seller.quantity ? item.seller.quantity : item.quantity
+                }))
+            };
+
+            // 4. Gọi API tạo đơn hàng
+            // Giả sử orderApi được import từ @/utils/api
+            const orderResponse = await orderApi.createOrder2(orderPayload);
+            console.log("Order response",orderResponse.data);
+            // 5. Chuyển hướng sang trang marketcheckoutPage cùng với dữ liệu đơn hàng
+            navigate("/marketplace/checkout", {
+                state: {
+                    order: orderResponse.data,
+                    user: profile// Có thể gửi kèm profile để hiển thị lại thông tin người nhận
+                }
+            });
+
+        } catch (error) {
+            console.error("Lỗi quá trình thanh toán:", error);
+            alert("Đã có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại.");
+        }
+    };
+    const loadCart = async () => {
+        try {
+            const res = await cartApi.getAllCarts(currentPage, pageSize);
+            const carts = res.data.content;
+
+            setTotalPages(res.data.totalPages);
+            setTotalElements(res.data.totalElements);
+
+            const result: CartItem[] = await Promise.all(
+                carts.map(async (c: any) => {
+                    const sellersRes = await listSellerApi.getListingsByCardId(
+                        c.cardResponse.cardId
+                    );
+
+                    const sellers = sellersRes.content.sort(
+                        (a: SellResponse, b: SellResponse) => a.price - b.price
+                    );
+
+                    return {
+                        id: c.cartId,
+                        card: c.cardResponse,
+                        seller: c.sellResponse,
+                        quantity: c.quantity,
+                        sellers
+                    };
+                })
+            );
+
+            setItems(result);
+        } catch (error) {
+            console.error("Lỗi khi tải giỏ hàng:", error);
+        }
     };
 
-    const handleApplyVoucher = () => {
-        if (!voucherInput.trim()) {
-            setVoucherError('Vui lòng nhập mã giảm giá');
-            return;
-        }
+    const toggleSelect = (id: string) => {
+        setSelectedItems(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) newSet.delete(id);
+            else newSet.add(id);
+            return newSet;
+        });
+    };
 
-        const success = applyVoucher(voucherInput);
-        if (success) {
-            setVoucherInput('');
-            setVoucherError('');
+    const toggleSelectAll = () => {
+        if (selectedItems.size === items.length && items.length > 0) {
+            setSelectedItems(new Set());
         } else {
-            setVoucherError('Mã giảm giá không hợp lệ');
+            setSelectedItems(new Set(items.map(i => i.id)));
         }
     };
 
-    const handleRemoveVoucher = () => {
-        removeVoucher();
-        setVoucherError('');
+    const updateQuantity = async (item: CartItem, q: number) => {
+        // KIỂM TRA CHẶT CHẼ: Giới hạn số lượng không vượt quá tồn kho
+        const maxStock = item.seller.quantity;
+        let finalQuantity = q;
+
+        if (finalQuantity > maxStock) {
+            finalQuantity = maxStock;
+        }
+        if (finalQuantity <= 0) return;
+
+        // Nếu số lượng không đổi (bị block do quá tồn kho) thì không gọi API nữa
+        if (finalQuantity === item.quantity) return;
+
+        await cartApi.updateCart(item.id, {
+            listSellerId: item.seller.listSellerId,
+            quantity: finalQuantity
+        });
+
+        setItems(prev =>
+            prev.map(i =>
+                i.id === item.id ? { ...i, quantity: finalQuantity } : i
+            )
+        );
     };
 
-    // Empty cart state
-    if (items.length === 0) {
-        return (
-            <div className="min-h-[60vh] flex items-center justify-center ">
-                <div className="text-center max-w-md mx-auto px-4">
-                    <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary-500/20 to-accent-500/20 flex items-center justify-center">
-                        <ShoppingCart className="h-16 w-16 text-muted-foreground" />
-                    </div>
-                    <h2 className="text-3xl font-bold mb-3 font-serif">Giỏ hàng trống</h2>
-                    <p className="text-muted-foreground mb-6">
-                        Bạn chưa có sản phẩm nào trong giỏ hàng. Hãy khám phá các sản phẩm tuyệt vời của chúng tôi!
-                    </p>
-                    <Button
-                        variant="premium"
-                        size="lg"
-                        onClick={() => navigate('/mystery-box')}
-                        className="gap-2"
-                    >
-                        <ShoppingBag className="h-5 w-5" />
-                        Tiếp tục mua sắm
-                    </Button>
-                </div>
-            </div>
+    const removeItem = async (id: string) => {
+        await cartApi.deleteCart(id);
+        setSelectedItems(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(id);
+            return newSet;
+        });
+        loadCart();
+    };
+
+    const changeSeller = async (item: CartItem, sellerId: string) => {
+        const seller = item.sellers?.find(s => s.listSellerId === sellerId);
+        if (!seller) return;
+
+        await cartApi.updateCart(item.id, {
+            listSellerId: sellerId,
+            quantity: 1
+        });
+
+        setItems(prev =>
+            prev.map(i =>
+                i.id === item.id ? { ...i, seller, quantity: 1 } : i
+            )
         );
-    }
+    };
+
+    const formatCurrency = (v: number) => {
+        return v.toLocaleString("vi-VN") + " đ";
+    };
+
+    // Tính tổng tiền dựa trên số lượng được chặn tối đa (phòng hờ trường hợp dữ liệu cũ)
+    const subtotal = items
+        .filter(i => selectedItems.has(i.id))
+        .reduce((sum, i) => {
+            const validQuantity = i.quantity > i.seller.quantity ? i.seller.quantity : i.quantity;
+            return sum + validQuantity * i.seller.price;
+        }, 0);
 
     return (
-        <div className="py-8 ">
-            {/* Header */}
-            <div className="mb-6">
-                <button
-                    onClick={() => navigate(-1)}
-                    className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4"
-                >
-                    <ArrowLeft className="h-4 w-4" />
-                    <span className="text-sm">Tiếp tục mua sắm</span>
-                </button>
-                <h1 className="text-4xl font-bold font-serif">Giỏ hàng của bạn</h1>
-                <p className="text-muted-foreground mt-2">{itemCount} sản phẩm</p>
+        <div className="max-w-5xl mx-auto py-8 px-6">
+            <div className="flex items-center gap-3 mb-8">
+                <ShoppingCart className="w-8 h-8 text-blue-500" />
+                <h1 className="text-3xl font-bold text-white tracking-tight">
+                    Giỏ hàng của bạn <span className="text-gray-400 text-lg font-normal">({totalElements} sản phẩm)</span>
+                </h1>
             </div>
 
-            {/* Select All Bar */}
-            <div className="glass-card p-4 rounded-lg mb-6 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+            {/* Select all */}
+            {items.length > 0 && (
+                <div className="flex items-center gap-3 mb-4 px-2">
                     <input
                         type="checkbox"
-                        checked={isAllSelected}
+                        checked={selectedItems.size === items.length && items.length > 0}
                         onChange={toggleSelectAll}
-                        className="w-5 h-5 rounded border-2 border-white/20 bg-white/5 checked:bg-primary-500 checked:border-primary-500 cursor-pointer"
+                        className="w-5 h-5 rounded border-slate-600 bg-slate-800 accent-blue-500 cursor-pointer focus:ring-0"
                     />
-                    <span className="font-medium">
-                        Chọn tất cả ({items.length} sản phẩm)
+                    <span className="text-gray-300 font-medium cursor-pointer" onClick={toggleSelectAll}>
+                        Chọn tất cả
                     </span>
                 </div>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearCart}
-                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                >
-                    Xóa tất cả
-                </Button>
-            </div>
+            )}
 
-            {/* 2-Column Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - Product List */}
-                <div className="lg:col-span-2 space-y-4">
-                    {items.map((item) => {
+            <div className="space-y-4">
+                {items.length === 0 ? (
+                    <div className="text-center py-16 bg-[#202946] rounded-2xl border border-[#35426B]">
+                        <p className="text-gray-400 text-lg">Giỏ hàng của bạn đang trống.</p>
+                    </div>
+                ) : (
+                    items.map(item => {
                         const isSelected = selectedItems.has(item.id);
+                        // Đảm bảo UI hiển thị số lượng không bao giờ lố kho
+                        const displayQuantity = item.quantity > item.seller.quantity ? item.seller.quantity : item.quantity;
+
                         return (
                             <div
                                 key={item.id}
-                                className={`glass-card p-6 rounded-lg ${isSelected ? 'ring-2 ring-primary-500/50 bg-primary-500/5' : ''
+                                /* ĐÃ SỬA MÀU: Tone nền sáng hơn xíu (bg-[#202946]) và viền rõ hơn (border-[#35426B]) */
+                                className={`flex flex-col sm:flex-row items-center gap-6 p-5 rounded-xl border transition-all duration-200
+                                ${isSelected
+                                        ? "bg-[#27345A] border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)]"
+                                        : "bg-[#202946] border-[#35426B] hover:border-[#526296]"
                                     }`}
                             >
-                                <div className="flex gap-4">
-                                    {/* Checkbox */}
-                                    <div className="flex items-start pt-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={isSelected}
-                                            onChange={() => toggleItemSelection(item.id)}
-                                            className="w-5 h-5 rounded border-2 border-white/20 bg-white/5 checked:bg-primary-500 checked:border-primary-500 cursor-pointer"
-                                        />
+                                {/* Checkbox */}
+                                <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleSelect(item.id)}
+                                    className="w-5 h-5 rounded border-gray-500 accent-blue-500 cursor-pointer shrink-0"
+                                />
+
+                                {/* Image - Đã fix lỗi chớp ảnh */}
+                                <div className="w-20 h-28 sm:w-24 sm:h-32 shrink-0 rounded-md overflow-hidden bg-[#151A2E] flex items-center justify-center relative border border-[#35426B]">
+                                    <span className="text-gray-500 text-xs absolute text-center px-1 font-medium">
+                                        No Image
+                                    </span>
+                                    <img
+                                        src={getCardImageUrl(item.card)}
+                                        onError={(e: any) => {
+                                            e.currentTarget.onerror = null;
+                                            e.currentTarget.removeAttribute('src');
+                                            e.currentTarget.style.display = 'none';
+                                        }}
+                                        alt={item.card.name}
+                                        className="w-full h-full object-cover relative z-10"
+                                    />
+                                </div>
+
+                                {/* Info */}
+                                <div className="flex-1 flex flex-col w-full">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-white mb-1">
+                                                {item.card.name}
+                                            </h3>
+                                            <span className="inline-block px-2 py-1 bg-[#1A2238] text-xs text-gray-300 rounded font-medium tracking-wide">
+                                                {item.card.rarity?.replace('_', ' ')}
+                                            </span>
+                                        </div>
+
+                                        <button
+                                            onClick={() => removeItem(item.id)}
+                                            className="text-gray-500 hover:text-red-400 transition-colors p-2"
+                                            title="Xóa sản phẩm"
+                                        >
+                                            <Trash2 size={20} />
+                                        </button>
                                     </div>
 
-                                    {/* Image */}
-                                    <img
-                                        src={item.image}
-                                        alt={item.name}
-                                        className="w-24 h-32 object-cover rounded flex-shrink-0"
-                                    />
+                                    {/* Seller Select */}
+                                    <div className="mt-4 flex flex-wrap items-center gap-4">
+                                        <div className="flex flex-col gap-1">
+                                            <select
+                                                value={item.seller.listSellerId}
+                                                onChange={(e) => changeSeller(item, e.target.value)}
+                                                className="bg-[#151A2E] border border-gray-600 text-white rounded-lg px-3 py-2 text-sm min-w-[200px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all cursor-pointer"
+                                            >
+                                                {item.sellers?.map(s => (
+                                                    <option key={s.listSellerId} value={s.listSellerId}>
+                                                        {s.sellerName} - {formatCurrency(s.price)}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
 
-                                    {/* Details */}
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="font-semibold text-lg mb-1 line-clamp-2">
-                                            {item.name}
-                                        </h3>
-                                        {item.rarity && (
-                                            <p className="text-sm text-muted-foreground mb-3">
-                                                {item.rarity}
-                                            </p>
-                                        )}
-                                        <div className="text-2xl font-bold gradient-text mb-4">
-                                            {formatCurrencyVND(item.price)}
+                                        <div className="flex flex-col gap-1 ml-4">
+                                            <span className="text-sm text-gray-400 py-2">
+                                                Tồn kho: <span className="font-semibold text-gray-200">{item.seller.quantity}</span>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between mt-5 w-full">
+                                        {/* Price */}
+                                        <div className="text-xl font-bold text-blue-400">
+                                            {formatCurrency(item.seller.price * displayQuantity)}
                                         </div>
 
                                         {/* Quantity Controls */}
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <button
-                                                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                                    className="w-8 h-8 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center "
-                                                >
-                                                    <Minus className="h-4 w-4" />
-                                                </button>
-                                                <span className="w-12 text-center font-medium">
-                                                    {item.quantity}
-                                                </span>
-                                                <button
-                                                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                    className="w-8 h-8 rounded-md bg-white/5 hover:bg-white/10 flex items-center justify-center "
-                                                >
-                                                    <Plus className="h-4 w-4" />
-                                                </button>
-                                            </div>
-
+                                        <div className="flex items-center bg-[#151A2E] rounded-lg border border-gray-600 overflow-hidden">
                                             <button
-                                                onClick={() => removeItem(item.id)}
-                                                className="p-2 hover:bg-red-500/20 rounded-md text-red-400 flex items-center gap-2"
+                                                onClick={() => updateQuantity(item, item.quantity - 1)}
+                                                disabled={item.quantity <= 1}
+                                                className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition"
                                             >
-                                                <Trash2 className="h-4 w-4" />
-                                                <span className="text-sm">Xóa</span>
+                                                <Minus size={14} />
+                                            </button>
+                                            <span className="w-10 text-center text-sm font-semibold text-white">
+                                                {displayQuantity}
+                                            </span>
+
+                                            {/* NÚT CỘNG: Đã thêm disabled khi chạm mốc tồn kho */}
+                                            <button
+                                                onClick={() => updateQuantity(item, item.quantity + 1)}
+                                                disabled={item.quantity >= item.seller.quantity}
+                                                className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition"
+                                            >
+                                                <Plus size={14} />
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         );
-                    })}
+                    })
+                )}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div className="flex justify-center gap-2 mt-8 items-center">
+                    <Button
+                        variant="outline"
+                        className="bg-[#202946] border-[#35426B] text-white hover:bg-[#27345A] hover:text-white disabled:opacity-50"
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(p => p - 1)}
+                    >
+                        <ChevronLeft size={16} />
+                    </Button>
+                    <span className="text-gray-300 font-medium px-4">
+                        Trang {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                        variant="outline"
+                        className="bg-[#202946] border-[#35426B] text-white hover:bg-[#27345A] hover:text-white disabled:opacity-50"
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(p => p + 1)}
+                    >
+                        <ChevronRight size={16} />
+                    </Button>
                 </div>
+            )}
 
-                {/* Right Column - Order Summary (Sticky) */}
-                <div className="lg:col-span-1">
-                    <div className="sticky top-6 space-y-4">
-                        {/* Voucher Card */}
-                        <div className="glass-card p-6 rounded-lg">
-                            <div className="flex items-center gap-2 mb-4">
-                                <Tag className="h-5 w-5 text-accent-500" />
-                                <h3 className="font-semibold">Mã giảm giá</h3>
-                            </div>
-
-                            {!voucher ? (
-                                <div className="space-y-3">
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            placeholder="Nhập mã giảm giá"
-                                            value={voucherInput}
-                                            onChange={(e) => {
-                                                setVoucherInput(e.target.value.toUpperCase());
-                                                setVoucherError('');
-                                            }}
-                                            onKeyPress={(e) => e.key === 'Enter' && handleApplyVoucher()}
-                                            className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-                                        />
-                                        <Button
-                                            onClick={handleApplyVoucher}
-                                            variant="outline"
-                                            className="glass-card"
-                                        >
-                                            Áp dụng
-                                        </Button>
-                                    </div>
-                                    {voucherError && (
-                                        <div className="flex items-center gap-2 text-xs text-red-400">
-                                            <XCircle className="h-3 w-3" />
-                                            <span>{voucherError}</span>
-                                        </div>
-                                    )}
-                                    <div className="text-xs text-muted-foreground">
-                                        Mã khả dụng: MYSTIC10, MYSTIC20, FREESHIP, WELCOME50
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-between p-4 glass-card rounded-lg">
-                                    <div className="flex items-center gap-2">
-                                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                        <div>
-                                            <p className="font-medium text-green-500">
-                                                {voucher.code}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                Giảm {voucher.type === 'percentage' ? `${voucher.value}%` : formatCurrencyVND(voucher.value)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={handleRemoveVoucher}
-                                        className="text-sm text-red-400 hover:text-red-300 "
-                                    >
-                                        Xóa
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Order Summary Card */}
-                        <div className="glass-card p-6 rounded-lg">
-                            <h3 className="font-semibold text-lg mb-4">Tổng đơn hàng</h3>
-
-                            <div className="space-y-3 mb-4">
-                                <div className="flex items-center justify-between text-muted-foreground">
-                                    <span>Tạm tính ({selectedItemCount} sản phẩm)</span>
-                                    <span className="font-medium">{formatCurrencyVND(subtotal)}</span>
-                                </div>
-                                {discountAmount > 0 && (
-                                    <div className="flex items-center justify-between text-green-500">
-                                        <span>Giảm giá</span>
-                                        <span className="font-medium">- {formatCurrencyVND(discountAmount)}</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="h-px bg-white/10 my-4" />
-
-                            <div className="flex items-center justify-between text-xl mb-6">
-                                <span className="font-bold">Tổng cộng</span>
-                                <span className="text-2xl font-bold gradient-text">
-                                    {formatCurrencyVND(total)}
-                                </span>
-                            </div>
-
-                            <Button
-                                variant="premium"
-                                className="w-full"
-                                size="lg"
-                                disabled={selectedItemCount === 0}
-                                onClick={() => navigate('/checkout')}
-                            >
-                                Thanh toán ({selectedItemCount})
-                            </Button>
-
-                            {selectedItemCount === 0 && (
-                                <p className="text-xs text-center text-muted-foreground mt-3">
-                                    Vui lòng chọn ít nhất 1 sản phẩm
-                                </p>
-                            )}
+            {/* Sticky Total Bar */}
+            {items.length > 0 && (
+                <div className="sticky bottom-4 mt-8 p-5 bg-[#202946] rounded-xl shadow-[0_-10px_30px_rgba(0,0,0,0.3)] flex flex-wrap justify-between items-center border border-[#35426B] z-10">
+                    <div>
+                        <p className="text-gray-400 text-sm mb-1">Tổng thanh toán ({selectedItems.size} sản phẩm)</p>
+                        <div className="text-2xl font-bold text-white">
+                            <span className="text-blue-400">{formatCurrency(subtotal)}</span>
                         </div>
                     </div>
+
+                    <Button
+                        size="lg"
+                        disabled={selectedItems.size === 0}
+                        className="bg-[#1C3FAA] hover:bg-blue-600 text-white font-semibold px-8 h-12 rounded-lg transition-all disabled:opacity-50 disabled:shadow-none"
+                        onClick={handleCheckout}
+                    >
+                        Mua hàng ngay
+                    </Button>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
