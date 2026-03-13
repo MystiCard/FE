@@ -473,6 +473,15 @@ export function getCardImageUrl(card: { imageUrl?: CardImageUrl } | null | undef
     return '';
 }
 
+/** Chuẩn hóa URL ảnh: nếu là relative path thì thêm base backend để ảnh load được */
+export function getFullImageUrl(url: string | undefined | null): string {
+    if (!url || !String(url).trim()) return '';
+    const u = String(url).trim();
+    if (u.startsWith('http://') || u.startsWith('https://')) return u;
+    const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+    return base + (u.startsWith('/') ? u : '/' + u);
+}
+
 export interface CardRequest {
     name: string;
     rarity: 'COMMON' | 'UNCOMMON' | 'RARE' | 'ULTRA_RARE' | 'SUPER_RARE' | 'SECRET_RARE';
@@ -2418,7 +2427,8 @@ export interface TrackingResponse {
     trackingId: string;
     createAt?: string;
     shippingStatus: ShippingStatus;
-    images?: { imageId?: string; url?: string }[];
+    // BE trả về ImageResponse với field imageUrl; FE hỗ trợ cả imageUrl và url cho linh hoạt
+    images?: { imageId?: string; url?: string; imageUrl?: string }[];
     note?: string;
 }
 
