@@ -3,8 +3,8 @@ import { Card as UICard, CardContent, CardHeader, CardTitle } from '@/components
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ToastProvider, ToastViewport, Toast, ToastTitle, ToastDescription, ToastClose } from '@/components/ui/toast';
-import { listSellerApi, orderApi, OrderItemResponse, OrderDetailResponse, ShippingStatus, transactionApi, OrderSummaryResponse, OrderStatus, shipmentApi, TrackingResponse, cardApi, Card, getCardImageUrl, returnRequestApi, ReturnRequestItem, ReturnRequestStatus, ReturnRequestCreate, userApi, UserProfile, blindBoxApi, BlindBoxHistoryItem } from '@/utils/api';
-import { AlertCircle, Package, Search, Truck, MapPin, Phone, CreditCard, Star, Info } from 'lucide-react';
+import { listSellerApi, orderApi, OrderItemResponse, OrderDetailResponse, ShippingStatus, transactionApi, OrderSummaryResponse, OrderStatus, shipmentApi, TrackingResponse, cardApi, Card, getCardImageUrl, getFullImageUrl, returnRequestApi, ReturnRequestItem, ReturnRequestStatus, ReturnRequestCreate, userApi, UserProfile, blindBoxApi, BlindBoxHistoryItem } from '@/utils/api';
+import { AlertCircle, Package, Search, Truck, MapPin, Phone, CreditCard, Star, Info, ImageIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -265,6 +265,12 @@ export const OrdersPage: React.FC = () => {
     const [pendingPage, setPendingPage] = useState(0);
     const [pendingTotalPages, setPendingTotalPages] = useState(1);
     const [approvingOrderItemId, setApprovingOrderItemId] = useState<string | null>(null);
+    const [rejectingOrderItemId, setRejectingOrderItemId] = useState<string | null>(null);
+    const [confirmReceiveShipmentId, setConfirmReceiveShipmentId] = useState<string | null>(null);
+    const [detailTrackingShipmentId, setDetailTrackingShipmentId] = useState<string | null>(null);
+    const [trackingDetailList, setTrackingDetailList] = useState<TrackingResponse[]>([]);
+    const [trackingDetailLoading, setTrackingDetailLoading] = useState(false);
+    const [trackingImagePreviewUrl, setTrackingImagePreviewUrl] = useState<string | null>(null);
     const [returnShowReasonDetail, setReturnShowReasonDetail] = useState(false);
     // Thông tin bổ sung cho list Đơn mua: join thêm item/shipper từ API chi tiết theo orderId
     const [buyOrderExtras, setBuyOrderExtras] = useState<
@@ -633,6 +639,21 @@ export const OrdersPage: React.FC = () => {
         loadOrders(page, status, viewMode);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page, status, viewMode, buyFilter, isAuthenticated]);
+
+    // Khi mở dialog chi tiết tracking, gọi API lấy danh sách tracking theo shipmentId
+    useEffect(() => {
+        if (!detailTrackingShipmentId) {
+            setTrackingDetailList([]);
+            return;
+        }
+        setTrackingDetailLoading(true);
+        setTrackingDetailList([]);
+        shipmentApi
+            .getTrackingsByShipmentId(detailTrackingShipmentId)
+            .then((list: TrackingResponse[]) => setTrackingDetailList(list || []))
+            .catch(() => setTrackingDetailList([]))
+            .finally(() => setTrackingDetailLoading(false));
+    }, [detailTrackingShipmentId]);
 
     const loadReturnRequests = async () => {
         setReturnLoading(true);
@@ -1415,61 +1436,17 @@ export const OrdersPage: React.FC = () => {
                                                             </Button>
                                                         </>
                                                     ) : extra.shipmentStatus &&
-                                                      (extra.shipmentStatus === 'DELIVERED' || extra.shipmentStatus === 'RECEIVED') &&
-                                                      extra.shipmentId &&
-                                                      extra.firstOrderItemId ? (
-                                                        <>
-                                                            <Button
-                                                                size="sm"
-                                                                className="bg-green-600 hover:bg-green-700 text-white"
-                                                                disabled={actionLoading}
-                                                                onClick={async () => {
-                                                                    try {
-                                                                        setActionLoading(true);
-                                                                        const canDo = await orderApi.canDo(
-                                                                            String(extra.firstOrderItemId),
-                                                                        );
-                                                                        if (!canDo.canConfirmRecieve) {
-                                                                            alert('Đơn này hiện không thể xác nhận nhận hàng.');
-                                                                            return;
-                                                                        }
-                                                                        await orderApi.confirmReceive(
-                                                                            String(extra.shipmentId),
-                                                                        );
-                                                                        try {
-                                                                            window.dispatchEvent(
-                                                                                new Event('wallet-updated'),
-                                                                            );
-                                                                        } catch {
-                                                                            // ignore
-                                                                        }
-                                                                        await loadOrders(page, status, viewMode);
-                                                                        alert(
-                                                                            'Đã xác nhận đã nhận hàng, tiền sẽ được chuyển cho người bán.',
-                                                                        );
-                                                                    } catch (err) {
-                                                                        alert(
-                                                                            err instanceof Error
-                                                                                ? err.message
-                                                                                : 'Không thể xác nhận nhận hàng.',
-                                                                        );
-                                                                    } finally {
-                                                                        setActionLoading(false);
-                                                                    }
-                                                                }}
-                                                            >
-                                                                {actionLoading ? 'Đang xử lý...' : 'Xác nhận đã nhận hàng'}
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                onClick={() => {
-                                                                    loadOrderDetail(orderId);
-                                                                }}
-                                                            >
-                                                                Xem chi tiết
-                                                            </Button>
-                                                        </>
+                                                      (extra.shipmentStatus === 'DELIVERED' || extra.shipmentStatus === 'RECEIVED') ? (
+                                                        // Đơn đã giao: chỉ cho xem chi tiết, không cho xác nhận ở list
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                loadOrderDetail(orderId);
+                                                            }}
+                                                        >
+                                                            Xem chi tiết
+                                                        </Button>
                                                     ) : buyFilter === 'WAIT_PICKUP' || buyFilter === 'WAIT_SHIP' ? (
                                                         // Đơn đang chờ lấy hàng / chờ giao: chỉ cho xem chi tiết
                                                         <Button
@@ -1605,7 +1582,7 @@ export const OrdersPage: React.FC = () => {
                                                 <td className="p-3">
                                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-200">
                                                         <Package className="w-3 h-3" />
-                                                        {o.status}
+                                                        {ORDER_STATUS_LABELS[o.status as OrderStatus] || o.status}
                                                     </span>
                                                 </td>
                                                 <td className="p-3 text-right font-semibold">
@@ -1708,10 +1685,11 @@ export const OrdersPage: React.FC = () => {
                                                 const cardName = card?.name ?? '—';
                                                 const cardImg = card ? getCardImageUrl(card as any) : undefined;
                                                 const id = String(item.orderItemId);
-                                                const isApproving = approvingOrderItemId === id;
-                                                return (
-                                                    <tr key={id} className="border-b border-white/5 hover:bg-white/5">
-                                                        <td className="p-3">
+const isApproving = approvingOrderItemId === id;
+                                                const isRejecting = rejectingOrderItemId === id;
+                                                        return (
+                                                            <tr key={id} className="border-b border-white/5 hover:bg-white/5">
+                                                                <td className="p-3">
                                                             <div className="flex items-center gap-2">
                                                                 {cardImg ? (
                                                                     <img src={cardImg} alt={cardName} className="w-12 h-16 rounded object-cover bg-white/5" />
@@ -1727,56 +1705,88 @@ export const OrdersPage: React.FC = () => {
                                                         <td className="p-3">
                                                             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-amber-500/10 text-amber-200">
                                                                 <Package className="w-3 h-3" />
-                                                                {item.orderItemStatus || 'PENDING_CONFIRM'}
+                                                                {item.orderItemStatus === 'PENDING_CONFIRM' ? 'Chờ xác nhận' : item.orderItemStatus === 'CONFIRMED' ? 'Đã xác nhận' : item.orderItemStatus || 'Chờ xác nhận'}
                                                             </span>
                                                         </td>
                                                         <td className="p-3 text-right">
-                                                            <Button
-                                                                size="sm"
-                                                                className="bg-green-600 hover:bg-green-700 text-white"
-                                                                disabled={isApproving || item.orderItemStatus !== 'PENDING_CONFIRM'}
-                                                                onClick={async () => {
-                                                                    setApprovingOrderItemId(id);
-                                                                    try {
-                                                                        await orderApi.approveOrderItem(id);
-                                                                        await loadOrders(page, status, viewMode);
-                                                                        pushToast({
-                                                                            title: 'Đã duyệt',
-                                                                            description: 'Order item đã được duyệt.',
-                                                                            variant: 'success',
-                                                                        });
-                                                                    } catch (e) {
-                                                                        const msg = e instanceof Error ? e.message : String(e ?? '');
-                                                                        if (/shipment_shipment_status_check|violates check constraint[\\s\\S]*shipment/i.test(msg)) {
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                                                    disabled={isApproving || isRejecting || item.orderItemStatus !== 'PENDING_CONFIRM'}
+                                                                    onClick={async () => {
+                                                                        setApprovingOrderItemId(id);
+                                                                        try {
+                                                                            await orderApi.approveOrderItem(id);
+                                                                            await loadOrders(page, status, viewMode);
                                                                             pushToast({
-                                                                                title: 'Lỗi cấu hình cơ sở dữ liệu',
-                                                                                description:
-                                                                                    'Không duyệt được do cấu hình trạng thái shipment trong database chưa cho phép giá trị PENDING_APPROVED. ' +
-                                                                                    'Quản trị viên vui lòng chạy script fix-shipment-status-check.sql trong thư mục db của backend rồi thử lại.',
-                                                                                variant: 'error',
+                                                                                title: 'Đã duyệt',
+                                                                                description: 'Order item đã được duyệt.',
+                                                                                variant: 'success',
                                                                             });
-                                                                        } else if (/tracking_shipping_status_check|violates check constraint[\\s\\S]*tracking/i.test(msg)) {
+                                                                        } catch (e) {
+                                                                            const msg = e instanceof Error ? e.message : String(e ?? '');
+                                                                            if (/shipment_shipment_status_check|violates check constraint[\\s\\S]*shipment/i.test(msg)) {
+                                                                                pushToast({
+                                                                                    title: 'Lỗi cấu hình cơ sở dữ liệu',
+                                                                                    description:
+                                                                                        'Không duyệt được do cấu hình trạng thái shipment trong database chưa cho phép giá trị PENDING_APPROVED. ' +
+                                                                                        'Quản trị viên vui lòng chạy script fix-shipment-status-check.sql trong thư mục db của backend rồi thử lại.',
+                                                                                    variant: 'error',
+                                                                                });
+                                                                            } else if (/tracking_shipping_status_check|violates check constraint[\\s\\S]*tracking/i.test(msg)) {
+                                                                                pushToast({
+                                                                                    title: 'Lỗi cấu hình cơ sở dữ liệu',
+                                                                                    description:
+                                                                                        'Không duyệt được do cấu hình trạng thái giao hàng trong database chưa cho phép giá trị PENDING_APPROVED. ' +
+                                                                                        'Quản trị viên vui lòng chạy script fix-tracking-shipping-status-check.sql trong thư mục db của backend rồi thử lại.',
+                                                                                    variant: 'error',
+                                                                                });
+                                                                            } else {
+                                                                                pushToast({
+                                                                                    title: 'Lỗi',
+                                                                                    description: msg || 'Không duyệt được.',
+                                                                                    variant: 'error',
+                                                                                });
+                                                                            }
+                                                                        } finally {
+                                                                            setApprovingOrderItemId(null);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    {isApproving ? 'Đang duyệt...' : 'Duyệt'}
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+                                                                    disabled={isApproving || isRejecting || item.orderItemStatus !== 'PENDING_CONFIRM'}
+                                                                    onClick={async () => {
+                                                                        if (!confirm('Bạn có chắc muốn từ chối order item này? Đơn sẽ bị hủy phần tương ứng.')) return;
+                                                                        setRejectingOrderItemId(id);
+                                                                        try {
+                                                                            await orderApi.cancelOrderItem(id);
+                                                                            await loadOrders(page, status, viewMode);
                                                                             pushToast({
-                                                                                title: 'Lỗi cấu hình cơ sở dữ liệu',
-                                                                                description:
-                                                                                    'Không duyệt được do cấu hình trạng thái giao hàng trong database chưa cho phép giá trị PENDING_APPROVED. ' +
-                                                                                    'Quản trị viên vui lòng chạy script fix-tracking-shipping-status-check.sql trong thư mục db của backend rồi thử lại.',
-                                                                                variant: 'error',
+                                                                                title: 'Đã từ chối',
+                                                                                description: 'Order item đã được từ chối.',
+                                                                                variant: 'success',
                                                                             });
-                                                                        } else {
+                                                                        } catch (e) {
+                                                                            const msg = e instanceof Error ? e.message : String(e ?? '');
                                                                             pushToast({
                                                                                 title: 'Lỗi',
-                                                                                description: msg || 'Không duyệt được.',
+                                                                                description: msg || 'Không thể từ chối.',
                                                                                 variant: 'error',
                                                                             });
+                                                                        } finally {
+                                                                            setRejectingOrderItemId(null);
                                                                         }
-                                                                    } finally {
-                                                                        setApprovingOrderItemId(null);
-                                                                    }
-                                                                }}
-                                                            >
-                                                                {isApproving ? 'Đang duyệt...' : 'Duyệt'}
-                                                            </Button>
+                                                                    }}
+                                                                >
+                                                                    {isRejecting ? 'Đang xử lý...' : 'Từ chối'}
+                                                                </Button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 );
@@ -2692,7 +2702,7 @@ export const OrdersPage: React.FC = () => {
 
             {/* Order detail dialog by orderId (BUY tab) - full màn hình, chỉ nội dung bên trong cuộn */}
             <Dialog open={!!detailOrderId} onOpenChange={(open) => { if (!open) { setDetailOrderId(null); } }}>
-                <DialogContent className="w-[92vw] max-w-5xl h-[88vh] max-h-[88vh] flex flex-col overflow-hidden p-4 gap-0">
+                <DialogContent className="w-[96vw] max-w-[40rem] h-[88vh] max-h-[88vh] flex flex-col overflow-hidden p-4 gap-0">
                     <DialogHeader className="shrink-0 pb-4 border-b border-white/10">
                         <DialogTitle>
                             Chi tiết đơn hàng #{detailOrderId?.slice(0, 8)}
@@ -2722,58 +2732,12 @@ export const OrdersPage: React.FC = () => {
                     ) : (
                         <div className="flex-1 min-h-0 overflow-y-auto pr-1 mt-4">
                         <div className="space-y-6 text-sm">
-                            {/* Thông tin đơn hàng (tóm tắt) */}
+                            {/* Thông tin đơn hàng (tóm tắt, không hiển thị thanh tiến trình) */}
                             {(() => {
                                 const summary = buyOrders.find(
                                     (o) => String(o.orderId) === String(detailOrderId || ''),
                                 );
                                 const orderStatus = summary?.status as OrderStatus | undefined;
-
-                                let shipmentStatus: ShippingStatus | undefined;
-                                if (detailBlindBoxShipment) {
-                                    shipmentStatus = detailBlindBoxShipment.shipmentStatus as ShippingStatus;
-                                } else if (firstDetailShipmentId) {
-                                    const allShipments = Object.values(detailShipments).flat() as Array<{
-                                        shipmentId?: string;
-                                        status?: string;
-                                    }>;
-                                    const firstShipment = allShipments.find(
-                                        (s) =>
-                                            String(s.shipmentId || '') === String(firstDetailShipmentId || ''),
-                                    );
-                                    shipmentStatus = firstShipment?.status as ShippingStatus | undefined;
-                                }
-
-                                let currentStep = 1;
-                                if (orderStatus && orderStatus !== 'CREATED') {
-                                    currentStep = Math.max(currentStep, 2);
-                                }
-                                if (
-                                    shipmentStatus &&
-                                    ['ASIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(shipmentStatus)
-                                ) {
-                                    currentStep = Math.max(currentStep, 3);
-                                }
-                                if (
-                                    shipmentStatus &&
-                                    ['DELIVERED', 'RECEIVED'].includes(shipmentStatus)
-                                ) {
-                                    currentStep = Math.max(currentStep, 4);
-                                }
-                                if (
-                                    orderStatus &&
-                                    ['COMPLETED', 'PARTIAL_COMPLETED'].includes(orderStatus)
-                                ) {
-                                    currentStep = Math.max(currentStep, 5);
-                                }
-
-                                const steps = [
-                                    { key: 1, label: 'Đơn hàng đã đặt' as const },
-                                    { key: 2, label: 'Đơn hàng đã thanh toán' as const },
-                                    { key: 3, label: 'Đã giao cho ĐVVC' as const },
-                                    { key: 4, label: 'Đã nhận được hàng' as const },
-                                    { key: 5, label: 'Đánh giá' as const },
-                                ];
 
                                 // Nếu được mở từ nút "Đánh giá" trên list Đơn mua: auto bật form đánh giá cho item đầu
                                 if (pendingFeedbackOrderId && String(pendingFeedbackOrderId) === String(detailOrderId)) {
@@ -2824,54 +2788,6 @@ export const OrdersPage: React.FC = () => {
                                                         ? new Date(summary.orderDate).toLocaleString('vi-VN')
                                                         : '—'}
                                                 </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="pt-3 border-t border-white/10">
-                                            <div className="flex items-center justify-between gap-2">
-                                                {steps.map((step, index) => {
-                                                    const isActive = currentStep >= step.key;
-                                                    const isCompleted = currentStep > step.key;
-                                                    return (
-                                                        <div
-                                                            key={step.key}
-                                                            className="flex-1 flex flex-col items-center text-center"
-                                                        >
-                                                            <div className="flex items-center w-full">
-                                                                {index > 0 && (
-                                                                    <div
-                                                                        className={`flex-1 h-0.5 ${
-                                                                            currentStep > step.key
-                                                                                ? 'bg-emerald-500'
-                                                                                : 'bg-white/10'
-                                                                        }`}
-                                                                    />
-                                                                )}
-                                                                <div
-                                                                    className={`flex items-center justify-center rounded-full border-2 w-8 h-8 text-[11px] shrink-0 ${
-                                                                        isActive
-                                                                            ? 'border-emerald-500 bg-emerald-500 text-white'
-                                                                            : 'border-white/30 text-muted-foreground'
-                                                                    }`}
-                                                                >
-                                                                    {step.key}
-                                                                </div>
-                                                                {index < steps.length - 1 && (
-                                                                    <div
-                                                                        className={`flex-1 h-0.5 ${
-                                                                            isCompleted
-                                                                                ? 'bg-emerald-500'
-                                                                                : 'bg-white/10'
-                                                                        }`}
-                                                                    />
-                                                                )}
-                                                            </div>
-                                                            <div className="mt-1 text-[11px] text-muted-foreground max-w-[80px]">
-                                                                {step.label}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
                                             </div>
                                         </div>
                                     </div>
@@ -2949,17 +2865,51 @@ export const OrdersPage: React.FC = () => {
                                     )}
                                 </>
                             ) : (
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-white/10">
-                                        <th className="text-left p-2">Sản phẩm</th>
-                                        <th className="text-right p-2">Số lượng</th>
-                                        <th className="text-right p-2">Đơn giá</th>
-                                                <th className="text-right p-2">Trạng thái</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {detailItems.map((it) => {
+                                (() => {
+                                    // Nhóm product theo shipmentId để hiển thị giống từng "đơn nhỏ" trong order
+                                    const shipmentForItem: Record<
+                                        string,
+                                        { shipmentId: string; status?: string }
+                                    > = {};
+                                    Object.entries(detailShipments).forEach(([itemId, ships]) => {
+                                        const first = (ships || [])[0];
+                                        if (first?.shipmentId) {
+                                            shipmentForItem[itemId] = {
+                                                shipmentId: String(first.shipmentId),
+                                                status: first.status,
+                                            };
+                                        }
+                                    });
+
+                                    const grouped: Record<
+                                        string,
+                                        {
+                                            shipmentId: string;
+                                            status?: string;
+                                            items: typeof detailItems;
+                                        }
+                                    > = {};
+
+                                    detailItems.forEach((it) => {
+                                        const id = String(it.orderItemId);
+                                        const ship = shipmentForItem[id];
+                                        const key = ship?.shipmentId ?? '_NO_SHIPMENT_';
+                                        if (!grouped[key]) {
+                                            grouped[key] = {
+                                                shipmentId: ship?.shipmentId ?? '',
+                                                status: ship?.status,
+                                                items: [],
+                                            };
+                                        }
+                                        grouped[key].items.push(it);
+                                    });
+
+                                    const shipmentIds = Object.keys(grouped).filter(
+                                        (k) => k !== '_NO_SHIPMENT_',
+                                    );
+                                    const noShipmentGroup = grouped['_NO_SHIPMENT_'];
+
+                                    const renderItemRow = (it: typeof detailItems[number]) => {
                                         const id = String(it.orderItemId);
                                         const name = it.cardName || 'Thẻ';
                                         const image = it.cardImageUrl;
@@ -2997,15 +2947,17 @@ export const OrdersPage: React.FC = () => {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="p-2 text-right">{Number(it.quantity ?? 0)}</td>
-                                                <td className="p-2 text-right">
+                                                <td className="p-2 text-right whitespace-nowrap">{Number(it.quantity ?? 0)}</td>
+                                                <td className="p-2 text-right whitespace-nowrap">
                                                     {Number(it.price ?? 0).toLocaleString('vi-VN')} đ
                                                 </td>
-                                                <td className="p-2 text-right">
+                                                <td className="p-2 text-right min-w-[160px] overflow-visible">
+                                                    <span className="whitespace-nowrap inline-block">
                                                     {(() => {
                                                         const raw = String(it.orderItemStatus || '').toUpperCase();
                                                         if (!raw) return '—';
                                                         if (raw === 'PENDING_CONFIRM') return 'Chờ xác nhận';
+                                                        if (raw === 'CONFIRMED') return 'Đã xác nhận';
                                                         if (raw === 'PENDING_PREPARE') return 'Chờ chuẩn bị hàng';
                                                         if (raw === 'PENDING_SHIP') return 'Chờ giao';
                                                         if (raw === 'SHIPPING') return 'Đang giao';
@@ -3015,6 +2967,7 @@ export const OrdersPage: React.FC = () => {
                                                         if (raw === 'RETURNED') return 'Đã trả hàng';
                                                         return raw;
                                                     })()}
+                                                    </span>
                                                     {viewMode === 'BUY' && (
                                                         <div className="mt-1">
                                                             {hasFeedback ? (
@@ -3147,9 +3100,297 @@ export const OrdersPage: React.FC = () => {
                                                 </td>
                                             </tr>
                                         );
-                                    })}
-                                </tbody>
-                            </table>
+                                    };
+
+                                    const renderShipmentCard = (key: string) => {
+                                        const g = grouped[key];
+                                        const trackings = detailTrackings[g.shipmentId] || [];
+                                        const latestTracking =
+                                            trackings.length > 0 ? trackings[trackings.length - 1] : undefined;
+                                        const shippingStatus = (latestTracking?.shippingStatus ||
+                                            g.status) as ShippingStatus | undefined;
+                                        let shipmentStep = 1;
+                                        if (
+                                            shippingStatus &&
+                                            ['ASIGNED', 'PICKED_UP'].includes(shippingStatus)
+                                        ) {
+                                            shipmentStep = 2;
+                                        }
+                                        if (shippingStatus === 'IN_TRANSIT') {
+                                            shipmentStep = 3;
+                                        }
+                                        if (
+                                            shippingStatus &&
+                                            ['DELIVERED', 'RECEIVED'].includes(shippingStatus)
+                                        ) {
+                                            shipmentStep = 4;
+                                        }
+                                        const shipmentSteps = [
+                                            { key: 1, label: 'Chờ xác nhận' as const },
+                                            { key: 2, label: 'Chờ lấy hàng' as const },
+                                            { key: 3, label: 'Đang giao' as const },
+                                            { key: 4, label: 'Đã nhận' as const },
+                                        ];
+                                        const FALLBACK_SHIPPING_LABELS: Record<string, string> = {
+                                            PENDING_APPROVED: 'Chờ xác nhận',
+                                        };
+                                        const labelStatus = shippingStatus
+                                            ? SHIPPING_STATUS_LABELS[shippingStatus as ShippingStatus] ||
+                                              FALLBACK_SHIPPING_LABELS[String(shippingStatus)] ||
+                                              shippingStatus
+                                            : '—';
+
+                                        return (
+                                            <div
+                                                key={key}
+                                                className="glass-card-strong border border-white/10 rounded-xl overflow-hidden"
+                                            >
+                                                <div className="p-3 flex flex-wrap items-center justify-between gap-2 border-b border-white/10">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDetailTrackingShipmentId(g.shipmentId)}
+                                                        className="flex items-center gap-2 text-xs text-left hover:opacity-90 transition-opacity rounded-md focus:outline-none focus:ring-2 focus:ring-white/20"
+                                                    >
+                                                        <span className="text-muted-foreground">Shipment</span>
+                                                        <span className="font-mono">
+                                                            #{g.shipmentId.slice(0, 8) || '—'}
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] border bg-white/5 border-white/20 whitespace-nowrap">
+                                                            <Truck className="w-3 h-3 shrink-0" />
+                                                            {labelStatus}
+                                                        </span>
+                                                        <span className="text-[10px] text-muted-foreground underline">Xem chi tiết</span>
+                                                    </button>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        {g.items.length} sản phẩm
+                                                    </div>
+                                                </div>
+                                                <div className="px-3 pt-3 pb-1 border-b border-white/10">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        {shipmentSteps.map((step, index) => {
+                                                            const isActive = shipmentStep >= step.key;
+                                                            const isCompleted = shipmentStep > step.key;
+                                                            return (
+                                                                <div
+                                                                    key={step.key}
+                                                                    className="flex-1 flex flex-col items-center text-center"
+                                                                >
+                                                                    <div className="flex items-center w-full">
+                                                                        {index > 0 && (
+                                                                            <div
+                                                                                className={`flex-1 h-0.5 ${
+                                                                                    shipmentStep > step.key
+                                                                                        ? 'bg-emerald-500'
+                                                                                        : 'bg-white/10'
+                                                                                }`}
+                                                                            />
+                                                                        )}
+                                                                        <div
+                                                                            className={`flex items-center justify-center rounded-full border-2 w-7 h-7 text-[10px] shrink-0 ${
+                                                                                isActive
+                                                                                    ? 'border-emerald-500 bg-emerald-500 text-white'
+                                                                                    : 'border-white/30 text-muted-foreground'
+                                                                            }`}
+                                                                        >
+                                                                            {step.key}
+                                                                        </div>
+                                                                        {index < shipmentSteps.length - 1 && (
+                                                                            <div
+                                                                                className={`flex-1 h-0.5 ${
+                                                                                    isCompleted
+                                                                                        ? 'bg-emerald-500'
+                                                                                        : 'bg-white/10'
+                                                                                }`}
+                                                                            />
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="mt-1 text-[10px] text-muted-foreground whitespace-nowrap">
+                                                                        {step.label}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                                <div className="p-3">
+                                                    <table className="w-full text-sm" style={{ tableLayout: 'auto' }}>
+                                                        <colgroup>
+                                                            <col style={{ minWidth: 0 }} />
+                                                            <col style={{ width: '1%', whiteSpace: 'nowrap' }} />
+                                                            <col style={{ width: '1%', whiteSpace: 'nowrap' }} />
+                                                            <col style={{ minWidth: '160px' }} />
+                                                        </colgroup>
+                                                        <thead>
+                                                            <tr className="border-b border-white/10">
+                                                                <th className="text-left p-2">Sản phẩm</th>
+                                                                <th className="text-right p-2 whitespace-nowrap">Số lượng</th>
+                                                                <th className="text-right p-2 whitespace-nowrap">Đơn giá</th>
+                                                                <th className="text-right p-2 whitespace-nowrap min-w-[160px]">Trạng thái</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>{g.items.map((it) => renderItemRow(it))}</tbody>
+                                                    </table>
+                                                    {trackings.length > 0 && (
+                                                        <div className="mt-2 space-y-1 text-[11px] max-h-32 overflow-y-auto pr-1">
+                                                            <div className="text-muted-foreground mb-1">
+                                                                Lịch sử trạng thái shipment
+                                                            </div>
+                                                            {[...trackings]
+                                                                .slice()
+                                                                .sort((a, b) =>
+                                                                    (a.createAt || '').localeCompare(
+                                                                        b.createAt || '',
+                                                                    ),
+                                                                )
+                                                                .map((tr) => (
+                                                                    <div
+                                                                        key={tr.trackingId}
+                                                                        className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-black/20 border border-white/10"
+                                                                    >
+                                                                        <span className="font-mono">
+                                                                            {tr.createAt
+                                                                                ? new Date(
+                                                                                      tr.createAt,
+                                                                                  ).toLocaleString('vi-VN')
+                                                                                : '—'}
+                                                                        </span>
+                                                                        <span className="font-semibold">
+                                                                            {tr.shippingStatus
+                                                                                ? SHIPPING_STATUS_LABELS[
+                                                                                      tr.shippingStatus as ShippingStatus
+                                                                                  ] ||
+                                                                                  FALLBACK_SHIPPING_LABELS[
+                                                                                      String(tr.shippingStatus)
+                                                                                  ] ||
+                                                                                  tr.shippingStatus
+                                                                                : '—'}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                        </div>
+                                                    )}
+                                                    {viewMode === 'BUY' &&
+                                                        shippingStatus === 'DELIVERED' &&
+                                                        g.shipmentId &&
+                                                        g.items.length > 0 && (
+                                                            <div className="mt-3 pt-3 border-t border-white/10 flex justify-end">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        // Khi đã giao: chỉ mở dialog chi tiết shipment để người dùng xem kỹ rồi mới xác nhận
+                                                                        if (!detailOrderId) return;
+                                                                        // Giữ hành vi: người dùng bấm "Xác nhận đã nhận hàng" bên ngoài dialog chính (list), không trong từng shipment
+                                                                        pushToast({
+                                                                            title: 'Xem chi tiết shipment',
+                                                                            description: 'Bạn có thể xem chi tiết và xác nhận đã nhận hàng ở màn hình Đơn mua.',
+                                                                            variant: 'default',
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    Xem chi tiết shipment
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                    {viewMode === 'BUY' &&
+                                                        shippingStatus === 'RECEIVED' &&
+                                                        g.shipmentId &&
+                                                        g.items.length > 0 && (
+                                                            <div className="mt-3 pt-3 border-t border-white/10 flex justify-end gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        // Mở form tạo yêu cầu trả hàng cho toàn bộ sản phẩm trong shipment này
+                                                                        const items = g.items.map((it) => ({
+                                                                            orderItemId: String(it.orderItemId),
+                                                                            cardName: it.cardName,
+                                                                            cardImageUrl: it.cardImageUrl,
+                                                                            quantity: it.quantity,
+                                                                            price: it.price,
+                                                                        }));
+                                                                        const ids = items.map((x) => x.orderItemId).filter(Boolean) as string[];
+                                                                        setReturnCreateShipmentId(g.shipmentId);
+                                                                        setReturnCreateItemIds(ids);
+                                                                        setReturnCreateItems(items.filter((x) => !!x.orderItemId));
+                                                                        setReturnCreateReasonPreset('PRESET');
+                                                                        setReturnCreateReason('');
+                                                                        setReturnCreateSendAddress('');
+                                                                        setReturnCreateSendDistrictId(0);
+                                                                        setReturnCreateSendPhone('');
+                                                                        setReturnCreateFiles([]);
+                                                                        setReturnCreateOpen(true);
+                                                                    }}
+                                                                >
+                                                                    Trả hàng / Hoàn tiền
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        // Bật form đánh giá cho item đầu tiên trong shipment
+                                                                        const firstItem = g.items[0];
+                                                                        if (firstItem?.orderItemId) {
+                                                                            setFeedbackEditingId(String(firstItem.orderItemId));
+                                                                            setFeedbackRating(5);
+                                                                            setFeedbackComment('');
+                                                                            const el = document.getElementById(
+                                                                                `order-item-${String(firstItem.orderItemId)}`,
+                                                                            );
+                                                                            if (el) {
+                                                                                el.scrollIntoView({
+                                                                                    behavior: 'smooth',
+                                                                                    block: 'center',
+                                                                                });
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    Đánh giá
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                </div>
+                                            </div>
+                                        );
+                                    };
+
+                                    return (
+                                        <div className="space-y-4">
+                                            {shipmentIds.map((sid) => renderShipmentCard(sid))}
+                                            {noShipmentGroup && noShipmentGroup.items.length > 0 && (
+                                                <div className="glass-card-strong border border-white/10 rounded-xl overflow-hidden">
+                                                    <div className="p-3 border-b border-white/10 text-xs text-muted-foreground">
+                                                        Sản phẩm chưa có shipment
+                                                    </div>
+                                                    <div className="p-3">
+                                                        <table className="w-full text-sm" style={{ tableLayout: 'auto' }}>
+                                                            <colgroup>
+                                                                <col style={{ minWidth: 0 }} />
+                                                                <col style={{ width: '1%', whiteSpace: 'nowrap' }} />
+                                                                <col style={{ width: '1%', whiteSpace: 'nowrap' }} />
+                                                                <col style={{ minWidth: '160px' }} />
+                                                            </colgroup>
+                                                            <thead>
+                                                                <tr className="border-b border-white/10">
+                                                                    <th className="text-left p-2">Sản phẩm</th>
+                                                                    <th className="text-right p-2 whitespace-nowrap">Số lượng</th>
+                                                                    <th className="text-right p-2 whitespace-nowrap">Đơn giá</th>
+                                                                    <th className="text-right p-2 whitespace-nowrap min-w-[160px]">Trạng thái</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {noShipmentGroup.items.map((it) =>
+                                                                    renderItemRow(it),
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()
                             )}
                             {/* Tóm tắt tiền kiểu Shopee (dialog chi tiết theo orderId) */}
                             {(() => {
@@ -3196,6 +3437,130 @@ export const OrdersPage: React.FC = () => {
                             <div className="mt-4 flex justify-end gap-2" />
                         </div>
                         </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Chi tiết tracking từng shipment (kiểu Shopee) - mở khi bấm Shipment #id */}
+            <Dialog open={!!detailTrackingShipmentId} onOpenChange={(open) => { if (!open) { setDetailTrackingShipmentId(null); setTrackingImagePreviewUrl(null); } }}>
+                <DialogContent className="w-[95vw] max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+                    <DialogHeader className="shrink-0">
+                        <DialogTitle className="flex items-center gap-2">
+                            <Truck className="w-5 h-5" />
+                            Chi tiết tracking
+                            {detailTrackingShipmentId && (
+                                <span className="font-mono text-sm text-muted-foreground">
+                                    Shipment #{detailTrackingShipmentId.slice(0, 8)}
+                                </span>
+                            )}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Lịch sử cập nhật trạng thái, thời gian và ảnh đính kèm (bấm ảnh để xem lớn).
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex-1 min-h-0 overflow-y-auto mt-2 space-y-3 pr-1">
+                        {trackingDetailLoading ? (
+                            <p className="text-sm text-muted-foreground py-6 text-center">
+                                Đang tải chi tiết tracking...
+                            </p>
+                        ) : detailTrackingShipmentId && (() => {
+                            const list = trackingDetailList;
+                            const sorted = [...list].sort((a, b) =>
+                                (b.createAt || '').localeCompare(a.createAt || ''),
+                            );
+                            const FALLBACK: Record<string, string> = { PENDING_APPROVED: 'Chờ xác nhận' };
+                            if (sorted.length === 0) {
+                                return (
+                                    <p className="text-sm text-muted-foreground py-4 text-center">
+                                        Chưa có lịch sử tracking cho shipment này.
+                                    </p>
+                                );
+                            }
+                            return (
+                                <>
+                                    {sorted.map((tr, index) => {
+                                        const statusLabel = tr.shippingStatus
+                                            ? (SHIPPING_STATUS_LABELS[tr.shippingStatus as ShippingStatus] ||
+                                                FALLBACK[String(tr.shippingStatus)] ||
+                                                tr.shippingStatus)
+                                            : '—';
+                                        const dateStr = tr.createAt
+                                            ? new Date(tr.createAt).toLocaleString('vi-VN', {
+                                                dateStyle: 'short',
+                                                timeStyle: 'short',
+                                            })
+                                            : '—';
+                                        const images = tr.images || [];
+                                        return (
+                                            <div
+                                                key={tr.trackingId}
+                                                className="border border-white/10 rounded-lg p-3 bg-white/5 space-y-2"
+                                            >
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <span className="text-xs font-mono text-muted-foreground">
+                                                        {dateStr}
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border border-white/20 bg-white/5">
+                                                        {statusLabel}
+                                                    </span>
+                                                </div>
+                                                {tr.note && (
+                                                    <p className="text-sm text-muted-foreground">{tr.note}</p>
+                                                )}
+                                                {images.length > 0 && (
+                                                    <div className="flex flex-wrap gap-2 mt-2">
+                                                        {images.map((img: { imageId?: string; url?: string; imageUrl?: string }, i: number) => {
+                                                            const rawUrl = img.imageUrl || img.url || '';
+                                                            const fullUrl = getFullImageUrl(rawUrl);
+                                                            return (
+                                                                <button
+                                                                    key={img.imageId || i}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (fullUrl) {
+                                                                            setTrackingImagePreviewUrl(fullUrl);
+                                                                        }
+                                                                    }}
+                                                                    className="rounded-lg overflow-hidden border border-white/20 hover:border-white/40 focus:outline-none focus:ring-2 focus:ring-white/30"
+                                                                >
+                                                                    {rawUrl ? (
+                                                                        <img
+                                                                            src={fullUrl}
+                                                                            alt={`Tracking ${index + 1}`}
+                                                                            className="w-20 h-20 object-cover cursor-pointer"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="w-20 h-20 bg-white/10 flex items-center justify-center">
+                                                                            <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                                                                        </div>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                        <span className="text-[11px] text-muted-foreground self-center">
+                                                            Bấm ảnh để xem
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            );
+                        })()}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Xem ảnh tracking phóng to */}
+            <Dialog open={!!trackingImagePreviewUrl} onOpenChange={(open) => { if (!open) setTrackingImagePreviewUrl(null); }}>
+                <DialogContent className="max-w-[90vw] max-h-[90vh] w-auto overflow-hidden p-2 flex items-center justify-center">
+                    {trackingImagePreviewUrl && (
+                        <img
+                            src={trackingImagePreviewUrl}
+                            alt="Ảnh tracking"
+                            className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded"
+                        />
                     )}
                 </DialogContent>
             </Dialog>
