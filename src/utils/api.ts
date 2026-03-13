@@ -595,7 +595,7 @@ export interface CardSellResponse {
         cardId: string
         name: string
         rarity: string
-        imageResponse: ImageResponse[]
+        imageUrl: ImageResponse[]
         categoryName: string
         basePrice: number
         minPrice: number

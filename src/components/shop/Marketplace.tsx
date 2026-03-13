@@ -76,7 +76,7 @@ export const Marketplace: React.FC = () => {
     const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
     const [wishlistCardIds, setWishlistCardIds] = useState<Set<string>>(new Set());
     const [wishlistLoadingCardId, setWishlistLoadingCardId] = useState<string | null>(null);
-    const [sellCards, setSellCards] = useState<CardSellResponse[]>([])
+    const [sellCards, setSellCards] = useState([])
     const [listSeller, setListSeller] = useState<ListingItem[]>([])
     const [addCartOpen, setAddCartOpen] = useState(false);
     const [cartListing, setCartListing] = useState<ListingItem | null>(null);
@@ -146,6 +146,7 @@ export const Marketplace: React.FC = () => {
                 max: max === "" ? 0 : max,
                 sort: sortBy
             });
+            console.log("Get sellig card", res);
             setTotalElemests(res.data.totalElements)
             setSellCards(res.data.content || []);
             setTotalPages(res.data.totalPages ?? 0);
@@ -208,7 +209,7 @@ export const Marketplace: React.FC = () => {
                     id: cardId,
                     name: product.cardResponse.name,
                     price: product.cardResponse.basePrice,
-                    image: product.cardResponse.imageResponse?.[0].imageUrl || PLACEHOLDER_IMG,
+                    image: product.cardResponse.imageUrl?.[0].imageUrl || PLACEHOLDER_IMG,
                     rarity: product.cardResponse.rarity,
                 });
                 setWishlistCardIds((prev) => new Set(prev).add(cardId));
@@ -232,7 +233,7 @@ export const Marketplace: React.FC = () => {
         addCard({
             cardId: product.cardResponse.cardId,
             cardName: product.cardResponse.name,
-            imageUrl: product.cardResponse.imageResponse?.[0].imageUrl,
+            imageUrl: product.cardResponse.imageUrl?.[0].imageUrl,
             rarity: product.cardResponse.rarity,
             offers: [offer],
             quantity: 1,
@@ -309,7 +310,7 @@ export const Marketplace: React.FC = () => {
                             quantity: safeQuantity,
                             cardId: selectedProduct!.cardResponse.cardId,
                             cardName: selectedProduct!.cardResponse.name,
-                            imageUrl: selectedProduct!.cardResponse.imageResponse?.[0].imageUrl,
+                            imageUrl: selectedProduct!.cardResponse.imageUrl?.[0]?.imageUrl,
                             sellerId: selectedListing.sellerId,
                             sellerName: selectedListing.sellerName,
                             unitPrice: selectedListing.price,
@@ -479,173 +480,173 @@ export const Marketplace: React.FC = () => {
                             </Button>
                         </div>
                     </CardContent>
-                    </Card>
+                </Card>
+            </div>
+
+            {/* Khu vực danh sách sản phẩm kiểu Cardmarket */}
+            <div className="lg:col-span-3">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div className="text-sm text-muted-foreground">
+                        {/* <span className="font-medium text-white">{totalElemests}</span> thẻ */}
+
+                        {/* <span className="font-medium text-white">{filteredListings.length}</span> lời chào giá */}
+                    </div>
+                    {/* <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as 'price-asc' | 'price-desc' | 'name')}
+                        className="px-3 py-2 glass-card rounded-lg text-sm bg-black/60"
+                    >
+                        <option value="asc">Giá thấp nhất trước</option>
+                        <option value="desc">Giá cao nhất trước</option>
+                    </select> */}
                 </div>
 
-                {/* Khu vực danh sách sản phẩm kiểu Cardmarket */}
-                <div className="lg:col-span-3">
-                    <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                        <div className="text-sm text-muted-foreground">
-                            <span className="font-medium text-white">{totalElemests}</span> thẻ
-
-                            {/* <span className="font-medium text-white">{filteredListings.length}</span> lời chào giá */}
-                        </div>
-                        <select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value as 'price-asc' | 'price-desc' | 'name')}
-                            className="px-3 py-2 glass-card rounded-lg text-sm bg-black/60"
-                        >
-                            <option value="asc">Giá thấp nhất trước</option>
-                            <option value="desc">Giá cao nhất trước</option>
-                        </select>
+                {isLoading ? (
+                    <div className="text-center py-16">
+                        <div className="w-12 h-12 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                        <p className="text-muted-foreground">Đang tải...</p>
                     </div>
+                ) : sellCards.length > 0 ? (
+                    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
+                        {sellCards.map((s) => {
+                            const inWishlist =
+                                wishlistCardIds.has(s.cardResponse.cardId) || isInWishlist(s.cardResponse.cardId);
 
-                    {isLoading ? (
-                        <div className="text-center py-16">
-                            <div className="w-12 h-12 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                            <p className="text-muted-foreground">Đang tải...</p>
-                        </div>
-                    ) : sellCards.length > 0 ? (
-                        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
-                            {sellCards.map((s) => {
-                                const inWishlist =
-                                    wishlistCardIds.has(s.cardResponse.cardId) || isInWishlist(s.cardResponse.cardId);
-
-                                return (
-                                    <div
-                                        key={s.cardResponse.cardId}
-                                        id={`marketplace-card-${s.cardResponse.cardId}`}
-                                        className="group relative rounded-2xl glass-card-strong border border-white/5 hover:border-primary-500/50 hover:shadow-lg cursor-pointer overflow-hidden flex flex-col"
-                                        onClick={() =>
-                                            setSelectedProduct(s)
-                                        }
-                                    >
-                                        <div className="relative aspect-[2.5/3.5] overflow-hidden bg-black/40">
-                                            <img
-                                                src={s.cardResponse.imageResponse?.[0].imageUrl || PLACEHOLDER_IMG}
-                                                alt={s.cardResponse.name}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                onError={(e) => {
-                                                    e.currentTarget.src = PLACEHOLDER_IMG;
-                                                }}
-                                            />
-                                            <button
+                            return (
+                                <div
+                                    key={s.cardResponse.cardId}
+                                    id={`marketplace-card-${s.cardResponse.cardId}`}
+                                    className="group relative rounded-2xl glass-card-strong border border-white/5 hover:border-primary-500/50 hover:shadow-lg cursor-pointer overflow-hidden flex flex-col"
+                                    onClick={() =>
+                                        setSelectedProduct(s)
+                                    }
+                                >
+                                    <div className="relative aspect-[2.5/3.5] overflow-hidden bg-black/40">
+                                        <img
+                                            src={s.cardResponse.imageUrl?.[0]?.imageUrl || PLACEHOLDER_IMG}
+                                            alt={s.cardResponse.name}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                            onError={(e) => {
+                                                e.currentTarget.src = PLACEHOLDER_IMG;
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="absolute top-2 right-2 rounded-full bg-black/60 p-1 hover:bg-black/80"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleWishlistForCard(s, e);
+                                            }}
+                                            aria-label={
+                                                inWishlist ? 'Bỏ khỏi wishlist' : 'Thêm vào wishlist'
+                                            }
+                                            disabled={wishlistLoadingCardId === s.cardResponse.cardId}
+                                        >
+                                            {wishlistLoadingCardId === s.cardResponse.cardId ? (
+                                                <Loader2 className="h-4 w-4 animate-spin text-white" />
+                                            ) : (
+                                                <Heart
+                                                    className={`h-4 w-4 ${inWishlist ? 'fill-red-500 text-red-500' : 'text-white'
+                                                        }`}
+                                                />
+                                            )}
+                                        </button>
+                                    </div>
+                                    <div className="p-2.5 flex-1 flex flex-col gap-1">
+                                        <p className="text-xs md:text-sm font-semibold line-clamp-2">
+                                            {s.cardResponse.name}
+                                        </p>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            {s.cardResponse.categoryName || '—'} ·{' '}
+                                            {formatRarity(s.cardResponse.rarity)}
+                                        </p>
+                                        <div className="mt-1 flex items-center justify-between">
+                                            <span className="text-base font-bold text-accent-400">
+                                                {formatCurrencyVND(s.cardResponse.minPrice)}
+                                            </span>
+                                            <span className="text-[11px] text-muted-foreground">
+                                                Còn {s.numberOfCard} thẻ
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
+                                            <span className="inline-flex items-center gap-1">
+                                                <Users className="h-3 w-3" />
+                                                {s.numberOfSeller} đề nghị
+                                            </span>
+                                        </div>
+                                        <div className="mt-2 flex gap-2">
+                                            <Button
                                                 type="button"
-                                                className="absolute top-2 right-2 rounded-full bg-black/60 p-1 hover:bg-black/80"
+                                                variant="premium"
+                                                size="sm"
+                                                className="flex-1"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    toggleWishlistForCard(s, e);
+                                                    setSelectedProduct(s);
                                                 }}
-                                                aria-label={
-                                                    inWishlist ? 'Bỏ khỏi wishlist' : 'Thêm vào wishlist'
-                                                }
-                                                disabled={wishlistLoadingCardId === s.cardResponse.cardId}
                                             >
-                                                {wishlistLoadingCardId === s.cardResponse.cardId ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin text-white" />
-                                                ) : (
-                                                    <Heart
-                                                        className={`h-4 w-4 ${inWishlist ? 'fill-red-500 text-red-500' : 'text-white'
-                                                            }`}
-                                                    />
-                                                )}
-                                            </button>
-                                        </div>
-                                        <div className="p-2.5 flex-1 flex flex-col gap-1">
-                                            <p className="text-xs md:text-sm font-semibold line-clamp-2">
-                                                {s.cardResponse.name}
-                                            </p>
-                                            <p className="text-[11px] text-muted-foreground">
-                                                {s.cardResponse.categoryName || '—'} ·{' '}
-                                                {formatRarity(s.cardResponse.rarity)}
-                                            </p>
-                                            <div className="mt-1 flex items-center justify-between">
-                                                <span className="text-base font-bold text-accent-400">
-                                                    {formatCurrencyVND(s.cardResponse.minPrice)}
-                                                </span>
-                                                <span className="text-[11px] text-muted-foreground">
-                                                    Còn {s.numberOfCard} thẻ
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
-                                                <span className="inline-flex items-center gap-1">
-                                                    <Users className="h-3 w-3" />
-                                                    {s.numberOfSeller} đề nghị
-                                                </span>
-                                            </div>
-                                            <div className="mt-2 flex gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="premium"
-                                                    size="sm"
-                                                    className="flex-1"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setSelectedProduct(s);
-                                                    }}
-                                                >
-                                                    <ShoppingCart className="h-5 w-5" />
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="flex-1 gap-1"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setSelectedProduct(s);
-                                                    }}
-                                                >
-                                                    Xem đề nghị
-                                                    <ChevronDown className="h-3 w-3" />
-                                                </Button>
-                                            </div>
+                                                <ShoppingCart className="h-5 w-5" />
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex-1 gap-1"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedProduct(s);
+                                                }}
+                                            >
+                                                Xem đề nghị
+                                                <ChevronDown className="h-3 w-3" />
+                                            </Button>
                                         </div>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <Card className="glass-card-strong">
-                            <CardContent className="py-16 text-center">
-                                <Package className="h-14 w-14 mx-auto mb-4 text-muted-foreground opacity-50" />
-                                <p className="text-muted-foreground font-medium">Chưa có thẻ nào được đăng bán</p>
-                                <p className="text-sm text-muted-foreground mt-1">Thử đổi bộ lọc hoặc đăng bán thẻ của bạn</p>
-                                <Link to="/post-listing">
-                                    <Button variant="premium" className="mt-4">
-                                        Đăng bán ngay
-                                    </Button>
-                                </Link>
-                            </CardContent>
-                        </Card>
-                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <Card className="glass-card-strong">
+                        <CardContent className="py-16 text-center">
+                            <Package className="h-14 w-14 mx-auto mb-4 text-muted-foreground opacity-50" />
+                            <p className="text-muted-foreground font-medium">Chưa có thẻ nào được đăng bán</p>
+                            <p className="text-sm text-muted-foreground mt-1">Thử đổi bộ lọc hoặc đăng bán thẻ của bạn</p>
+                            <Link to="/post-listing">
+                                <Button variant="premium" className="mt-4">
+                                    Đăng bán ngay
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
+                )}
 
-                    {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-4 mt-6">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                                disabled={currentPage === 1}
-                            >
-                                <ChevronLeft className="h-4 w-4 mr-1" /> Trước
-                            </Button>
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-4 mt-6">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                        >
+                            <ChevronLeft className="h-4 w-4 mr-1" /> Trước
+                        </Button>
 
-                            <span className="text-sm text-muted-foreground">
-                                Trang {currentPage} / {totalPages}
-                            </span>
+                        <span className="text-sm text-muted-foreground">
+                            Trang {currentPage} / {totalPages}
+                        </span>
 
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                                disabled={currentPage >= totalPages}
-                            >
-                                Sau <ChevronRight className="h-4 w-4 ml-1" />
-                            </Button>
-                        </div>
-                    )}
-                </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={currentPage >= totalPages}
+                        >
+                            Sau <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                    </div>
+                )}
+            </div>
 
             <ListingOffersModal
                 product={selectedProduct}
@@ -669,13 +670,16 @@ export const Marketplace: React.FC = () => {
             {/* Modal chi tiết 1 offer */}
             <Dialog open={!!selectedListing} onOpenChange={(o) => !o && setSelectedListing(null)}>
                 <DialogContent
-                    className="
-    w-[90vw]
-    max-w-[1200px]
+                    className="!
+            /* Tăng lên 95vw cho mobile để tận dụng không gian */
+  max-w-none
+  w-[90vw]
     max-h-[90vh]
-    overflow-y-auto
+    overflow-y-auto     /* Chỉ cho phép cuộn dọc */
+    overflow-x-hidden   /* Chặn tuyệt đối cuộn ngang */
     glass-card-strong
     border-white/10
+    p-4 md:p-6          /* Thêm padding linh hoạt */
   "
                 >
                     {selectedListing && (
@@ -827,134 +831,6 @@ export const Marketplace: React.FC = () => {
                     )}
                 </DialogContent>
             </Dialog>
-
-            {/* Giỏ hàng: mỗi thẻ chọn 1 seller + số lượng
-            <Dialog open={cartOpen} onOpenChange={(o) => setCartOpen(o)}>
-                <DialogContent
-                    className="
-    w-[600px]
-    max-w-[95vw]
-    max-h-[90vh]
-    overflow-y-auto
-    glass-card-strong
-  "
-                >
-                    <DialogHeader>
-                        <DialogTitle className="text-lg">Giỏ hàng sàn giao dịch</DialogTitle>
-                    </DialogHeader>
-                    {cartItems.length === 0 ? (
-                        <p className="text-sm text-muted-foreground mt-4">
-                            Giỏ hàng đang trống. Thêm thẻ từ Sàn giao dịch, sau đó chọn người bán cho từng thẻ.
-                        </p>
-                    ) : (
-                        <div className="mt-4 space-y-4 text-sm">
-                            {cartItems.map((item) => (
-                                <div key={item.cardId} className="p-3 rounded-lg border border-white/10 space-y-2">
-                                    <div className="flex items-center gap-3">
-                                        <img
-                                            src={item.imageUrl || PLACEHOLDER_IMG}
-                                            alt={item.cardName}
-                                            className="w-12 h-16 object-cover rounded shrink-0"
-                                            onError={(e) => { e.currentTarget.src = PLACEHOLDER_IMG; }}
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="font-medium line-clamp-1">{item.cardName}</div>
-                                            <div className="text-xs text-muted-foreground mt-0.5">Chọn người bán</div>
-                                            <select
-                                                value={item.selectedListing?.listSellerId ?? ''}
-                                                onChange={(e) => {
-                                                    const id = e.target.value;
-                                                    const offer = item.offers.find((o) => o.listSellerId === id) ?? null;
-                                                    setCartSelectedListing(item.cardId, offer);
-                                                }}
-                                                className="mt-1 w-full px-2 py-1.5 rounded bg-white/5 border border-white/10 text-xs"
-                                            >
-                                                <option value="">-- Chọn seller --</option>
-                                                {item.offers.map((o) => (
-                                                    <option key={o.listSellerId} value={o.listSellerId}>
-                                                        {o.sellerName || 'Seller'}
-                                                        {(o.sellerFeedbackCount != null && o.sellerFeedbackCount > 0)
-                                                            ? ` · ⭐ ${Number(o.sellerAverageRating ?? 0).toFixed(1)} (${o.sellerFeedbackCount})`
-                                                            : ''}
-                                                        {' · '}{formatCurrencyVND(o.price)} · SL: {o.quantity}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <span className="text-xs text-muted-foreground">SL:</span>
-                                            <input
-                                                type="number"
-                                                min={1}
-                                                max={item.selectedListing?.quantity ?? 1}
-                                                value={item.quantity}
-                                                onChange={(e) => {
-                                                    const v = Math.max(1, Math.min(Number(e.target.value) || 1, item.selectedListing?.quantity ?? 1));
-                                                    updateCartQuantity(item.cardId, v);
-                                                }}
-                                                className="w-14 px-2 py-1 rounded bg-white/5 border border-white/10 text-center text-xs"
-                                            />
-                                        </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="text-red-400 hover:text-red-300 shrink-0"
-                                            onClick={() => removeCartCard(item.cardId)}
-                                            aria-label="Xóa khỏi giỏ"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                    {item.selectedListing && (
-                                        <div className="text-xs text-muted-foreground pl-[3.25rem]">
-                                            Tạm tính: {formatCurrencyVND(item.selectedListing.price * item.quantity)}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                            <div className="pt-2 border-t border-white/10 space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Tổng tiền hàng (đã chọn seller)</span>
-                                    <span className="font-semibold">
-                                        {formatCurrencyVND(
-                                            cartItems
-                                                .filter((i) => i.selectedListing != null)
-                                                .reduce((sum, i) => sum + i.selectedListing!.price * i.quantity, 0),
-                                        )}
-                                    </span>
-                                </div>
-                                <div className="flex gap-2 text-xs">
-                                    <span className="flex-1 px-3 py-2 rounded border border-yellow-400 bg-yellow-500/10 text-yellow-200">
-                                        Ví MystiCard
-                                    </span>
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Phí ship được tính riêng cho từng người bán sau khi tạo đơn, tương tự như khi mua 1 offer.
-                                </p>
-                                {cartItems.some((c) => !c.selectedListing) && (
-                                    <p className="text-xs text-amber-400">Chọn người bán cho tất cả thẻ trước khi thanh toán.</p>
-                                )}
-                                <Button
-                                    variant="premium"
-                                    className="w-full"
-                                    disabled={orderLoading || cartItems.some((c) => !c.selectedListing)}
-                                    onClick={handleCheckoutCart}
-                                >
-                                    {orderLoading ? 'Đang thanh toán...' : 'Thanh toán giỏ hàng'}
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    className="w-full"
-                                    type="button"
-                                    onClick={() => setCartOpen(false)}
-                                >
-                                    Đóng
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog> */}
         </div>
     );
 
@@ -1008,8 +884,10 @@ function ListingOffersModal({
         <Dialog open={!!product} onOpenChange={(o) => !o && onClose()}>
             <DialogContent
                 className="
-    w-[80vw]
+    max-w-none           /* Xóa bỏ cái 32rem (max-w-lg) mặc định */
+    w-[90vw]
     max-w-[1000px]
+    md:max-w-[700px]
     max-h-[90vh]
     overflow-y-auto
     glass-card-strong
@@ -1020,7 +898,7 @@ function ListingOffersModal({
                     <DialogTitle className="flex items-center gap-4">
 
                         <img
-                            src={product.cardResponse.imageResponse?.[0]?.imageUrl || placeholderImg}
+                            src={product.cardResponse.imageUrl?.[0]?.imageUrl || placeholderImg}
                             alt={product.cardResponse.name}
                             className="w-20 h-28 object-cover rounded-lg shadow-lg"
                             onError={(e) => {
@@ -1062,42 +940,6 @@ function ListingOffersModal({
                     </DialogTitle>
                 </DialogHeader>
 
-                {/* <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-
-                    <div className="p-3 rounded-lg bg-white/5">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            Giá thấp nhất
-                        </div>
-
-                        <div className="text-lg font-bold text-accent-400">
-                            {formatCurrencyVND(minPrice)}
-                        </div>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-white/5">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            Giá trung bình
-                        </div>
-
-                        <div className="text-lg font-bold">
-                            {formatCurrencyVND(avgPrice)}
-                        </div>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-white/5">
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            Giá cao nhất
-                        </div>
-
-                        <div className="text-lg font-bold">
-                            {formatCurrencyVND(maxPrice)}
-                        </div>
-                    </div>
-
-                </div> */}
 
                 {listSeller.length > 0 && (
 
