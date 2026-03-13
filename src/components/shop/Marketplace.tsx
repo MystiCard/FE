@@ -18,8 +18,7 @@ import { listSellerApi, ListingItem, categoryApi, Category, cardApi, CardSellRes
 import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
-import { Heart, Loader2, Trash2, Star } from 'lucide-react';
-import 'bootstrap-icons/font/bootstrap-icons.css';
+import { Heart, Loader2, Trash2, Star, ShoppingCart } from 'lucide-react';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
 
@@ -81,10 +80,6 @@ const RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SUPER_RARE', 'SEC
 
 export const Marketplace: React.FC = () => {
     const [listings, setListings] = useState<ListingItem[]>([]);
-<<<<<<< HEAD
-    const [totalElements, setTotalElements] = useState(0);
-=======
->>>>>>> 36ea7d4b0f984c03ef4bb96b778bf23527d47cb0
     const [totalPages, setTotalPages] = useState(0);
     const [totalElemests, setTotalElemests] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
@@ -95,7 +90,7 @@ export const Marketplace: React.FC = () => {
     const [min, setMin] = useState<number | "">("");
     const [max, setMax] = useState<number | "">("");
     const [sortBy, setSortBy] = useState('desc');
-    const [rarity, setRarity] = useState(null);
+    const [rarity, setRarity] = useState<string | null>(null);
     // const [filterCategory, setFilterCategory] = useState<string>('all');
     // const [filterRarity, setFilterRarity] = useState<string>('all');
     const [categories, setCategories] = useState<Category[]>([]);
@@ -350,8 +345,6 @@ export const Marketplace: React.FC = () => {
     //     return grouped;
     // }, [ sortBy]);
 
-<<<<<<< HEAD
-=======
     // Tự động mở chi tiết thẻ khi đi từ thông báo giá: ?card={cardId}
     // useEffect(() => {
     //     const cardId = searchParams.get('card');
@@ -364,8 +357,6 @@ export const Marketplace: React.FC = () => {
     //         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     //     }
     // }, [searchParams, products]);
-
->>>>>>> 36ea7d4b0f984c03ef4bb96b778bf23527d47cb0
     return (
         <div className="py-8">
             {error && (
@@ -418,71 +409,6 @@ export const Marketplace: React.FC = () => {
                 </div>
             )}
 
-<<<<<<< HEAD
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Sidebar bộ lọc */}
-                <div className="lg:col-span-1">
-                    <Card className="glass-card-strong sticky top-24">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-base flex items-center gap-2">
-                                <Filter className="h-4 w-4" />
-                                Bộ lọc
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Giá (đ)</label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        value={priceRange[0]}
-                                        onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])}
-                                        className="w-full px-3 py-2 glass-card rounded-lg text-sm"
-                                    />
-                                    <span className="self-center text-muted-foreground">–</span>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        value={priceRange[1]}
-                                        onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
-                                        className="w-full px-3 py-2 glass-card rounded-lg text-sm"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Set</label>
-                                <select
-                                    value={filterCategory}
-                                    onChange={(e) => setFilterCategory(e.target.value)}
-                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
-                                >
-                                    <option value="all">Tất cả set</option>
-                                    {categories.map((c) => (
-                                        <option key={c.categoryId} value={c.categoryId}>
-                                            {c.categoryName}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Độ hiếm</label>
-                                <select
-                                    value={filterRarity}
-                                    onChange={(e) => setFilterRarity(e.target.value)}
-                                    className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
-                                >
-                                    <option value="all">Tất cả</option>
-                                    {RARITIES.map((r) => (
-                                        <option key={r} value={r}>
-                                            {formatRarity(r)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-=======
             <div className="space-y-6">
                 {/* Thanh bộ lọc ngang */}
                 <Card className="glass-card-strong">
@@ -540,9 +466,9 @@ export const Marketplace: React.FC = () => {
                         <div className="w-full lg:max-w-xs">
                             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Độ hiếm</label>
                             <select
-                                value={rarity ?? "ALL"}
+                                value={rarity ?? 'ALL'}
                                 onChange={(e) =>
-                                    setRarity(e.target.value === "ALL" ? null : e.target.value)
+                                    setRarity(e.target.value === 'ALL' ? null : e.target.value)
                                 }
                                 className="w-full px-3 py-2 glass-card rounded-lg text-sm appearance-none cursor-pointer bg-black/60"
                             >
@@ -555,22 +481,21 @@ export const Marketplace: React.FC = () => {
                             </select>
                         </div>
                         <div className="w-full lg:w-auto">
->>>>>>> 36ea7d4b0f984c03ef4bb96b778bf23527d47cb0
                             <Button
                                 variant="outline"
                                 size="sm"
                                 className="w-full"
                                 onClick={() => {
                                     setSearchQuery('');
-                                    setMin("");
-                                    setMax("")
-
+                                    setMin('');
+                                    setMax('');
                                     setRarity(null);
                                 }}
                             >
                                 Xóa bộ lọc
                             </Button>
-                        </CardContent>
+                        </div>
+                    </CardContent>
                     </Card>
                 </div>
 
@@ -597,172 +522,6 @@ export const Marketplace: React.FC = () => {
                             <div className="w-12 h-12 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                             <p className="text-muted-foreground">Đang tải...</p>
                         </div>
-<<<<<<< HEAD
-                    ) : products.length > 0 ? (
-                        <Card className="glass-card-strong overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b border-white/10 text-left text-xs text-muted-foreground uppercase tracking-wider">
-                                            <th className="p-4 font-medium">Sản phẩm</th>
-                                            <th className="p-4 font-medium text-center w-24">Số đề nghị</th>
-                                            <th className="p-4 font-medium text-right w-28">Từ</th>
-                                            <th className="p-4 w-32" />
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {products.map((product) => {
-                                            const minPrice = Math.min(...product.offers.map(o => o.price));
-                                            const isExpanded = expandedCardId === product.cardId;
-                                            return (
-                                                <React.Fragment key={product.cardId}>
-                                                    <tr
-                                                        className="border-b border-white/5 hover:bg-white/5 transition-colors"
-                                                        onClick={() => setExpandedCardId(isExpanded ? null : product.cardId)}
-                                                    >
-                                                        <td className="p-4">
-                                                            <div className="flex items-center gap-4">
-                                                                <img
-                                                                    src={product.imageUrl || PLACEHOLDER_IMG}
-                                                                    alt={product.cardName}
-                                                                    className="w-12 h-16 object-cover rounded-lg shrink-0"
-                                                                    onError={(e) => {
-                                                                        e.currentTarget.src = PLACEHOLDER_IMG;
-                                                                    }}
-                                                                />
-                                                                <div>
-                                                                    <div className="font-medium">{product.cardName}</div>
-                                                                    <div className="text-xs text-muted-foreground">
-                                                                        {product.categoryName || '—'} · {formatRarity(product.rarity)}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-4 text-center">
-                                                            <span className="inline-flex items-center gap-1 text-sm">
-                                                                <Users className="h-4 w-4 text-muted-foreground" />
-                                                                {product.offers.length}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-4 text-right">
-                                                            <span className="font-semibold text-accent-400">
-                                                                {formatCurrencyVND(minPrice)}
-                                                            </span>
-                                                        </td>
-                                                                    <td className="p-4">
-                                                                        <div className="flex items-center justify-end gap-2">
-                                                                            <Button
-                                                                                variant="outline"
-                                                                                size="sm"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    addCardToCart(product, e);
-                                                                                }}
-                                                                            >
-                                                                                Thêm thẻ vào giỏ
-                                                                            </Button>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                className="gap-1"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setSelectedProduct(product);
-                                                                                }}
-                                                                            >
-                                                                                Xem đề nghị
-                                                                                <ChevronDown className="h-4 w-4" />
-                                                                            </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="rounded-full"
-                                                                    onClick={(e) => toggleWishlistForCard(product, e)}
-                                                                    disabled={wishlistLoadingCardId === product.cardId}
-                                                                    aria-label={
-                                                                        wishlistCardIds.has(product.cardId) || isInWishlist(product.cardId)
-                                                                            ? 'Bỏ khỏi wishlist'
-                                                                            : 'Thêm vào wishlist'
-                                                                    }
-                                                                >
-                                                                    {wishlistLoadingCardId === product.cardId ? (
-                                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                                    ) : (
-                                                                        <Heart
-                                                                            className={`h-4 w-4 ${
-                                                                                wishlistCardIds.has(product.cardId) || isInWishlist(product.cardId)
-                                                                                    ? 'fill-red-500 text-red-500'
-                                                                                    : ''
-                                                                            }`}
-                                                                        />
-                                                                    )}
-                                                                </Button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                    {/* Hàng mở rộng: bảng offer bên dưới thẻ */}
-                                                    {isExpanded && (
-                                                        <tr className="bg-white/5">
-                                                            <td colSpan={4} className="p-4">
-                                                                <div className="pl-16 pr-4">
-                                                                    <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-                                                                        {product.offers.length} đề nghị
-                                                                    </div>
-                                                                    <table className="w-full text-sm">
-                                                                        <thead>
-                                                                            <tr className="text-muted-foreground text-left">
-                                                                                <th className="pb-2 font-medium">Giá</th>
-                                                                                <th className="pb-2 font-medium">Số lượng</th>
-                                                                                <th className="pb-2 font-medium">Người bán</th>
-                                                                                <th className="pb-2 font-medium text-right">Thao tác</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {product.offers.map((offer) => (
-                                                                                <tr key={offer.listSellerId} className="border-t border-white/5">
-                                                                                    <td className="py-2 font-medium text-accent-400">
-                                                                                        {formatCurrencyVND(offer.price)}
-                                                                                    </td>
-                                                                                    <td className="py-2">{offer.quantity}</td>
-                                                                                    <td className="py-2 text-muted-foreground">
-                                                                                        <span>{offer.sellerName || '—'}</span>
-                                                                                        {(offer.sellerFeedbackCount != null && offer.sellerFeedbackCount > 0) && (
-                                                                                            <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90 text-xs">
-                                                                                                <Star className="h-3 w-3 fill-amber-400 shrink-0" />
-                                                                                                {Number(offer.sellerAverageRating ?? 0).toFixed(1)}
-                                                                                                <span className="text-muted-foreground">({offer.sellerFeedbackCount} đánh giá)</span>
-                                                                                            </span>
-                                                                                        )}
-                                                                                    </td>
-                                                                                    <td className="py-2 text-right">
-                                                                                        <Button
-                                                                                            variant="premium"
-                                                                                            size="sm"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                setSelectedProduct(product);
-                                                                                                setSelectedListing(offer);
-                                                                                            }}
-                                                                                        >
-                                                                                            Xem chi tiết
-                                                                                        </Button>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                    </table>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </React.Fragment>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </Card>
-=======
                     ) : sellCards.length > 0 ? (
                         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
                             {sellCards.map((s) => {
@@ -847,7 +606,7 @@ export const Marketplace: React.FC = () => {
                                                         setSelectedProduct(s);
                                                     }}
                                                 >
-                                                    <i className="bi bi-cart fs-5"></i>
+                                                    <ShoppingCart className="h-5 w-5" />
                                                 </Button>
                                                 <Button
                                                     type="button"
@@ -868,7 +627,6 @@ export const Marketplace: React.FC = () => {
                                 );
                             })}
                         </div>
->>>>>>> 36ea7d4b0f984c03ef4bb96b778bf23527d47cb0
                     ) : (
                         <Card className="glass-card-strong">
                             <CardContent className="py-16 text-center">
@@ -910,9 +668,7 @@ export const Marketplace: React.FC = () => {
                         </div>
                     )}
                 </div>
-            </div>
 
-            {/* Modal danh sách offer của 1 thẻ (kiểu Cardmarket) */}
             <ListingOffersModal
                 product={selectedProduct}
                 onClose={() => {
@@ -931,16 +687,7 @@ export const Marketplace: React.FC = () => {
 
             {/* Modal chi tiết 1 offer */}
             <Dialog open={!!selectedListing} onOpenChange={(o) => !o && setSelectedListing(null)}>
-                <DialogContent
-                    className="
-    w-[40vw]
-    max-w-[1200px]
-    max-h-[90vh]
-    overflow-y-auto
-    glass-card-strong
-    border-white/10
-  "
-                >
+                <DialogContent className="w-[40vw] max-w-[1200px] max-h-[90vh] overflow-y-auto glass-card-strong border-white/10">
                     {selectedListing && (
                         <>
                             <DialogHeader>
@@ -1174,29 +921,16 @@ type ListingOffersModalProps = {
     formatRarity: (r: string) => string;
     rarityClass: Record<string, string>;
     placeholderImg: string;
-}; function ListingOffersModal({
+};
+function ListingOffersModal({
     product,
     onClose,
     onSelectOffer,
     onAddCardToCart,
     formatRarity,
     rarityClass,
-<<<<<<< HEAD
     placeholderImg,
-}: {
-    product: CardProduct | null;
-    onClose: () => void;
-    onSelectOffer: (offer: ListingItem) => void;
-    onAddCardToCart: (product: CardProduct) => void;
-    formatRarity: (r: string) => string;
-    rarityClass: Record<string, string>;
-    placeholderImg: string;
-}) {
-    const open = !!product;
-=======
-    placeholderImg
 }: ListingOffersModalProps) {
->>>>>>> 36ea7d4b0f984c03ef4bb96b778bf23527d47cb0
 
     if (!product) return null;
 
@@ -1228,8 +962,8 @@ type ListingOffersModalProps = {
                 pageSize
             );
 
-            setListSeller(res.content);
-            setTotalPages(res.totalPages);
+            setListSeller(res.content as ListingItem[]);
+            setTotalPages(res.totalPages ?? 0);
 
         } catch (err) {
             console.error(err);
