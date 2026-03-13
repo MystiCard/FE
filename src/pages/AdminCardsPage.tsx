@@ -34,6 +34,7 @@ export const AdminCardsPage: React.FC = () => {
     const [detailLoading, setDetailLoading] = React.useState(false);
     const [requests, setRequests] = React.useState<CardRequired[]>([]);
     const [reqNote, setReqNote] = React.useState<Record<string, string>>({});
+    const [reqImageFile, setReqImageFile] = React.useState<Record<string, File | null>>({});
     const [reqProcessing, setReqProcessing] = React.useState<string | null>(null);
     const [cardPage, setCardPage] = React.useState(1);
     const cardPageSize = 15;
@@ -135,10 +136,32 @@ export const AdminCardsPage: React.FC = () => {
         }
     };
 
+    /** Lấy ảnh để gửi khi duyệt: ưu tiên ảnh Admin chọn, không thì fetch từ imageUrl user đã gửi. */
+    const getImageFileForApprove = async (r: CardRequired): Promise<File | undefined> => {
+        const chosen = reqImageFile[r.cardRequiredId];
+        if (chosen && chosen.size > 0) return chosen;
+        if (!r.imageUrl || !r.imageUrl.startsWith('http')) return undefined;
+        try {
+            const res = await fetch(r.imageUrl, { mode: 'cors' });
+            if (!res.ok) return undefined;
+            const blob = await res.blob();
+            const type = blob.type || 'image/png';
+            return new File([blob], 'card-from-user.png', { type });
+        } catch {
+            return undefined;
+        }
+    };
+
     const approveRequest = async (r: CardRequired) => {
         setReqProcessing(r.cardRequiredId);
         try {
-            await cardRequiredApi.approveRequiredCard(r.cardRequiredId, reqNote[r.cardRequiredId] ?? null);
+            const imageFile = await getImageFileForApprove(r);
+            await cardRequiredApi.approveRequiredCard(
+                r.cardRequiredId,
+                reqNote[r.cardRequiredId] ?? null,
+                imageFile
+            );
+            setReqImageFile((prev) => ({ ...prev, [r.cardRequiredId]: null }));
             await loadRequests();
             await loadCards();
         } catch (e) {
@@ -488,6 +511,7 @@ export const AdminCardsPage: React.FC = () => {
                                         <th className="text-left p-3 text-sm font-semibold text-muted-foreground">Set</th>
                                         <th className="text-right p-3 text-sm font-semibold text-muted-foreground">Giá base</th>
                                         <th className="text-left p-3 text-sm font-semibold text-muted-foreground">Người gửi</th>
+                                        <th className="text-left p-3 text-sm font-semibold text-muted-foreground">Ảnh thẻ (khi duyệt)</th>
                                         <th className="text-left p-3 text-sm font-semibold text-muted-foreground">Ghi chú</th>
                                         <th className="text-right p-3 text-sm font-semibold text-muted-foreground">Thao tác</th>
                                     </tr>
@@ -527,6 +551,25 @@ export const AdminCardsPage: React.FC = () => {
                                                 </td>
                                                 <td className="p-3 text-sm text-muted-foreground">
                                                     <div>{r.userName || '—'}</div>
+                                                </td>
+                                                <td className="p-3">
+                                                    <label className="block">
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            className="hidden"
+                                                            onChange={(e) => {
+                                                                const f = e.target.files?.[0];
+                                                                setReqImageFile((m) => ({ ...m, [r.cardRequiredId]: f ?? null }));
+                                                            }}
+                                                        />
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs cursor-pointer hover:bg-white/10">
+                                                            <Upload className="h-3.5 w-3.5" />
+                                                            {reqImageFile[r.cardRequiredId]
+                                                                ? reqImageFile[r.cardRequiredId]!.name
+                                                                : 'Chọn ảnh'}
+                                                        </span>
+                                                    </label>
                                                 </td>
                                                 <td className="p-3">
                                                     <input

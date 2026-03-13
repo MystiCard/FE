@@ -132,79 +132,85 @@ export const WishlistPage: React.FC = () => {
                                 {rows.map(({ item, card }) => (
                                     <Card
                                         key={item.wishListId}
-                                        className="overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                                        onClick={() => navigate(`/wishlist/${item.cardId}`)}
+                                        className="overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
                                     >
                                         <div className="flex flex-col sm:flex-row gap-4 p-3 items-start sm:items-center">
-                                            <div className="relative w-20 h-[112px] shrink-0 rounded-lg overflow-hidden bg-white/5 aspect-[2.5/3.5]">
-                                                <img
-                                                    src={getCardImageUrl(card) || PLACEHOLDER_IMG}
-                                                    alt={card?.name || 'Thẻ'}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                        e.currentTarget.src = PLACEHOLDER_IMG;
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-semibold text-sm md:text-base line-clamp-2 leading-tight">
-                                                    {card?.name || 'Thẻ'}
-                                                </h3>
-                                                {card?.rarity && (
-                                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                                        {formatRarity(card.rarity)}
-                                                    </p>
-                                                )}
-                                                {item.expectPrice != null && (
-                                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                                        Giá mong muốn:{' '}
-                                                        {(item.expectPrice ?? 0).toLocaleString('vi-VN')} đ
-                                                    </p>
-                                                )}
-                                                <p className="text-sm md:text-base font-bold text-accent-400 mt-1">
-                                                    {(card?.basePrice ?? 0).toLocaleString('vi-VN')} đ
-                                                </p>
-                                                {(() => {
-                                                    const alert = alerts.find((a) => a.wishListId === item.wishListId);
-                                                    const count = alert?.matchingListings?.length ?? 0;
-                                                    return count > 0 ? (
-                                                        <Link
-                                                            to={`/marketplace?card=${item.cardId}`}
-                                                            className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-md bg-green-500/20 text-green-400 text-xs font-medium"
-                                                        >
-                                                            <Bell className="h-3 w-3" />
-                                                            Có {count} tin bán ≤ giá mong muốn — Xem sàn
-                                                        </Link>
-                                                    ) : null;
-                                                })()}
-                                                <div className="flex flex-wrap items-center gap-2 mt-2">
-                                                    <Link
-                                                        to="/portfolio"
-                                                        className="text-xs text-primary-400 hover:underline"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
+                                            <Link
+                                                to={`/wishlist/${item.cardId}`}
+                                                className="flex gap-4 items-start sm:items-center flex-1 min-w-0"
+                                            >
+                                                <div className="relative w-20 h-[112px] shrink-0 rounded-lg overflow-hidden bg-white/5 aspect-[2.5/3.5]">
+                                                    <img
+                                                        src={getCardImageUrl(card) || PLACEHOLDER_IMG}
+                                                        alt={card?.name || 'Thẻ'}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            e.currentTarget.src = PLACEHOLDER_IMG;
                                                         }}
-                                                    >
-                                                        Xem trong Bộ sưu tập
-                                                    </Link>
-                                                    <Link
-                                                        to="/marketplace"
-                                                        className="text-xs text-primary-400 hover:underline"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                        }}
-                                                    >
-                                                        Sàn giao dịch
-                                                    </Link>
+                                                    />
                                                 </div>
-                                            </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-semibold text-sm md:text-base line-clamp-2 leading-tight">
+                                                        {card?.name || 'Thẻ'}
+                                                    </h3>
+                                                    {card?.rarity && (
+                                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                                            {formatRarity(card.rarity)}
+                                                        </p>
+                                                    )}
+                                                    {item.expectPrice != null && (
+                                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                                            Giá mong muốn:{' '}
+                                                            {(item.expectPrice ?? 0).toLocaleString('vi-VN')} đ
+                                                        </p>
+                                                    )}
+                                                    <p className="text-sm md:text-base font-bold text-accent-400 mt-1">
+                                                        {(card?.basePrice ?? 0).toLocaleString('vi-VN')} đ
+                                                    </p>
+                                                    {(() => {
+                                                        const alert = alerts.find((a) => a.wishListId === item.wishListId);
+                                                        const count = alert?.matchingListings?.length ?? 0;
+                                                        return count > 0 ? (
+                                                            <Link
+                                                                to={`/marketplace?card=${item.cardId}`}
+                                                                className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-md bg-green-500/20 text-green-400 text-xs font-medium"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                <Bell className="h-3 w-3" />
+                                                                Có {count} tin bán ≤ giá mong muốn — Xem sàn
+                                                            </Link>
+                                                        ) : null;
+                                                    })()}
+                                                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                                                        <Link
+                                                            to="/portfolio"
+                                                            className="text-xs text-primary-400 hover:underline"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                            }}
+                                                        >
+                                                            Xem trong Bộ sưu tập
+                                                        </Link>
+                                                        <Link
+                                                            to="/marketplace"
+                                                            className="text-xs text-primary-400 hover:underline"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                            }}
+                                                        >
+                                                            Sàn giao dịch
+                                                        </Link>
+                                                    </div>
+                                                </div>
+                                            </Link>
                                             <button
                                                 type="button"
-                                                onClick={() => handleRemove(item.wishListId, item.cardId)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleRemove(item.wishListId, item.cardId);
+                                                }}
                                                 className="ml-auto p-1.5 hover:bg-red-500/20 rounded-md text-red-400 transition-colors"
                                                 aria-label="Xóa khỏi wishlist"
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onClickCapture={(e) => e.stopPropagation()}
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </button>
