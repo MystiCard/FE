@@ -64,8 +64,8 @@ export const ShipmentPage: React.FC = () => {
     const [updateNote, setUpdateNote] = useState('');
     const [updateFiles, setUpdateFiles] = useState<File[]>([]);
     const [submitting, setSubmitting] = useState(false);
-
-    useEffect(() => {
+    const [allowed,setAllowed] = useState(false);
+        useEffect(() => {
         if (!isAuthenticated) {
             navigate('/login');
             return;
@@ -74,6 +74,8 @@ export const ShipmentPage: React.FC = () => {
             try {
                 const p = await userApi.getMyProfile();
                 setProfile(p);
+                const allowed = await shipmentApi.checkAllowReceive();
+                  setAllowed(allowed);
             } catch (err) {
                 const rawMessage = (err as Error).message || '';
                 const normalized = rawMessage.toLowerCase();
@@ -93,6 +95,8 @@ export const ShipmentPage: React.FC = () => {
                 }
 
                 setProfile(null);
+                  
+                  
             }
         };
         loadProfile();
@@ -106,6 +110,7 @@ export const ShipmentPage: React.FC = () => {
                 pageMine,
                 10
             );
+            console.log("My shipment ",res);
             setMyShipments(res.content ?? []);
             setTotalPagesMine(res.totalPages ?? 1);
         } catch (err) {
@@ -158,14 +163,14 @@ export const ShipmentPage: React.FC = () => {
         setSubmitting(true);
         setMessage(null);
         try {
-            const allowed = await shipmentApi.checkAllowReceive();
-            if (!allowed) {
-                setMessage({
-                    type: 'error',
-                    text: 'Bạn hiện không được phép nhận shipment mới. Vui lòng kiểm tra lại quy tắc hệ thống.',
-                });
-                return;
-            }
+            // const allowed = await shipmentApi.checkAllowReceive();
+            // if (!allowed) {
+            //     setMessage({
+            //         type: 'error',
+            //         text: 'Bạn hiện không được phép nhận shipment mới. Vui lòng kiểm tra lại quy tắc hệ thống.',
+            //     });
+            //     return;
+            // }
 
             await shipmentApi.receiveShipment(String(shipment.shipmentId));
             setMessage({ type: 'success', text: 'Đã nhận đơn giao hàng.' });
@@ -366,7 +371,16 @@ export const ShipmentPage: React.FC = () => {
                                     Không có đơn chưa phân shipper.
                                 </CardContent>
                             </Card>
-                        ) : (
+                        ) :  !allowed ? (
+                            
+                             <Card className="glass-card border-white/10">
+                                <CardContent className="py-12 text-center text-muted-foreground">
+                                    Bạn có đơn hàng chưa hoàn thành
+                                </CardContent>
+                            </Card>
+                        )
+                            :
+                            (
                             unassignedShipments.map((s) => (
                                 <Card key={s.shipmentId} className="glass-card border-white/10 hover:border-white/20">
                                     <CardHeader className="pb-2">
