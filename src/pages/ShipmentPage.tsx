@@ -317,7 +317,9 @@ export const ShipmentPage: React.FC = () => {
                                                 {new Date(s.createAt).toLocaleString('vi-VN')}
                                             </p>
                                         )}
-                                        <p className="font-medium">Phí ship: {Number(s.shipmentFee).toLocaleString('vi-VN')} ₫</p>
+                                        <p className="font-medium">
+                                            Phí ship: {Number(s.shipmentFee).toLocaleString('vi-VN')} ₫
+                                        </p>
                                         {s.shipmentStatus !== 'DELIVERED' && s.shipmentStatus !== 'RECEIVED' && (
                                             <Button
                                                 variant="outline"

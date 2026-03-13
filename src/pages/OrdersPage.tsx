@@ -3,8 +3,8 @@ import { Card as UICard, CardContent, CardHeader, CardTitle } from '@/components
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ToastProvider, ToastViewport, Toast, ToastTitle, ToastDescription, ToastClose } from '@/components/ui/toast';
-import { listSellerApi, orderApi, OrderItemResponse, OrderDetailResponse, ShippingStatus, transactionApi, OrderSummaryResponse, OrderStatus, shipmentApi, TrackingResponse, cardApi, Card, getCardImageUrl, returnRequestApi, ReturnRequestItem, ReturnRequestStatus, ReturnRequestCreate, userApi, UserProfile } from '@/utils/api';
-import { AlertCircle, Package, Search, Truck, MapPin, Phone, CreditCard, Star } from 'lucide-react';
+import { listSellerApi, orderApi, OrderItemResponse, OrderDetailResponse, ShippingStatus, transactionApi, OrderSummaryResponse, OrderStatus, shipmentApi, TrackingResponse, cardApi, Card, getCardImageUrl, returnRequestApi, ReturnRequestItem, ReturnRequestStatus, ReturnRequestCreate, userApi, UserProfile, blindBoxApi, BlindBoxHistoryItem } from '@/utils/api';
+import { AlertCircle, Package, Search, Truck, MapPin, Phone, CreditCard, Star, Info } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -206,6 +206,7 @@ export const OrdersPage: React.FC = () => {
     const [unpaidActionLoadingId, setUnpaidActionLoadingId] = useState<string | null>(null);
     const [unpaidBulkLoading, setUnpaidBulkLoading] = useState(false);
     const [feedbackEditingId, setFeedbackEditingId] = useState<string | null>(null);
+    const [pendingFeedbackOrderId, setPendingFeedbackOrderId] = useState<string | null>(null);
     const [feedbackRating, setFeedbackRating] = useState(5);
     const [feedbackComment, setFeedbackComment] = useState('');
     const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
@@ -237,6 +238,7 @@ export const OrdersPage: React.FC = () => {
     const [returnCreateReason, setReturnCreateReason] = useState('');
     const [returnCreateReasonPreset, setReturnCreateReasonPreset] = useState<'PRESET' | 'OTHER'>('PRESET');
     const [returnCreateSendAddress, setReturnCreateSendAddress] = useState('');
+    const [returnCreateAddressPreset, setReturnCreateAddressPreset] = useState<'PROFILE' | 'CUSTOM'>('PROFILE');
     const [returnCreateSendDistrictId, setReturnCreateSendDistrictId] = useState<number>(0);
     const [returnCreateSendWardId, setReturnCreateSendWardId] = useState<number>(0);
     const [returnCreateSendPhone, setReturnCreateSendPhone] = useState('');
@@ -276,6 +278,8 @@ export const OrdersPage: React.FC = () => {
                 firstItemQty?: number;
                 firstItemPrice?: number;
                 shipmentStatus?: string;
+                shipmentId?: string;
+                firstOrderItemId?: string;
             }
         >
     >({});
@@ -415,12 +419,8 @@ export const OrdersPage: React.FC = () => {
                     buyFilter === 'WAIT_SHIP'
                 ) {
                     orderStatusFilter = 'PAID';
-                } else if (buyFilter === 'DELIVERED') {
-                    orderStatusFilter = 'COMPLETED';
-                } else if (buyFilter === 'CANCELLED') {
-                    orderStatusFilter = 'CANCELLED';
                 } else {
-                    // TẤT CẢ hoặc TRẢ HÀNG: hiện tại không có orderStatus riêng → không filter theo status
+                    // TẤT CẢ / ĐÃ GIAO / ĐÃ HỦY / TRẢ HÀNG: không filter theo orderStatus, dùng shipmentStatus phía FE
                     orderStatusFilter = undefined;
                 }
                 const res = await orderApi.getMyOrders(orderStatusFilter, pageIndex, pageSize);
@@ -485,8 +485,11 @@ export const OrdersPage: React.FC = () => {
         }
     };
 
-    const loadOrderDetail = async (orderId: string) => {
+    const loadOrderDetail = async (orderId: string, options?: { forFeedback?: boolean }) => {
         setDetailOrderId(orderId);
+        if (options?.forFeedback) {
+            setPendingFeedbackOrderId(orderId);
+        }
         setDetailLoading(true);
         setDetailItems([]);
         setDetailShipments({});
@@ -498,18 +501,39 @@ export const OrdersPage: React.FC = () => {
             const page = await orderApi.getOrderItemsByOrderId(orderId, 0, 100);
             const content = page.content ?? [];
 
-            // Nếu là đơn Hộp bí ẩn: không có orderDetailResponseList nhưng có blindBoxDetails
+            // Nếu BE trả kèm blindBoxDetails trong orderItem → dùng trực tiếp
+            let blindBoxCards: OrderItemResponse['blindBoxDetails'] | null = null;
+            let blindBoxShipment: OrderItemResponse['shipmentResponse'] | null = null;
             const blindBoxEntry = content.find((o) => (o.blindBoxDetails?.length ?? 0) > 0);
-            const rawItems = content.flatMap((o) => o.orderDetailResponseList || []);
-
-            if (rawItems.length === 0 && blindBoxEntry && (blindBoxEntry.blindBoxDetails?.length ?? 0) > 0) {
-                setDetailBlindBoxCards(blindBoxEntry.blindBoxDetails || []);
-                setDetailBlindBoxShipment(blindBoxEntry.shipmentResponse || null);
-                setDetailItems([]);
-                setDetailShipments({});
-                setDetailTrackings({});
-                return;
+            if (blindBoxEntry && (blindBoxEntry.blindBoxDetails?.length ?? 0) > 0) {
+                blindBoxCards = blindBoxEntry.blindBoxDetails || [];
+                blindBoxShipment = blindBoxEntry.shipmentResponse || null;
+            } else {
+                // Fallback: join từ lịch sử Hộp bí ẩn theo blindBoxId trong OrderSummary
+                const summary = buyOrders.find((o) => String(o.orderId) === String(orderId));
+                const blindBoxId = summary?.blindBoxId;
+                if (blindBoxId) {
+                    try {
+                        const history: BlindBoxHistoryItem[] = await blindBoxApi.getMyHistory();
+                        const cards = history
+                            .filter((h) => h.blindBoxId === blindBoxId)
+                            .map((h) => ({
+                                cardName: h.card.name,
+                                cardImageUrl: getCardImageUrl(h.card),
+                                basePrice: h.card.basePrice,
+                            }));
+                        if (cards.length > 0) {
+                            blindBoxCards = cards as any;
+                        }
+                    } catch {
+                        // ignore nếu join từ lịch sử thất bại
+                    }
+                }
             }
+            setDetailBlindBoxCards(blindBoxCards);
+            setDetailBlindBoxShipment(blindBoxShipment);
+
+            const rawItems = content.flatMap((o) => o.orderDetailResponseList || []);
             // Ưu tiên dùng cardResponse từ BE; nếu thiếu thì mới gọi cardApi
             const enrichedItems: (OrderItemResponse['orderDetailResponseList'][number] & { cardName?: string; cardImageUrl?: string; cardId?: string })[] =
                 rawItems.map((it: any) => {
@@ -714,6 +738,10 @@ export const OrdersPage: React.FC = () => {
                     const shipmentStatus = first.shipmentResponse
                         ? String(first.shipmentResponse.shipmentStatus)
                         : undefined;
+                    const shipmentId = first.shipmentResponse
+                        ? String(first.shipmentResponse.shipmentId)
+                        : undefined;
+                    const firstOrderItemId = item?.orderItemId ? String(item.orderItemId) : undefined;
                     setBuyOrderExtras((prev) => ({
                         ...prev,
                         [orderId]: {
@@ -725,6 +753,8 @@ export const OrdersPage: React.FC = () => {
                             firstItemQty: qty,
                             firstItemPrice: price,
                             shipmentStatus,
+                            shipmentId,
+                            firstOrderItemId,
                         },
                     }));
                 } catch {
@@ -776,16 +806,6 @@ export const OrdersPage: React.FC = () => {
                         }}
                     >
                         Đơn mua
-                    </Button>
-                    <Button
-                        variant={viewMode === 'UNPAID' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => {
-                            setViewMode('UNPAID');
-                            setPage(0);
-                        }}
-                    >
-                        Chưa thanh toán
                     </Button>
                     <Button
                         variant={viewMode === 'SELL' ? 'default' : 'outline'}
@@ -1216,23 +1236,33 @@ export const OrdersPage: React.FC = () => {
                                 {filteredBuy.map((o) => {
                                     const orderId = String(o.orderId);
                                     const extra = buyOrderExtras[orderId] || {};
+                                    const shipStatus = extra.shipmentStatus as ShippingStatus | undefined;
 
                                     // Lọc thêm theo trạng thái shipment cho từng filter Đơn mua
-                                    if (buyFilter === 'WAIT_PICKUP' && extra.shipmentStatus !== 'ASIGNED') {
-                                        // Chờ lấy hàng: chỉ hiện shipment đã được gán shipper
-                                        return null;
-                                    }
-                                    if (buyFilter === 'WAIT_SHIP' && extra.shipmentStatus !== 'IN_TRANSIT') {
-                                        // Chờ giao: shipment đang trong quá trình vận chuyển
-                                        return null;
-                                    }
-                                    if (buyFilter === 'DELIVERED' && extra.shipmentStatus !== 'RECEIVED') {
-                                        // Đã giao: shipment đã xác nhận giao thành công
-                                        return null;
-                                    }
-                                    if (buyFilter === 'CANCELLED' && extra.shipmentStatus && extra.shipmentStatus !== 'CANCELLED') {
-                                        // Đã hủy: ưu tiên những shipment có trạng thái hủy (ngoài việc status đơn đã là CANCELLED)
-                                        return null;
+                                    if (buyFilter === 'WAIT_CONFIRM') {
+                                        // Chờ xác nhận: đơn đã PAID nhưng shipment chưa ra khỏi PENDING.
+                                        // Nếu BE chưa tạo shipment => shipStatus undefined vẫn được xem là "chờ xác nhận".
+                                        if (shipStatus && shipStatus !== 'PENDING') return null;
+                                    } else if (buyFilter === 'WAIT_PICKUP') {
+                                        // Chờ lấy hàng: shipper đã được gán hoặc đã lấy nhưng chưa đi giao.
+                                        if (!shipStatus || (shipStatus !== 'ASIGNED' && shipStatus !== 'PICKED_UP')) {
+                                            return null;
+                                        }
+                                    } else if (buyFilter === 'WAIT_SHIP') {
+                                        // Chờ giao: đang trong quá trình vận chuyển.
+                                        if (shipStatus !== 'IN_TRANSIT') return null;
+                                    } else if (buyFilter === 'DELIVERED') {
+                                        // Đã giao: GHN có thể trả DELIVERED hoặc RECEIVED.
+                                        if (!shipStatus || (shipStatus !== 'DELIVERED' && shipStatus !== 'RECEIVED')) {
+                                            return null;
+                                        }
+                                    } else if (buyFilter === 'CANCELLED') {
+                                        // Đã hủy:
+                                        // - Nếu order.status = CANCELLED → luôn hiển thị, bất kể shipmentStatus
+                                        // - Nếu order chưa CANCELLED nhưng shipmentStatus = CANCELLED → cũng hiển thị
+                                        const isOrderCancelled = o.status === 'CANCELLED';
+                                        const isShipCancelled = shipStatus === 'CANCELLED';
+                                        if (!isOrderCancelled && !isShipCancelled) return null;
                                     }
 
                                     return (
@@ -1319,13 +1349,39 @@ export const OrdersPage: React.FC = () => {
                                                 </div>
                                                 <div className="flex justify-end gap-2">
                                                     {extra.shipmentStatus === 'RECEIVED' ? (
-                                                        // Đơn đã giao xong: ưu tiên Trả hàng/Hoàn tiền + Đánh giá
+                                                        // Đơn đã giao xong: Trả hàng/Hoàn tiền + Đánh giá
                                                         <>
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
                                                                 onClick={() => {
+                                                                    // Mở dialog chi tiết đơn + tab tạo yêu cầu trả hàng
                                                                     loadOrderDetail(orderId);
+                                                                    setTimeout(() => {
+                                                                        if (!detailItems.length) return;
+                                                                        const itemId = String(detailItems[0].orderItemId);
+                                                                        const ships = detailShipments[itemId] || [];
+                                                                        if (!ships.length) return;
+                                                                        const shipmentId = String(ships[0].shipmentId);
+                                                                        const items = detailItems.map((it) => ({
+                                                                            orderItemId: String(it.orderItemId),
+                                                                            cardName: it.cardName,
+                                                                            cardImageUrl: it.cardImageUrl,
+                                                                            quantity: it.quantity,
+                                                                            price: it.price,
+                                                                        }));
+                                                                        const ids = items.map((x) => x.orderItemId).filter(Boolean);
+                                                                        setReturnCreateShipmentId(shipmentId);
+                                                                        setReturnCreateItemIds(ids);
+                                                                        setReturnCreateItems(items.filter((x) => !!x.orderItemId));
+                                                                        setReturnCreateReasonPreset('PRESET');
+                                                                        setReturnCreateReason('');
+                                                                        setReturnCreateSendAddress('');
+                                                                        setReturnCreateSendDistrictId(0);
+                                                                        setReturnCreateSendPhone('');
+                                                                        setReturnCreateFiles([]);
+                                                                        setReturnCreateOpen(true);
+                                                                    }, 300);
                                                                 }}
                                                             >
                                                                 Trả hàng / Hoàn tiền
@@ -1334,15 +1390,76 @@ export const OrdersPage: React.FC = () => {
                                                                 size="sm"
                                                                 variant="outline"
                                                                 onClick={() => {
-                                                                    loadOrderDetail(orderId);
+                                                                    // Mở popup chi tiết shipment + bật form đánh giá cho item đầu tiên
+                                                                    const extra = buyOrderExtras[orderId];
+                                                                    const targetShipmentId = extra?.shipmentId;
+                                                                    if (!targetShipmentId) return;
+
+                                                                    const shipment = orders.find(
+                                                                        (o) =>
+                                                                            String(o.shipmentResponse?.shipmentId || '') ===
+                                                                            String(targetShipmentId),
+                                                                    );
+                                                                    if (!shipment) return;
+
+                                                                    setSelectedShipment(shipment);
+                                                                    const firstItem = shipment.orderDetailResponseList?.[0];
+                                                                    if (firstItem?.orderItemId) {
+                                                                        setFeedbackEditingId(String(firstItem.orderItemId));
+                                                                        setFeedbackRating(5);
+                                                                        setFeedbackComment('');
+                                                                    }
                                                                 }}
                                                             >
                                                                 Đánh giá
                                                             </Button>
                                                         </>
-                                                    ) : buyFilter === 'WAIT_PICKUP' || buyFilter === 'WAIT_SHIP' ? (
-                                                        // Đơn đang chờ lấy hàng / chờ giao: Theo dõi đơn + Liên hệ hỗ trợ
+                                                    ) : extra.shipmentStatus &&
+                                                      (extra.shipmentStatus === 'DELIVERED' || extra.shipmentStatus === 'RECEIVED') &&
+                                                      extra.shipmentId &&
+                                                      extra.firstOrderItemId ? (
                                                         <>
+                                                            <Button
+                                                                size="sm"
+                                                                className="bg-green-600 hover:bg-green-700 text-white"
+                                                                disabled={actionLoading}
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        setActionLoading(true);
+                                                                        const canDo = await orderApi.canDo(
+                                                                            String(extra.firstOrderItemId),
+                                                                        );
+                                                                        if (!canDo.canConfirmRecieve) {
+                                                                            alert('Đơn này hiện không thể xác nhận nhận hàng.');
+                                                                            return;
+                                                                        }
+                                                                        await orderApi.confirmReceive(
+                                                                            String(extra.shipmentId),
+                                                                        );
+                                                                        try {
+                                                                            window.dispatchEvent(
+                                                                                new Event('wallet-updated'),
+                                                                            );
+                                                                        } catch {
+                                                                            // ignore
+                                                                        }
+                                                                        await loadOrders(page, status, viewMode);
+                                                                        alert(
+                                                                            'Đã xác nhận đã nhận hàng, tiền sẽ được chuyển cho người bán.',
+                                                                        );
+                                                                    } catch (err) {
+                                                                        alert(
+                                                                            err instanceof Error
+                                                                                ? err.message
+                                                                                : 'Không thể xác nhận nhận hàng.',
+                                                                        );
+                                                                    } finally {
+                                                                        setActionLoading(false);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {actionLoading ? 'Đang xử lý...' : 'Xác nhận đã nhận hàng'}
+                                                            </Button>
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
@@ -1350,19 +1467,31 @@ export const OrdersPage: React.FC = () => {
                                                                     loadOrderDetail(orderId);
                                                                 }}
                                                             >
-                                                                Theo dõi đơn
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                onClick={() => {
-                                                                    // Mở email hỗ trợ (địa chỉ giống footer)
-                                                                    window.open('mailto:support@myscard.com', '_blank');
-                                                                }}
-                                                            >
-                                                                Liên hệ hỗ trợ
+                                                                Xem chi tiết
                                                             </Button>
                                                         </>
+                                                    ) : buyFilter === 'WAIT_PICKUP' || buyFilter === 'WAIT_SHIP' ? (
+                                                        // Đơn đang chờ lấy hàng / chờ giao: chỉ cho xem chi tiết
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                loadOrderDetail(orderId);
+                                                            }}
+                                                        >
+                                                            Xem chi tiết
+                                                        </Button>
+                                                    ) : o.status === 'CANCELLED' ? (
+                                                        // Đơn đã hủy: chỉ cho xem chi tiết, không cho hủy thêm lần nữa
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                loadOrderDetail(orderId);
+                                                            }}
+                                                        >
+                                                            Xem chi tiết
+                                                        </Button>
                                                     ) : (
                                                         // Các trạng thái khác: giữ Xem chi tiết + Hủy như cũ
                                                         <>
@@ -1778,12 +1907,12 @@ export const OrdersPage: React.FC = () => {
                     )}
                 </CardContent>
             </UICard>
-            {/* Order detail dialog by shipment */}
+            {/* Order detail dialog by shipment - full màn hình, chỉ nội dung bên trong cuộn */}
             <Dialog open={!!selectedShipment} onOpenChange={(open) => { if (!open) { setSelectedShipment(null); setFeedbackEditingId(null); } }}>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="w-[98vw] max-w-6xl h-[95vh] max-h-[95vh] flex flex-col overflow-hidden p-4 gap-0">
                     {selectedShipment && (
                         <>
-                            <DialogHeader>
+                            <DialogHeader className="shrink-0 pb-4 border-b border-white/10">
                                 <DialogTitle className="flex items-center gap-2">
                                     <Package className="w-5 h-5" />
                                     Chi tiết đơn hàng
@@ -1795,8 +1924,9 @@ export const OrdersPage: React.FC = () => {
                                     Thông tin shipment, địa chỉ nhận và các item trong đơn.
                                 </DialogDescription>
                             </DialogHeader>
+                            <div className="flex-1 min-h-0 overflow-y-auto pr-1 mt-4">
                             {/* Thông tin chung + địa chỉ giao hàng */}
-                            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                 <div className="space-y-2">
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Trạng thái giao hàng</span>
@@ -1845,64 +1975,41 @@ export const OrdersPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Danh sách sản phẩm trong đơn */}
+                            {/* Danh sách sản phẩm trong đơn - kiểu Shopee: ảnh | tên + phân loại + x qty | tiền */}
                             <div className="mt-6 border-t border-white/10 pt-4">
-                                <h3 className="text-sm font-semibold mb-2">Sản phẩm trong đơn</h3>
-                                {selectedShipment.orderDetailResponseList?.length ? (
-                                    <table className="w-full text-xs sm:text-sm">
-                                        <thead>
-                                            <tr className="border-b border-white/10">
-                                                <th className="text-left p-2">Sản phẩm</th>
-                                                <th className="text-right p-2">Số lượng</th>
-                                                <th className="text-right p-2">Đơn giá</th>
-                                                <th className="text-right p-2">Thành tiền</th>
-                                                {viewMode === 'BUY' && <th className="text-left p-2 w-40">Đánh giá</th>}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {selectedShipment.orderDetailResponseList.map((d) => {
-                                                const unitPrice = Number(d.price || 0);
-                                                const qty = Number(d.quantity || 0);
-                                                const rowTotal = unitPrice * qty;
-                                                const name = d.cardName || 'Thẻ';
-                                                const image = d.cardImageUrl;
-                                                const isReceived = d.orderItemStatus === 'RECIEVED' || d.orderItemStatus === 'RECEIVED';
-                                                const hasFeedback = d.feedbackRating != null;
-                                                const isEditing = feedbackEditingId === d.orderItemId;
-                                                return (
-                                                    <tr key={String(d.orderItemId)} className="border-b border-white/5">
-                                                        <td className="p-2">
-                                                            <div className="flex items-center gap-2">
-                                                                {image ? (
-                                                                    <img
-                                                                        src={image}
-                                                                        alt={name}
-                                                                        className="w-10 h-14 rounded object-cover bg-white/5"
-                                                                    />
-                                                                ) : (
-                                                                    <div className="w-10 h-14 rounded bg-white/5 flex items-center justify-center text-lg">
-                                                                        🎴
-                                                                    </div>
-                                                                )}
-                                                                <div>
-                                                                    <div className="text-xs font-medium line-clamp-2">
-                                                                        {name}
-                                                                    </div>
-                                                                    <div className="text-[10px] font-mono text-muted-foreground">
-                                                                        #{String(d.orderItemId || '').slice(0, 8) || '—'}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-2 text-right">{qty}</td>
-                                                        <td className="p-2 text-right">
-                                                            {unitPrice.toLocaleString('vi-VN')} đ
-                                                        </td>
-                                                        <td className="p-2 text-right font-semibold">
-                                                            {rowTotal.toLocaleString('vi-VN')} đ
-                                                        </td>
+                                <h3 className="text-sm font-semibold mb-3">Sản phẩm trong đơn</h3>
+                                        {selectedShipment.orderDetailResponseList?.length ? (
+                                            <div className="space-y-4">
+                                                {selectedShipment.orderDetailResponseList.map((d) => {
+                                            const unitPrice = Number(d.price || 0);
+                                            const qty = Number(d.quantity || 0);
+                                            const rowTotal = unitPrice * qty;
+                                            const name = d.cardName || 'Thẻ';
+                                            const image = d.cardImageUrl;
+                                            const isReceived = d.orderItemStatus === 'RECIEVED' || d.orderItemStatus === 'RECEIVED';
+                                            const hasFeedback = d.feedbackRating != null;
+                                            const isEditing = feedbackEditingId === d.orderItemId;
+                                                    return (
+                                                        <div
+                                                            key={String(d.orderItemId)}
+                                                            id={`order-item-${String(d.orderItemId)}`}
+                                                            className="flex gap-3 items-start py-3 border-b border-white/5 last:border-0"
+                                                        >
+                                                    <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+                                                        {image ? (
+                                                            <img src={image} alt={name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <span className="text-xl">🎴</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-medium text-sm line-clamp-2">{name}</div>
+                                                        <div className="text-xs text-muted-foreground mt-0.5">
+                                                            Phân loại hàng: 1 thẻ
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground">x{qty}</div>
                                                         {viewMode === 'BUY' && (
-                                                            <td className="p-2">
+                                                            <div className="mt-2">
                                                                 {hasFeedback ? (
                                                                     <div className="text-xs">
                                                                         <span className="flex items-center gap-0.5 text-yellow-400">
@@ -1917,12 +2024,7 @@ export const OrdersPage: React.FC = () => {
                                                                         <div className="space-y-1">
                                                                             <div className="flex items-center gap-0.5">
                                                                                 {[1, 2, 3, 4, 5].map((i) => (
-                                                                                    <button
-                                                                                        key={i}
-                                                                                        type="button"
-                                                                                        onClick={() => setFeedbackRating(i)}
-                                                                                        className="p-0.5"
-                                                                                    >
+                                                                                    <button key={i} type="button" onClick={() => setFeedbackRating(i)} className="p-0.5">
                                                                                         <Star className={`h-4 w-4 ${i <= feedbackRating ? 'fill-yellow-400 text-yellow-400' : 'text-white/30'}`} />
                                                                                     </button>
                                                                                 ))}
@@ -1935,23 +2037,13 @@ export const OrdersPage: React.FC = () => {
                                                                                 className="w-full px-2 py-1 rounded text-xs bg-white/5 border border-white/10"
                                                                             />
                                                                             <div className="flex gap-1">
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    className="h-6 text-xs"
-                                                                                    disabled={feedbackSubmitting}
+                                                                                <Button size="sm" className="h-6 text-xs" disabled={feedbackSubmitting}
                                                                                     onClick={async () => {
                                                                                         if (!d.orderItemId) return;
                                                                                         setFeedbackSubmitting(true);
                                                                                         try {
                                                                                             await orderApi.createFeedback(d.orderItemId, feedbackRating, feedbackComment);
-                                                                                            setSelectedShipment((prev) => prev ? {
-                                                                                                ...prev,
-                                                                                                orderDetailResponseList: (prev.orderDetailResponseList || []).map((x) =>
-                                                                                                    x.orderItemId === d.orderItemId
-                                                                                                        ? { ...x, feedbackRating, feedbackComment, feedbackCreatedAt: new Date().toISOString() }
-                                                                                                        : x
-                                                                                                ),
-                                                                                            } : null);
+                                                                                            setSelectedShipment((prev) => prev ? { ...prev, orderDetailResponseList: (prev.orderDetailResponseList || []).map((x) => x.orderItemId === d.orderItemId ? { ...x, feedbackRating, feedbackComment, feedbackCreatedAt: new Date().toISOString() } : x) } : null);
                                                                                             setFeedbackEditingId(null);
                                                                                             setFeedbackComment('');
                                                                                             setFeedbackRating(5);
@@ -1961,81 +2053,53 @@ export const OrdersPage: React.FC = () => {
                                                                                             setFeedbackSubmitting(false);
                                                                                         }
                                                                                     }}
-                                                                                >
-                                                                                    Gửi
-                                                                                </Button>
-                                                                                <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setFeedbackEditingId(null); setFeedbackComment(''); setFeedbackRating(5); }}>
-                                                                                    Hủy
-                                                                                </Button>
+                                                                                >Gửi</Button>
+                                                                                <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setFeedbackEditingId(null); setFeedbackComment(''); setFeedbackRating(5); }}>Hủy</Button>
                                                                             </div>
                                                                         </div>
                                                                     ) : (
-                                                                        <Button
-                                                                            size="sm"
-                                                                            variant="outline"
-                                                                            className="h-7 text-xs"
-                                                                            onClick={() => { setFeedbackEditingId(d.orderItemId); setFeedbackRating(5); setFeedbackComment(''); }}
-                                                                        >
+                                                                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setFeedbackEditingId(d.orderItemId); setFeedbackRating(5); setFeedbackComment(''); }}>
                                                                             Đánh giá
                                                                         </Button>
                                                                     )
                                                                 ) : (
                                                                     <span className="text-[10px] text-muted-foreground">—</span>
                                                                 )}
-                                                            </td>
+                                                            </div>
                                                         )}
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                                                    </div>
+                                                    <div className="shrink-0 text-right">
+                                                        <div className="font-semibold text-sm">{rowTotal.toLocaleString('vi-VN')}₫</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 ) : (selectedShipment.blindBoxDetails?.length ?? 0) > 0 ? (
                                     <>
                                         <p className="text-xs text-yellow-200/90 mb-2">Giao thẻ từ Hộp bí ẩn</p>
-                                        <table className="w-full text-xs sm:text-sm">
-                                            <thead>
-                                                <tr className="border-b border-white/10">
-                                                    <th className="text-left p-2">Thẻ</th>
-                                                    <th className="text-right p-2">Số lượng</th>
-                                                    <th className="text-right p-2">Giá tham khảo</th>
-                                                    <th className="text-right p-2">Thành tiền</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {selectedShipment.blindBoxDetails?.map((card, i) => {
-                                                    const price = Number(card.basePrice ?? 0);
-                                                    return (
-                                                        <tr key={i} className="border-b border-white/5">
-                                                            <td className="p-2">
-                                                                <div className="flex items-center gap-2">
-                                                                    {card.cardImageUrl ? (
-                                                                        <img
-                                                                            src={card.cardImageUrl}
-                                                                            alt={card.cardName || ''}
-                                                                            className="w-10 h-14 rounded object-cover bg-white/5"
-                                                                        />
-                                                                    ) : (
-                                                                        <div className="w-10 h-14 rounded bg-white/5 flex items-center justify-center text-lg">
-                                                                            🎴
-                                                                        </div>
-                                                                    )}
-                                                                    <span className="text-xs font-medium line-clamp-2">
-                                                                        {card.cardName || '—'}
-                                                                    </span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-2 text-right">1</td>
-                                                            <td className="p-2 text-right">
-                                                                {price.toLocaleString('vi-VN')} đ
-                                                            </td>
-                                                            <td className="p-2 text-right font-semibold">
-                                                                {price.toLocaleString('vi-VN')} đ
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
+                                        <div className="space-y-4">
+                                            {selectedShipment.blindBoxDetails?.map((card, i) => {
+                                                const price = Number(card.basePrice ?? 0);
+                                                return (
+                                                    <div key={i} className="flex gap-3 items-start py-3 border-b border-white/5 last:border-0">
+                                                        <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+                                                            {card.cardImageUrl ? (
+                                                                <img src={card.cardImageUrl} alt={card.cardName || ''} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span className="text-xl">🎴</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="font-medium text-sm line-clamp-2">{card.cardName || '—'}</div>
+                                                            <div className="text-xs text-muted-foreground mt-0.5">Phân loại hàng: 1 thẻ</div>
+                                                            <div className="text-xs text-muted-foreground">x1</div>
+                                                        </div>
+                                                        <div className="shrink-0 text-right font-semibold text-sm">{price.toLocaleString('vi-VN')}₫</div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </>
                                 ) : (
                                     <p className="text-xs text-muted-foreground">
@@ -2044,64 +2108,69 @@ export const OrdersPage: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Tóm tắt tiền giống Shopee */}
-                            <div className="mt-4 border-t border-white/10 pt-4 space-y-1 text-sm">
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">
-                                        {(selectedShipment.blindBoxDetails?.length ?? 0) > 0
-                                            ? 'Tổng giá trị thẻ (tham khảo)'
-                                            : 'Tổng tiền hàng'}
-                                    </span>
-                                    <span className="font-semibold">
-                                        {(
-                                            (selectedShipment.orderDetailResponseList || []).length > 0
-                                                ? (selectedShipment.orderDetailResponseList || []).reduce(
-                                                      (sum, d) =>
-                                                          sum +
-                                                          Number(d.price || 0) * Number(d.quantity || 0),
-                                                      0
-                                                  )
-                                                : (selectedShipment.blindBoxDetails || []).reduce(
-                                                      (sum, c) => sum + Number(c.basePrice ?? 0),
-                                                      0
-                                                  )
-                                        ).toLocaleString('vi-VN')}{' '}
-                                        đ
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Phí vận chuyển</span>
-                                    <span className="font-semibold">
-                                        {Number(selectedShipment.shipfee || 0).toLocaleString('vi-VN')} đ
-                                    </span>
-                                </div>
-                                <div className="flex justify-between pt-1 border-t border-white/10 mt-1">
-                                    <span className="text-sm font-semibold">Thành tiền</span>
-                                    <span className="text-base font-bold text-green-300">
-                                        {(() => {
-                                            const itemsTotal =
-                                                (selectedShipment.orderDetailResponseList || []).length > 0
-                                                    ? (selectedShipment.orderDetailResponseList || []).reduce(
-                                                          (sum, d) =>
-                                                              sum +
-                                                              Number(d.price || 0) * Number(d.quantity || 0),
-                                                          0
-                                                      )
-                                                    : (selectedShipment.blindBoxDetails || []).reduce(
-                                                          (sum, c) => sum + Number(c.basePrice ?? 0),
-                                                          0
-                                                      );
-                                            const ship = Number(selectedShipment.shipfee || 0);
-                                            const total =
-                                                (selectedShipment.blindBoxDetails?.length ?? 0) > 0
-                                                    ? ship
-                                                    : itemsTotal + ship;
-                                            return total.toLocaleString('vi-VN');
-                                        })()}{' '}
-                                        đ
-                                    </span>
-                                </div>
-                            </div>
+                            {/* Tóm tắt tiền kiểu Shopee: dòng chấm chấm, Thành tiền nổi bật, Phương thức thanh toán */}
+                            {(() => {
+                                const itemsTotal =
+                                    (selectedShipment.orderDetailResponseList || []).length > 0
+                                        ? (selectedShipment.orderDetailResponseList || []).reduce(
+                                              (sum, d) => sum + Number(d.price || 0) * Number(d.quantity || 0),
+                                              0
+                                          )
+                                        : (selectedShipment.blindBoxDetails || []).reduce(
+                                              (sum, c) => sum + Number(c.basePrice ?? 0),
+                                              0
+                                          );
+                                const shipFee = Number(selectedShipment.shipfee || 0);
+                                const shipDiscount = 0;
+                                const voucherDiscount = 0;
+                                const total =
+                                    (selectedShipment.blindBoxDetails?.length ?? 0) > 0
+                                        ? shipFee
+                                        : itemsTotal + shipFee - shipDiscount - voucherDiscount;
+                                return (
+                                    <div className="mt-6 pt-4 text-sm">
+                                        <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
+                                            <span className="text-muted-foreground">
+                                                {(selectedShipment.blindBoxDetails?.length ?? 0) > 0
+                                                    ? 'Tổng giá trị thẻ (tham khảo)'
+                                                    : 'Tổng tiền hàng'}
+                                            </span>
+                                            <span>{itemsTotal.toLocaleString('vi-VN')}₫</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
+                                            <span className="text-muted-foreground">Phí vận chuyển</span>
+                                            <span>{shipFee.toLocaleString('vi-VN')}₫</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
+                                            <span className="text-muted-foreground inline-flex items-center gap-1">
+                                                Giảm giá phí vận chuyển
+                                                <span title="Áp dụng khi có chương trình giảm phí ship" className="text-muted-foreground/80 cursor-help">
+                                                    <Info className="h-3.5 w-3.5 inline" />
+                                                </span>
+                                            </span>
+                                            <span className={shipDiscount > 0 ? 'text-green-400' : ''}>
+                                                {shipDiscount > 0 ? '-' : ''}{shipDiscount.toLocaleString('vi-VN')}₫
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
+                                            <span className="text-muted-foreground">Voucher</span>
+                                            <span className={voucherDiscount > 0 ? 'text-green-400' : ''}>
+                                                {voucherDiscount > 0 ? '-' : ''}{voucherDiscount.toLocaleString('vi-VN')}₫
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-3 border-t border-dotted border-white/20">
+                                            <span className="font-semibold">Thành tiền</span>
+                                            <span className="text-lg font-bold text-orange-400">
+                                                {total.toLocaleString('vi-VN')}₫
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
+                                            <span className="text-muted-foreground">Phương thức thanh toán</span>
+                                            <span className="font-medium">Ví MystiCard</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             <div className="mt-4 flex justify-end gap-2">
                                 {viewMode === 'BUY' &&
@@ -2191,6 +2260,7 @@ export const OrdersPage: React.FC = () => {
                                     Đóng
                                 </Button>
                             </div>
+                            </div>
                         </>
                     )}
                 </DialogContent>
@@ -2212,7 +2282,10 @@ export const OrdersPage: React.FC = () => {
                                 // Run once per open tick via render side-effect guard
                                 // (safe because we only set when fields are empty)
                                 if (!returnCreateSendPhone && myProfile.phone) setReturnCreateSendPhone(myProfile.phone);
-                                if (!returnCreateSendAddress && myProfile.address) setReturnCreateSendAddress(myProfile.address);
+                                if (!returnCreateSendAddress && myProfile.address) {
+                                    setReturnCreateSendAddress(myProfile.address);
+                                    setReturnCreateAddressPreset('PROFILE');
+                                }
                                 if ((!returnCreateSendDistrictId || returnCreateSendDistrictId === 0) && myProfile.districtId) {
                                     const n = Number(myProfile.districtId);
                                     if (!Number.isNaN(n) && n > 0) setReturnCreateSendDistrictId(n);
@@ -2221,7 +2294,7 @@ export const OrdersPage: React.FC = () => {
                             })()}
                         </div>
                     )}
-                    <div className="space-y-3 text-sm">
+                        <div className="space-y-3 text-sm">
                         <div>
                             <div className="text-xs text-muted-foreground mb-1">Shipment</div>
                             <div className="font-mono text-xs">#{String(returnCreateShipmentId || '').slice(0, 8) || '—'}</div>
@@ -2329,7 +2402,7 @@ export const OrdersPage: React.FC = () => {
                                 </div>
                             )}
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                             <div>
                                 <div className="text-xs text-muted-foreground mb-1">SĐT gửi (bắt buộc)</div>
                                 <input
@@ -2340,11 +2413,77 @@ export const OrdersPage: React.FC = () => {
                                 />
                             </div>
                             <div>
+                                <div className="text-xs text-muted-foreground mb-1">Tỉnh/Thành gửi (GHN) (bắt buộc)</div>
+                                <select
+                                    value={returnProvinceId || ''}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        const pid = v ? Number(v) : '';
+                                        setReturnProvinceId(pid);
+                                        // reset quận/huyện & phường/xã khi đổi tỉnh
+                                        setReturnCreateSendDistrictId(0);
+                                        setReturnCreateSendWardId(0);
+
+                                        // Cập nhật lại chuỗi "Địa chỉ gửi (tùy chọn)" theo tỉnh mới
+                                        if (v) {
+                                            const prov = returnProvinces.find((p: any) => Number(p.ProvinceID) === Number(v));
+                                            const provinceName = prov?.ProvinceName;
+                                            if (provinceName) {
+                                                setReturnCreateSendAddress((prev) => {
+                                                    if (!prev) return provinceName;
+                                                    const parts = prev
+                                                        .split(',')
+                                                        .map((s) => s.trim())
+                                                        .filter(Boolean);
+                                                    if (parts.length === 0) return provinceName;
+                                                    parts[parts.length - 1] = provinceName;
+                                                    return parts.join(', ');
+                                                });
+                                            }
+                                        }
+                                    }}
+                                    className="w-full px-3 py-2 rounded bg-white/5 border border-white/10"
+                                >
+                                    <option value="">-- Chọn tỉnh/thành --</option>
+                                    {returnProvinces.map((p: any) => (
+                                        <option key={String(p.ProvinceID)} value={Number(p.ProvinceID)}>
+                                            {p.ProvinceName}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
                                 <div className="text-xs text-muted-foreground mb-1">Quận/Huyện gửi (GHN) (bắt buộc)</div>
                                 <select
                                     value={returnCreateSendDistrictId || 0}
-                                    onChange={(e) => setReturnCreateSendDistrictId(Number(e.target.value || 0))}
+                                    onChange={(e) => {
+                                        const val = Number(e.target.value || 0);
+                                        setReturnCreateSendDistrictId(val);
+                                        setReturnCreateSendWardId(0);
+                                        if (val) {
+                                            const dist = returnDistricts.find((d: any) => Number(d.DistrictID) === val);
+                                            const districtName = dist?.DistrictName;
+                                            if (districtName) {
+                                                setReturnCreateSendAddress((prev) => {
+                                                    if (!prev) return districtName;
+                                                    const parts = prev
+                                                        .split(',')
+                                                        .map((s) => s.trim())
+                                                        .filter(Boolean);
+                                                    if (parts.length === 0) return districtName;
+                                                    // giả định phần cuối là Tỉnh/TP, chèn/quán đổi Quận/Huyện ở trước nó
+                                                    if (parts.length === 1) {
+                                                        parts.unshift(districtName);
+                                                    } else {
+                                                        parts[parts.length - 2] = districtName;
+                                                    }
+                                                    return parts.join(', ');
+                                                });
+                                            }
+                                        }
+                                    }}
                                     className="w-full px-3 py-2 rounded bg-white/5 border border-white/10"
+                                    disabled={!returnProvinceId || returnDistricts.length === 0}
                                 >
                                     <option value={0}>-- Chọn quận/huyện --</option>
                                     {returnDistricts.map((d: any) => (
@@ -2363,7 +2502,31 @@ export const OrdersPage: React.FC = () => {
                                 <div className="text-xs text-muted-foreground mb-1">Phường/Xã gửi (GHN) (bắt buộc)</div>
                                 <select
                                     value={returnCreateSendWardId || 0}
-                                    onChange={(e) => setReturnCreateSendWardId(Number(e.target.value || 0))}
+                                    onChange={(e) => {
+                                        const val = Number(e.target.value || 0);
+                                        setReturnCreateSendWardId(val);
+                                        if (val) {
+                                            const ward = returnWards.find((w: any) => Number(w.WardCode) === val);
+                                            const wardName = ward?.WardName;
+                                            if (wardName) {
+                                                setReturnCreateSendAddress((prev) => {
+                                                    if (!prev) return wardName;
+                                                    const parts = prev
+                                                        .split(',')
+                                                        .map((s) => s.trim())
+                                                        .filter(Boolean);
+                                                    if (parts.length === 0) return wardName;
+                                                    // giả định: ... , Phường/Xã, Quận/Huyện, Tỉnh/TP
+                                                    if (parts.length >= 3) {
+                                                        parts[parts.length - 3] = wardName;
+                                                    } else {
+                                                        parts.unshift(wardName);
+                                                    }
+                                                    return parts.join(', ');
+                                                });
+                                            }
+                                        }
+                                    }}
                                     className="w-full px-3 py-2 rounded bg-white/5 border border-white/10"
                                     disabled={!returnCreateSendDistrictId || returnWards.length === 0}
                                 >
@@ -2377,12 +2540,29 @@ export const OrdersPage: React.FC = () => {
                             </div>
                         </div>
                         <div>
-                            <div className="text-xs text-muted-foreground mb-1">Địa chỉ gửi (tùy chọn)</div>
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="text-xs text-muted-foreground">Địa chỉ gửi (tùy chọn)</div>
+                                <select
+                                    className="text-xs bg-white/5 border border-white/10 rounded px-2 py-1"
+                                    value={returnCreateAddressPreset}
+                                    onChange={(e) => {
+                                        const v = e.target.value === 'PROFILE' ? 'PROFILE' : 'CUSTOM';
+                                        setReturnCreateAddressPreset(v);
+                                        if (v === 'PROFILE' && myProfile?.address) {
+                                            setReturnCreateSendAddress(myProfile.address);
+                                        }
+                                    }}
+                                >
+                                    <option value="PROFILE">Dùng địa chỉ trong hồ sơ</option>
+                                    <option value="CUSTOM">Nhập địa chỉ khác</option>
+                                </select>
+                            </div>
                             <input
                                 value={returnCreateSendAddress}
                                 onChange={(e) => setReturnCreateSendAddress(e.target.value)}
                                 className="w-full px-3 py-2 rounded bg-white/5 border border-white/10"
                                 placeholder="Số nhà, đường..."
+                                disabled={returnCreateAddressPreset === 'PROFILE'}
                             />
                         </div>
                         <div>
@@ -2510,10 +2690,10 @@ export const OrdersPage: React.FC = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* Order detail dialog by orderId (BUY tab) */}
+            {/* Order detail dialog by orderId (BUY tab) - full màn hình, chỉ nội dung bên trong cuộn */}
             <Dialog open={!!detailOrderId} onOpenChange={(open) => { if (!open) { setDetailOrderId(null); } }}>
-                <DialogContent className="w-[96vw] max-w-5xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
+                <DialogContent className="w-[92vw] max-w-5xl h-[88vh] max-h-[88vh] flex flex-col overflow-hidden p-4 gap-0">
+                    <DialogHeader className="shrink-0 pb-4 border-b border-white/10">
                         <DialogTitle>
                             Chi tiết đơn hàng #{detailOrderId?.slice(0, 8)}
                         </DialogTitle>
@@ -2522,23 +2702,105 @@ export const OrdersPage: React.FC = () => {
                         </DialogDescription>
                     </DialogHeader>
                     {detailLoading ? (
-                        <div className="py-6 text-center text-sm text-muted-foreground">
+                        <div className="flex-1 flex items-center justify-center py-6 text-sm text-muted-foreground">
                             Đang tải chi tiết đơn hàng...
                         </div>
                     ) : detailItems.length === 0 && !(detailBlindBoxCards && detailBlindBoxCards.length > 0) ? (
-                        <div className="py-6 text-center text-sm text-muted-foreground">
-                            Không tìm thấy order item cho đơn này.
-                        </div>
+                        (() => {
+                            const summary = buyOrders.find(
+                                (o) => String(o.orderId) === String(detailOrderId || ''),
+                            );
+                            const isBlindBoxOrder = !!summary?.blindBoxId;
+                            return (
+                                <div className="flex-1 flex items-center justify-center py-6 text-sm text-muted-foreground text-center px-4">
+                                    {isBlindBoxOrder
+                                        ? 'Đây là đơn giao thẻ từ Hộp bí ẩn. Hiện backend chưa trả chi tiết thẻ cho màn Đơn mua, nên không thể hiển thị danh sách thẻ. Bạn vẫn có thể xem lịch sử thẻ trong trang Hộp bí ẩn.'
+                                        : 'Không tìm thấy order item cho đơn này.'}
+                                </div>
+                            );
+                        })()
                     ) : (
+                        <div className="flex-1 min-h-0 overflow-y-auto pr-1 mt-4">
                         <div className="space-y-6 text-sm">
                             {/* Thông tin đơn hàng (tóm tắt) */}
                             {(() => {
                                 const summary = buyOrders.find(
                                     (o) => String(o.orderId) === String(detailOrderId || ''),
                                 );
-                                const totalAmount = Number(summary?.totalAmount ?? 0);
+                                const orderStatus = summary?.status as OrderStatus | undefined;
+
+                                let shipmentStatus: ShippingStatus | undefined;
+                                if (detailBlindBoxShipment) {
+                                    shipmentStatus = detailBlindBoxShipment.shipmentStatus as ShippingStatus;
+                                } else if (firstDetailShipmentId) {
+                                    const allShipments = Object.values(detailShipments).flat() as Array<{
+                                        shipmentId?: string;
+                                        status?: string;
+                                    }>;
+                                    const firstShipment = allShipments.find(
+                                        (s) =>
+                                            String(s.shipmentId || '') === String(firstDetailShipmentId || ''),
+                                    );
+                                    shipmentStatus = firstShipment?.status as ShippingStatus | undefined;
+                                }
+
+                                let currentStep = 1;
+                                if (orderStatus && orderStatus !== 'CREATED') {
+                                    currentStep = Math.max(currentStep, 2);
+                                }
+                                if (
+                                    shipmentStatus &&
+                                    ['ASIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(shipmentStatus)
+                                ) {
+                                    currentStep = Math.max(currentStep, 3);
+                                }
+                                if (
+                                    shipmentStatus &&
+                                    ['DELIVERED', 'RECEIVED'].includes(shipmentStatus)
+                                ) {
+                                    currentStep = Math.max(currentStep, 4);
+                                }
+                                if (
+                                    orderStatus &&
+                                    ['COMPLETED', 'PARTIAL_COMPLETED'].includes(orderStatus)
+                                ) {
+                                    currentStep = Math.max(currentStep, 5);
+                                }
+
+                                const steps = [
+                                    { key: 1, label: 'Đơn hàng đã đặt' as const },
+                                    { key: 2, label: 'Đơn hàng đã thanh toán' as const },
+                                    { key: 3, label: 'Đã giao cho ĐVVC' as const },
+                                    { key: 4, label: 'Đã nhận được hàng' as const },
+                                    { key: 5, label: 'Đánh giá' as const },
+                                ];
+
+                                // Nếu được mở từ nút "Đánh giá" trên list Đơn mua: auto bật form đánh giá cho item đầu
+                                if (pendingFeedbackOrderId && String(pendingFeedbackOrderId) === String(detailOrderId)) {
+                                    const firstItem = detailItems[0];
+                                    if (firstItem?.orderItemId) {
+                                        setTimeout(() => {
+                                            setFeedbackEditingId(String(firstItem.orderItemId));
+                                            setFeedbackRating(5);
+                                            setFeedbackComment('');
+                                            const el = document.getElementById(
+                                                `order-item-${String(firstItem.orderItemId)}`
+                                            );
+                                            if (el) {
+                                                el.scrollIntoView({
+                                                    behavior: 'smooth',
+                                                    block: 'center',
+                                                });
+                                            }
+                                            setPendingFeedbackOrderId(null);
+                                        }, 0);
+                                    } else {
+                                        setPendingFeedbackOrderId(null);
+                                    }
+                                }
+
                                 return (
-                                    <div className="border border-white/10 rounded-lg p-3 space-y-1">
+                                    <div className="border border-white/10 rounded-lg p-3 space-y-3">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             <div>
                                                 <div className="text-xs text-muted-foreground">Mã đơn hàng</div>
@@ -2548,13 +2810,12 @@ export const OrdersPage: React.FC = () => {
                                             </div>
                                             <div>
                                                 <div className="text-xs text-muted-foreground">Trạng thái đơn</div>
-                                                    <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] border bg-white/5 border-white/20">
-                                                        <Package className="w-3 h-3" />
-                                                        {summary?.status
-                                                            ? ORDER_STATUS_LABELS[summary.status as OrderStatus] ||
-                                                              summary.status
-                                                            : '—'}
-                                                    </div>
+                                                <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] border bg-white/5 border-white/20">
+                                                    <Package className="w-3 h-3" />
+                                                    {orderStatus
+                                                        ? ORDER_STATUS_LABELS[orderStatus] || orderStatus
+                                                        : '—'}
+                                                </div>
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-xs text-muted-foreground">Đặt lúc</div>
@@ -2565,11 +2826,53 @@ export const OrdersPage: React.FC = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-                                            <span className="text-xs text-muted-foreground">Thành tiền (ước tính)</span>
-                                            <span className="font-semibold">
-                                                {totalAmount.toLocaleString('vi-VN')} đ
-                                            </span>
+
+                                        <div className="pt-3 border-t border-white/10">
+                                            <div className="flex items-center justify-between gap-2">
+                                                {steps.map((step, index) => {
+                                                    const isActive = currentStep >= step.key;
+                                                    const isCompleted = currentStep > step.key;
+                                                    return (
+                                                        <div
+                                                            key={step.key}
+                                                            className="flex-1 flex flex-col items-center text-center"
+                                                        >
+                                                            <div className="flex items-center w-full">
+                                                                {index > 0 && (
+                                                                    <div
+                                                                        className={`flex-1 h-0.5 ${
+                                                                            currentStep > step.key
+                                                                                ? 'bg-emerald-500'
+                                                                                : 'bg-white/10'
+                                                                        }`}
+                                                                    />
+                                                                )}
+                                                                <div
+                                                                    className={`flex items-center justify-center rounded-full border-2 w-8 h-8 text-[11px] shrink-0 ${
+                                                                        isActive
+                                                                            ? 'border-emerald-500 bg-emerald-500 text-white'
+                                                                            : 'border-white/30 text-muted-foreground'
+                                                                    }`}
+                                                                >
+                                                                    {step.key}
+                                                                </div>
+                                                                {index < steps.length - 1 && (
+                                                                    <div
+                                                                        className={`flex-1 h-0.5 ${
+                                                                            isCompleted
+                                                                                ? 'bg-emerald-500'
+                                                                                : 'bg-white/10'
+                                                                        }`}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                            <div className="mt-1 text-[11px] text-muted-foreground max-w-[80px]">
+                                                                {step.label}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -2652,18 +2955,25 @@ export const OrdersPage: React.FC = () => {
                                         <th className="text-left p-2">Sản phẩm</th>
                                         <th className="text-right p-2">Số lượng</th>
                                         <th className="text-right p-2">Đơn giá</th>
-                                        <th className="text-right p-2">Trạng thái</th>
-                                        <th className="text-left p-2">Shipment</th>
+                                                <th className="text-right p-2">Trạng thái</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {detailItems.map((it) => {
                                         const id = String(it.orderItemId);
-                                        const ships = detailShipments[id] || [];
                                         const name = it.cardName || 'Thẻ';
                                         const image = it.cardImageUrl;
+                                        const isReceived =
+                                            it.orderItemStatus === 'RECIEVED' ||
+                                            it.orderItemStatus === 'RECEIVED';
+                                        const hasFeedback = it.feedbackRating != null;
+                                        const isEditing = feedbackEditingId === it.orderItemId;
                                         return (
-                                            <tr key={id} className="border-b border-white/5 align-top">
+                                            <tr
+                                                key={id}
+                                                id={`order-item-${id}`}
+                                                className="border-b border-white/5 align-top"
+                                            >
                                                 <td className="p-2">
                                                     <div className="flex items-center gap-2">
                                                         {image ? (
@@ -2691,109 +3001,147 @@ export const OrdersPage: React.FC = () => {
                                                 <td className="p-2 text-right">
                                                     {Number(it.price ?? 0).toLocaleString('vi-VN')} đ
                                                 </td>
-                                                <td className="p-2 text-right">{it.orderItemStatus}</td>
-                                                <td className="p-2">
-                                                    {ships.length === 0 ? (
-                                                        '—'
-                                                    ) : (
-                                                        <div className="space-y-2">
-                                                            {ships.map((s) => {
-                                                                const tid = s.shipmentId;
-                                                                const canReturn = !!detailCanReturnByShipmentId[String(tid)];
-                                                                const trackings = detailTrackings[tid] || [];
-                                                                return (
-                                                                    <div key={tid} className="border border-white/10 rounded-md p-2">
-                                                                        <div className="flex items-center justify-between text-xs">
-                                                                            <span className="font-mono">
-                                                                                {tid.slice(0, 8)}
-                                                                            </span>
-                                                                    <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary-100">
-                                                                        {SHIPPING_STATUS_LABELS[
-                                                                            s.status as ShippingStatus
-                                                                        ] || s.status}
+                                                <td className="p-2 text-right">
+                                                    {(() => {
+                                                        const raw = String(it.orderItemStatus || '').toUpperCase();
+                                                        if (!raw) return '—';
+                                                        if (raw === 'PENDING_CONFIRM') return 'Chờ xác nhận';
+                                                        if (raw === 'PENDING_PREPARE') return 'Chờ chuẩn bị hàng';
+                                                        if (raw === 'PENDING_SHIP') return 'Chờ giao';
+                                                        if (raw === 'SHIPPING') return 'Đang giao';
+                                                        if (raw === 'RECIEVED' || raw === 'RECEIVED') return 'Đã nhận';
+                                                        if (raw === 'CANCELLED') return 'Đã hủy';
+                                                        if (raw === 'RETURNING') return 'Đang trả hàng';
+                                                        if (raw === 'RETURNED') return 'Đã trả hàng';
+                                                        return raw;
+                                                    })()}
+                                                    {viewMode === 'BUY' && (
+                                                        <div className="mt-1">
+                                                            {hasFeedback ? (
+                                                                <div className="inline-flex flex-col items-end text-xs">
+                                                                    <span className="flex items-center gap-0.5 text-yellow-400">
+                                                                        {[1, 2, 3, 4, 5].map((i) => (
+                                                                            <Star
+                                                                                key={i}
+                                                                                className={`h-3 w-3 ${
+                                                                                    i <= (it.feedbackRating ?? 0)
+                                                                                        ? 'fill-current'
+                                                                                        : ''
+                                                                                }`}
+                                                                            />
+                                                                        ))}
                                                                     </span>
-                                                                        </div>
-                                                                        {canReturn && (
-                                                                            <div className="mt-2 flex justify-end">
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    variant="outline"
-                                                                                    className="text-[10px] px-2 py-1 h-auto"
-                                                                                    disabled={detailCheckingCanReturn || returnCreateSubmitting}
-                                                                                    onClick={() => {
-                                                                                        const shipmentId = String(tid);
-                                                                                        // order items thuộc shipment này
-                                                                                        const items = detailItems
-                                                                                            .filter((x) =>
-                                                                                                (detailShipments[String(x.orderItemId)] || []).some(
-                                                                                                    (ss) => String(ss.shipmentId) === shipmentId
-                                                                                                )
-                                                                                            )
-                                                                                            .map((x: any) => ({
-                                                                                                orderItemId: String(x.orderItemId),
-                                                                                                cardName: x.cardName,
-                                                                                                cardImageUrl: x.cardImageUrl,
-                                                                                                quantity: x.quantity,
-                                                                                                price: x.price,
-                                                                                            }));
-                                                                                        const itemIds = items.map((x) => x.orderItemId).filter(Boolean);
-                                                                                        setReturnCreateShipmentId(shipmentId);
-                                                                                        setReturnCreateItemIds(itemIds);
-                                                                                        setReturnCreateItems(items.filter((x) => !!x.orderItemId));
-                                                                                        setReturnCreateReasonPreset('PRESET');
-                                                                                        setReturnCreateReason('');
-                                                                                        setReturnCreateSendAddress('');
-                                                                                        setReturnCreateSendDistrictId(0);
-                                                                                        setReturnCreateSendPhone('');
-                                                                                        setReturnCreateFiles([]);
-                                                                                        setReturnCreateOpen(true);
-                                                                                    }}
+                                                                    {it.feedbackComment && (
+                                                                        <p className="text-muted-foreground mt-0.5 max-w-[220px] line-clamp-2">
+                                                                            {it.feedbackComment}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            ) : isReceived ? (
+                                                                isEditing ? (
+                                                                    <div className="mt-1 space-y-1">
+                                                                        <div className="flex items-center justify-end gap-0.5">
+                                                                            {[1, 2, 3, 4, 5].map((i) => (
+                                                                                <button
+                                                                                    key={i}
+                                                                                    type="button"
+                                                                                    onClick={() => setFeedbackRating(i)}
+                                                                                    className="p-0.5"
                                                                                 >
-                                                                                    Trả hàng
-                                                                                </Button>
-                                                                            </div>
-                                                                        )}
-                                                                        {trackings.length === 0 ? (
+                                                                                    <Star
+                                                                                        className={`h-4 w-4 ${
+                                                                                            i <= feedbackRating
+                                                                                                ? 'fill-yellow-400 text-yellow-400'
+                                                                                                : 'text-white/30'
+                                                                                        }`}
+                                                                                    />
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                        <input
+                                                                            type="text"
+                                                                            placeholder="Nhận xét (tùy chọn)"
+                                                                            value={feedbackComment}
+                                                                            onChange={(e) =>
+                                                                                setFeedbackComment(e.target.value)
+                                                                            }
+                                                                            className="w-full px-2 py-1 rounded text-xs bg-white/5 border border-white/10"
+                                                                        />
+                                                                        <div className="flex justify-end gap-1">
                                                                             <Button
                                                                                 size="sm"
-                                                                                variant="outline"
-                                                                                className="mt-2 text-[10px] px-2 py-1 h-auto"
+                                                                                className="h-6 text-xs"
+                                                                                disabled={feedbackSubmitting}
                                                                                 onClick={async () => {
+                                                                                    if (!it.orderItemId) return;
+                                                                                    setFeedbackSubmitting(true);
                                                                                     try {
-                                                                                        const list = await shipmentApi.getTrackingsByShipmentId(tid);
-                                                                                        setDetailTrackings(prev => ({ ...prev, [tid]: list || [] }));
-                                                                                    } catch (e) {
-                                                                                        alert(e instanceof Error ? e.message : 'Không tải được tracking.');
+                                                                                        await orderApi.createFeedback(
+                                                                                            it.orderItemId,
+                                                                                            feedbackRating,
+                                                                                            feedbackComment,
+                                                                                        );
+                                                                                        setDetailItems((prev) =>
+                                                                                            prev.map((x) =>
+                                                                                                x.orderItemId ===
+                                                                                                it.orderItemId
+                                                                                                    ? {
+                                                                                                          ...x,
+                                                                                                          feedbackRating:
+                                                                                                              feedbackRating,
+                                                                                                          feedbackComment:
+                                                                                                              feedbackComment,
+                                                                                                          feedbackCreatedAt:
+                                                                                                              new Date().toISOString(),
+                                                                                                      }
+                                                                                                    : x,
+                                                                                            ),
+                                                                                        );
+                                                                                        setFeedbackEditingId(null);
+                                                                                        setFeedbackComment('');
+                                                                                        setFeedbackRating(5);
+                                                                                    } catch (err) {
+                                                                                        alert(
+                                                                                            err instanceof Error
+                                                                                                ? err.message
+                                                                                                : 'Gửi đánh giá thất bại.',
+                                                                                        );
+                                                                                    } finally {
+                                                                                        setFeedbackSubmitting(false);
                                                                                     }
                                                                                 }}
                                                                             >
-                                                                                Xem hành trình
+                                                                                Gửi
                                                                             </Button>
-                                                                        ) : (
-                                                                            <ul className="mt-2 space-y-1 text-[10px]">
-                                                                                {trackings
-                                                                                    .slice()
-                                                                                    .sort((a, b) => (a.createAt || '').localeCompare(b.createAt || ''))
-                                                                                    .map((t) => (
-                                                                                        <li key={t.trackingId} className="flex flex-col">
-                                                                                            <span className="text-muted-foreground">
-                                                                                                {t.createAt
-                                                                                                    ? new Date(t.createAt).toLocaleString('vi-VN')
-                                                                                                    : ''}
-                                                                                            </span>
-                                                                                            <span>{t.shippingStatus}</span>
-                                                                                            {t.note && (
-                                                                                                <span className="text-muted-foreground">
-                                                                                                    Ghi chú: {t.note}
-                                                                                                </span>
-                                                                                            )}
-                                                                                        </li>
-                                                                                    ))}
-                                                                            </ul>
-                                                                        )}
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="ghost"
+                                                                                className="h-6 text-xs"
+                                                                                onClick={() => {
+                                                                                    setFeedbackEditingId(null);
+                                                                                    setFeedbackComment('');
+                                                                                    setFeedbackRating(5);
+                                                                                }}
+                                                                            >
+                                                                                Hủy
+                                                                            </Button>
+                                                                        </div>
                                                                     </div>
-                                                                );
-                                                            })}
+                                                                ) : (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-7 text-[11px] mt-1"
+                                                                        onClick={() => {
+                                                                            setFeedbackEditingId(it.orderItemId || null);
+                                                                            setFeedbackRating(5);
+                                                                            setFeedbackComment('');
+                                                                        }}
+                                                                    >
+                                                                        Đánh giá
+                                                                    </Button>
+                                                                )
+                                                            ) : null}
                                                         </div>
                                                     )}
                                                 </td>
@@ -2803,48 +3151,50 @@ export const OrdersPage: React.FC = () => {
                                 </tbody>
                             </table>
                             )}
-                            <div className="mt-4 flex justify-end gap-2">
-                                {viewMode === 'BUY' &&
-                                    firstDetailOrderItemId &&
-                                    firstDetailShipmentId && (
-                                        <Button
-                                            size="sm"
-                                            className="bg-green-600 hover:bg-green-700 text-white"
-                                            disabled={actionLoading}
-                                            onClick={async () => {
-                                                setActionLoading(true);
-                                                try {
-                                                    const canDo = await orderApi.canDo(
-                                                        String(firstDetailOrderItemId)
-                                                    );
-                                                    if (!canDo.canConfirmRecieve) {
-                                                        alert('Đơn này hiện không thể xác nhận nhận hàng.');
-                                                        return;
-                                                    }
-                                                    await orderApi.confirmReceive(firstDetailShipmentId);
-                                                    try {
-                                                        window.dispatchEvent(new Event('wallet-updated'));
-                                                    } catch {
-                                                        // ignore
-                                                    }
-                                                    await loadOrders(page, status, viewMode);
-                                                    alert('Đã xác nhận nhận hàng, tiền sẽ được chuyển cho người bán.');
-                                                    setDetailOrderId(null);
-                                                } catch (err) {
-                                                    alert(
-                                                        err instanceof Error
-                                                            ? err.message
-                                                            : 'Không thể xác nhận nhận hàng.'
-                                                    );
-                                                } finally {
-                                                    setActionLoading(false);
-                                                }
-                                            }}
-                                        >
-                                            {actionLoading ? 'Đang xử lý...' : 'Xác nhận đã nhận hàng'}
-                                        </Button>
-                                    )}
-                            </div>
+                            {/* Tóm tắt tiền kiểu Shopee (dialog chi tiết theo orderId) */}
+                            {(() => {
+                                const summary = buyOrders.find((o) => String(o.orderId) === String(detailOrderId || ''));
+                                const itemsTotal = detailItems.reduce((s, it) => s + Number(it.price ?? 0) * Number(it.quantity ?? 0), 0);
+                                const totalAmount = Number(summary?.totalAmount ?? 0);
+                                const shippingFee = Math.max(totalAmount - itemsTotal, 0);
+                                const shipDiscount = 0;
+                                const voucherDiscount = 0;
+                                return (
+                                    <div className="mt-6 pt-4 text-sm">
+                                        <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
+                                            <span className="text-muted-foreground">Tổng tiền hàng</span>
+                                            <span>{itemsTotal.toLocaleString('vi-VN')}₫</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
+                                            <span className="text-muted-foreground">Phí vận chuyển (ước tính)</span>
+                                            <span>{shippingFee.toLocaleString('vi-VN')}₫</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
+                                            <span className="text-muted-foreground inline-flex items-center gap-1">
+                                                Giảm giá phí vận chuyển
+                                                <span title="Áp dụng khi có chương trình giảm phí ship" className="text-muted-foreground/80 cursor-help">
+                                                    <Info className="h-3.5 w-3.5 inline" />
+                                                </span>
+                                            </span>
+                                            <span className={shipDiscount > 0 ? 'text-green-400' : ''}>{shipDiscount > 0 ? '-' : ''}{shipDiscount.toLocaleString('vi-VN')}₫</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
+                                            <span className="text-muted-foreground">Voucher</span>
+                                            <span className={voucherDiscount > 0 ? 'text-green-400' : ''}>{voucherDiscount > 0 ? '-' : ''}{voucherDiscount.toLocaleString('vi-VN')}₫</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-3 border-t border-dotted border-white/20">
+                                            <span className="font-semibold">Thành tiền</span>
+                                            <span className="text-lg font-bold text-orange-400">{totalAmount.toLocaleString('vi-VN')}₫</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
+                                            <span className="text-muted-foreground">Phương thức thanh toán</span>
+                                            <span className="font-medium">Ví MystiCard</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                            <div className="mt-4 flex justify-end gap-2" />
+                        </div>
                         </div>
                     )}
                 </DialogContent>
@@ -3070,7 +3420,11 @@ export const OrdersPage: React.FC = () => {
                                                                             : '—'}
                                                                     </span>
                                                                     <span className="font-semibold">
-                                                                        {tr.shippingStatus}
+                                                                        {tr.shippingStatus
+                                                                            ? SHIPPING_STATUS_LABELS[
+                                                                                  tr.shippingStatus as ShippingStatus
+                                                                              ] || tr.shippingStatus
+                                                                            : '—'}
                                                                     </span>
                                                                 </div>
                                                             ))}

@@ -136,20 +136,15 @@ export const AdminCardsPage: React.FC = () => {
         }
     };
 
-    /** Lấy ảnh để gửi khi duyệt: ưu tiên ảnh Admin chọn, không thì fetch từ imageUrl user đã gửi. */
+    /** Lấy ảnh để gửi khi duyệt.
+     *  Để tránh lỗi IMAGE_CONVERT từ backend, chỉ gửi file nếu admin CHỦ ĐỘNG chọn ảnh local.
+     *  Không tự động tải lại imageUrl do user gửi lên nữa.
+     */
     const getImageFileForApprove = async (r: CardRequired): Promise<File | undefined> => {
         const chosen = reqImageFile[r.cardRequiredId];
         if (chosen && chosen.size > 0) return chosen;
-        if (!r.imageUrl || !r.imageUrl.startsWith('http')) return undefined;
-        try {
-            const res = await fetch(r.imageUrl, { mode: 'cors' });
-            if (!res.ok) return undefined;
-            const blob = await res.blob();
-            const type = blob.type || 'image/png';
-            return new File([blob], 'card-from-user.png', { type });
-        } catch {
-            return undefined;
-        }
+        // Không auto download ảnh từ r.imageUrl nữa → nếu admin không chọn ảnh, BE sẽ tạo card không kèm file.
+        return undefined;
     };
 
     const approveRequest = async (r: CardRequired) => {
@@ -1045,7 +1040,13 @@ export const AdminCardsPage: React.FC = () => {
                                         <h4 className="font-semibold mb-2">Hướng dẫn nhập:</h4>
                                         <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                                             <li>Tải lên file Excel (.xlsx, .xls) hoặc CSV</li>
-                                            <li>File cần có cột: name, description, price, rarity, imageUrl, categoryId</li>
+                                            <li>
+                                                File cần có cột (đúng thứ tự): 
+                                                <span className="font-mono">
+                                                    {' '}
+                                                    name, rarity, imageUrl, price, categoryName
+                                                </span>
+                                            </li>
                                             <li>Thẻ trùng tên sẽ được cập nhật</li>
                                         </ul>
                                     </div>

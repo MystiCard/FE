@@ -1734,6 +1734,14 @@ export const orderApi = {
         return res.data;
     },
 
+    /** Seller: từ chối một order item đang chờ duyệt (BE: POST /api/orders/cancel/{orderItemId}) */
+    cancelOrderItem: async (orderItemId: string): Promise<OrderDetailResponse> => {
+        const res = await apiRequest<ApiResponse<OrderDetailResponse>>(`/orders/cancel/${orderItemId}`, {
+            method: 'POST',
+        });
+        return res.data;
+    },
+
     /** Buyer: danh sách order của tôi (BE: GET /api/orders/my-orders?orderStatus=&page=&size=) */
     getMyOrders: async (
         orderStatus: OrderStatus | undefined,
@@ -2476,6 +2484,15 @@ export const shipmentApi = {
     getByOrderItemId: async (orderItemId: string): Promise<ShipmentResponse[]> => {
         const response = await apiRequest<ApiResponse<ShipmentResponse[]>>(
             `/shipments/ordersItems/${orderItemId}`,
+            { method: 'GET' }
+        );
+        return response.data;
+    },
+
+    /** Lấy shipment theo kết quả Hộp bí ẩn (blindBoxResultId). */
+    getByBlindBoxResultId: async (blindBoxResultId: string): Promise<ShipmentResponse[]> => {
+        const response = await apiRequest<ApiResponse<ShipmentResponse[]>>(
+            `/shipments/blindBoxResult/${blindBoxResultId}`,
             { method: 'GET' }
         );
         return response.data;
