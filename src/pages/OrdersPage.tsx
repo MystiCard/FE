@@ -2702,7 +2702,7 @@ const isApproving = approvingOrderItemId === id;
 
             {/* Order detail dialog by orderId (BUY tab) - full màn hình, chỉ nội dung bên trong cuộn */}
             <Dialog open={!!detailOrderId} onOpenChange={(open) => { if (!open) { setDetailOrderId(null); } }}>
-                <DialogContent className="w-[96vw] max-w-[40rem] h-[88vh] max-h-[88vh] flex flex-col overflow-hidden p-4 gap-0">
+                <DialogContent className="  max-w-none  w-[45vw] max-w-[40rem] h-[88vh] max-h-[88vh] flex flex-col overflow-hidden p-4 gap-0">
                     <DialogHeader className="shrink-0 pb-4 border-b border-white/10">
                         <DialogTitle>
                             Chi tiết đơn hàng #{detailOrderId?.slice(0, 8)}
@@ -3273,22 +3273,74 @@ const isApproving = approvingOrderItemId === id;
                                                         shippingStatus === 'DELIVERED' &&
                                                         g.shipmentId &&
                                                         g.items.length > 0 && (
-                                                            <div className="mt-3 pt-3 border-t border-white/10 flex justify-end">
+                                                            <div className="mt-3 pt-3 border-t border-white/10 flex justify-end gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                                                    disabled={actionLoading}
+                                                                    onClick={async () => {
+                                                                        if (!detailOrderId) return;
+                                                                        const firstItem = g.items[0];
+                                                                        if (!firstItem?.orderItemId) return;
+                                                                        try {
+                                                                            setActionLoading(true);
+                                                                            const canDo = await orderApi.canDo(
+                                                                                String(firstItem.orderItemId),
+                                                                            );
+                                                                            if (!canDo.canConfirmRecieve) {
+                                                                                alert(
+                                                                                    'Đơn này hiện không thể xác nhận nhận hàng.',
+                                                                                );
+                                                                                return;
+                                                                            }
+                                                                            await orderApi.confirmReceive(g.shipmentId);
+                                                                            try {
+                                                                                window.dispatchEvent(
+                                                                                    new Event('wallet-updated'),
+                                                                                );
+                                                                            } catch {
+                                                                                // ignore
+                                                                            }
+                                                                            await loadOrderDetail(detailOrderId);
+                                                                            alert(
+                                                                                'Đã xác nhận đã nhận hàng, tiền sẽ được chuyển cho người bán.',
+                                                                            );
+                                                                        } catch (e) {
+                                                                            alert(
+                                                                                e instanceof Error
+                                                                                    ? e.message
+                                                                                    : 'Không thể xác nhận nhận hàng.',
+                                                                            );
+                                                                        } finally {
+                                                                            setActionLoading(false);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    {actionLoading ? 'Đang xử lý...' : 'Xác nhận đã nhận hàng'}
+                                                                </Button>
                                                                 <Button
                                                                     size="sm"
                                                                     variant="outline"
                                                                     onClick={() => {
-                                                                        // Khi đã giao: chỉ mở dialog chi tiết shipment để người dùng xem kỹ rồi mới xác nhận
-                                                                        if (!detailOrderId) return;
-                                                                        // Giữ hành vi: người dùng bấm "Xác nhận đã nhận hàng" bên ngoài dialog chính (list), không trong từng shipment
-                                                                        pushToast({
-                                                                            title: 'Xem chi tiết shipment',
-                                                                            description: 'Bạn có thể xem chi tiết và xác nhận đã nhận hàng ở màn hình Đơn mua.',
-                                                                            variant: 'default',
-                                                                        });
+                                                                        const firstItem = g.items[0];
+                                                                        if (!firstItem?.orderItemId) return;
+                                                                        setFeedbackEditingId(
+                                                                            firstItem.orderItemId || null,
+                                                                        );
+                                                                        setFeedbackRating(5);
+                                                                        setFeedbackComment('');
+                                                                        const el = document.getElementById(
+                                                                            `order-item-${String(firstItem.orderItemId)}`,
+                                                                        );
+                                                                        if (el) {
+                                                                            el.scrollIntoView({
+                                                                                behavior: 'smooth',
+                                                                                block: 'center',
+                                                                            });
+                                                                        }
                                                                     }}
                                                                 >
-                                                                    Xem chi tiết shipment
+                                                                    Đánh giá
                                                                 </Button>
                                                             </div>
                                                         )}

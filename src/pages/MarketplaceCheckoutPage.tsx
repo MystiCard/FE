@@ -321,9 +321,9 @@ const [orderState, setOrderState] = useState(initOrder);
 
                             <div className="flex justify-between text-sm text-gray-300 mb-3">
 
-                                <span>
+                                {/* <span>
                                     Shipment #{shipment?.shipmentId?.slice(0, 8)}
-                                </span>
+                                </span> */}
 
                                 <span>
                                     {shipment?.toAddress}

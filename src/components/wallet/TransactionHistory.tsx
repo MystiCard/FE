@@ -21,7 +21,7 @@ interface TransactionHistoryProps {
     totalPages: number;
     statusFilter?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
     onPageChange: (page: number) => void;
-    onStatusFilterChange: (status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | undefined) => void;
+    onStatusFilterChange: (status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED'|'RELEASED' | 'ESCROWED'| undefined) => void;
 }
 
 const getStatusBadge = (status: string) => {
@@ -45,6 +45,10 @@ const getStatusBadge = (status: string) => {
             icon: Ban,
             text: 'Đã hủy',
             className: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+        },
+        RELEASED:{ icon: CheckCircle,
+            text: 'Đã trả tiền',
+            className: 'bg-green-500/20 text-green-400 border-green-500/30'
         },
     };
 
