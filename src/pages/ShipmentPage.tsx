@@ -27,10 +27,7 @@ const STATUS_LABEL: Record<ShippingStatus, string> = {
     PICKED_UP: 'Đã lấy hàng',
     IN_TRANSIT: 'Đang giao',
     DELIVERED: 'Đã giao',
-    FAILED: 'Thất bại',
-    LOST: 'Mất hàng',
-    RECEIVED: 'Đã nhận',
-    CANCELLED: 'Đã hủy',
+    FAILED: 'Thất bại'
 };
 
 const STATUS_OPTIONS: ShippingStatus[] = [
@@ -39,10 +36,7 @@ const STATUS_OPTIONS: ShippingStatus[] = [
     'PICKED_UP',
     'IN_TRANSIT',
     'DELIVERED',
-    'FAILED',
-    'LOST',
-    'RECEIVED',
-    'CANCELLED',
+    'FAILED'
 ];
 
 export const ShipmentPage: React.FC = () => {

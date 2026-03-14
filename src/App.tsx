@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { MainLayout } from '@/layouts/MainLayout';
 import { AdminLayout } from '@/layouts/AdminLayout';
@@ -157,6 +158,7 @@ function App() {
                     </Route>
                 </Routes>
             </BrowserRouter>
+            <Toaster />
         </AuthProvider>
     );
 }

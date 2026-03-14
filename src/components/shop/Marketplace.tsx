@@ -13,6 +13,7 @@ import {
     ChevronDown,
     Users,
 } from 'lucide-react';
+import { useToast } from "@/components/ui/use-toast";
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { listSellerApi, ListingItem, categoryApi, Category, cardApi, CardSellResponse, getCardImageUrl, cartApi, CartRequest } from '@/utils/api';
 import { useWishlist } from '@/hooks/useWishlist';
@@ -46,6 +47,7 @@ const rarityClass: Record<string, string> = {
 
 const RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SUPER_RARE', 'SECRET_RARE'];
 export const Marketplace: React.FC = () => {
+    const { toast } = useToast();
     const [listings, setListings] = useState<ListingItem[]>([]);
     const [totalPages, setTotalPages] = useState(0);
     const [totalElemests, setTotalElemests] = useState(0);
@@ -81,6 +83,7 @@ export const Marketplace: React.FC = () => {
     const [addCartOpen, setAddCartOpen] = useState(false);
     const [cartListing, setCartListing] = useState<ListingItem | null>(null);
     const [cartQuantity, setCartQuantity] = useState(1);
+
     useEffect(() => {
         loadListings();
     }, [currentPage, searchQuery, sortBy, min, max, rarity]);
@@ -129,11 +132,11 @@ export const Marketplace: React.FC = () => {
 
     const loadListings = async () => {
         if (min !== "" && max === "") {
-            alert("Nhập Max trước khi nhập min");
+            toast({ title: "Lỗi bộ lọc", description: "Nhập Max trước khi nhập Min", variant: "warning" });
             return;
         }
         if (min !== "" && max !== "" && min > max) {
-            alert("Min phải nhỏ hơn Max");
+            toast({ title: "Lỗi bộ lọc", description: "Min phải nhỏ hơn Max", variant: "warning" });
             return;
         }
         try {
@@ -157,27 +160,34 @@ export const Marketplace: React.FC = () => {
             setIsLoading(false);
         }
     };
-    const handleAddCartApi = async () => {
-        if (!cartListing) return;
-
+    const handleAddCartApi = async (offer: ListingItem) => {
         try {
             const res = await cartApi.createCart({
-                listSellerId: cartListing.listSellerId,
-                quantity: cartQuantity
+                listSellerId: offer.listSellerId,
+                quantity: 1
             });
 
-            setAddCartOpen(false);
-            setCartListing(null);
-            setCartQuantity(1);
             if (res.code === 1000) {
-                alert("Thêm vào giỏ hàng thành công")
+                toast({
+                    title: "Thêm vào giỏ hàng",
+                    description: "Thẻ đã được thêm vào giỏ hàng thành công",
+                    variant: "success",
+                });
             } else {
-                alert("Thêm vào giỏ hàng thất bại " + res.message);
+                toast({
+                    title: "Thêm vào giỏ hàng thất bại",
+                    description: res.message || "Có lỗi xảy ra",
+                    variant: "error",
+                });
             }
 
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert(err?.messsage);
+            toast({
+                title: "Lỗi",
+                description: err?.message || "Lỗi thêm giỏ hàng",
+                variant: "error",
+            });
         }
     };
 
@@ -658,10 +668,7 @@ export const Marketplace: React.FC = () => {
                     setSelectedListing(offer);
                     setSelectedProduct(null);
                 }}
-                onAddCardToCart={(product, offer) => {
-                    setCartListing(offer);
-                    setAddCartOpen(true);
-                }}
+                onAddCardToCart={(offer) => handleAddCartApi(offer)}
                 formatRarity={formatRarity}
                 rarityClass={rarityClass}
                 placeholderImg={PLACEHOLDER_IMG}
@@ -776,7 +783,7 @@ export const Marketplace: React.FC = () => {
                     )}
                 </DialogContent>
             </Dialog>
-            <Dialog open={addCartOpen} onOpenChange={setAddCartOpen}>
+            {/* <Dialog open={addCartOpen} onOpenChange={setAddCartOpen}>
                 <DialogContent className="max-w-md glass-card-strong">
                     <DialogHeader>
                         <DialogTitle>Thêm vào giỏ</DialogTitle>
@@ -830,7 +837,7 @@ export const Marketplace: React.FC = () => {
                         </div>
                     )}
                 </DialogContent>
-            </Dialog>
+            </Dialog> */}
         </div>
     );
 
@@ -840,7 +847,7 @@ type ListingOffersModalProps = {
     product: CardSellResponse | null;
     onClose: () => void;
     onSelectOffer: (offer: ListingItem) => void;
-    onAddCardToCart: (product: CardSellResponse, offer: ListingItem) => void;
+    onAddCardToCart: (offer: ListingItem) => void;
     formatRarity: (r: string) => string;
     rarityClass: Record<string, string>;
     placeholderImg: string;
@@ -1019,7 +1026,7 @@ function ListingOffersModal({
                                                     size="sm"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onAddCardToCart(product, offer);
+                                                        onAddCardToCart(offer);
                                                     }}
                                                 >
                                                     Thêm thẻ vào giỏ
