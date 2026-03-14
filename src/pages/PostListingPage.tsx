@@ -111,7 +111,7 @@ export const PostListingPage: React.FC = () => {
         loadCards(initialPageFromUrl);
         loadCategories();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [initialPageFromUrl]);
+    }, [searchQuery,initialPageFromUrl]);
 
     const loadCategories = async () => {
         try {
@@ -339,7 +339,7 @@ export const PostListingPage: React.FC = () => {
                                                     {/* remove button */}
                                                     <button
                                                         type="button"
-                                                        onClick={() =>{ setSearchImage(null);setSearchQuery(''); }}
+                                                        onClick={() =>{ setSearchImage(null);setSearchQuery(' '); }}
                                                         className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs shadow"
                                                     >
                                                         ×
