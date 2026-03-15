@@ -11,21 +11,27 @@ import {
     XCircle,
     Ban,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Lock
 } from 'lucide-react';
+
+export type TransactionStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'REFUNDED' | 'ESCROWED' | 'RELEASED';
 
 interface TransactionHistoryProps {
     transactions: TransactionResponse[];
     isLoading: boolean;
     currentPage: number;
     totalPages: number;
-    statusFilter?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
+    statusFilter?: TransactionStatus;
+    /** true = tiền vào (xanh, +), false = tiền ra (đỏ, -) */
+    inFilter?: boolean;
     onPageChange: (page: number) => void;
-    onStatusFilterChange: (status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED'|'RELEASED' | 'ESCROWED'| undefined) => void;
+    onStatusFilterChange: (status: TransactionStatus | undefined) => void;
+    onInFilterChange?: (value: true | false) => void;
 }
 
 const getStatusBadge = (status: string) => {
-    const badges = {
+    const badges: Record<string, { icon: typeof CheckCircle; text: string; className: string }> = {
         SUCCESS: {
             icon: CheckCircle,
             text: 'Thành công',
@@ -46,13 +52,24 @@ const getStatusBadge = (status: string) => {
             text: 'Đã hủy',
             className: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
         },
-        RELEASED:{ icon: CheckCircle,
+        RELEASED: {
+            icon: CheckCircle,
             text: 'Đã trả tiền',
             className: 'bg-green-500/20 text-green-400 border-green-500/30'
         },
+        REFUNDED: {
+            icon: CheckCircle,
+            text: 'Đã hoàn tiền',
+            className: 'bg-green-500/20 text-green-400 border-green-500/30'
+        },
+        ESCROWED: {
+            icon: Lock,
+            text: 'Đang ký quỹ',
+            className: 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+        },
     };
 
-    const badge = badges[status as keyof typeof badges] || badges.PENDING;
+    const badge = badges[status] || badges.PENDING;
     const Icon = badge.icon;
 
     return (
@@ -118,22 +135,53 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
     currentPage,
     totalPages,
     statusFilter,
+    inFilter,
     onPageChange,
     onStatusFilterChange,
+    onInFilterChange,
 }) => {
-    const filters = [
+    const statusFilters: { label: string; value: TransactionStatus | undefined }[] = [
         { label: 'Tất cả', value: undefined },
-        { label: 'Thành công', value: 'SUCCESS' as const },
-        { label: 'Đang xử lý', value: 'PENDING' as const },
-        { label: 'Thất bại', value: 'FAILED' as const },
-        { label: 'Đã hủy', value: 'CANCELLED' as const },
+        { label: 'Đang xử lý', value: 'PENDING' },
+        { label: 'Thành công', value: 'SUCCESS' },
+        { label: 'Thất bại', value: 'FAILED' },
+        { label: 'Đã hoàn tiền', value: 'REFUNDED' },
+        { label: 'Đang ký quỹ', value: 'ESCROWED' },
+        { label: 'Đã trả tiền', value: 'RELEASED' },
+        { label: 'Đã hủy', value: 'CANCELLED' },
+    ];
+
+    const inFilters: { label: string; value: true | false; icon: React.ReactNode; activeClass: string }[] = [
+        { label: 'Tiền vào', value: true, icon: <ArrowUpCircle className="w-4 h-4" />, activeClass: 'bg-green-500/20 text-green-400 border-green-500/40' },
+        { label: 'Tiền ra', value: false, icon: <ArrowDownCircle className="w-4 h-4" />, activeClass: 'bg-red-500/20 text-red-400 border-red-500/40' },
     ];
 
     return (
         <div className="space-y-4">
-            {/* Filters */}
+            {/* Tab tiền vào (xanh, +) / tiền ra (đỏ, -) */}
+            {onInFilterChange && (
+                <div className="flex flex-wrap gap-2">
+                    {inFilters.map((f) => {
+                        const isActive = inFilter === f.value;
+                        return (
+                            <button
+                                key={f.label}
+                                onClick={() => onInFilterChange(f.value)}
+                                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                                    isActive ? f.activeClass : 'bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-white'
+                                }`}
+                            >
+                                {f.icon}
+                                {f.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Filters trạng thái: PENDING, SUCCESS, FAILED, REFUNDED, ESCROWED, RELEASED, CANCELLED */}
             <div className="flex flex-wrap gap-2">
-                {filters.map((filter) => (
+                {statusFilters.map((filter) => (
                     <button
                         key={filter.label}
                         onClick={() => onStatusFilterChange(filter.value)}
@@ -186,31 +234,12 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
                                     </div>
                                 </div>
 
-                                {/* Amount and Status */}
+                                {/* Amount and Status: theo tab đang chọn — Tiền vào = xanh +, Tiền ra = đỏ -, không dựa keyword */}
                                 <div className="text-right flex-shrink-0">
                                     {(() => {
-                                        // Xác định chiều tiền:
-                                        // - Nếu BE set incoming thì ưu tiên.
-                                        // - Nếu không, coi DEPOSIT là tiền vào.
-                                        // - Các giao dịch TRANSFER từ admin trả tiền / refund cho user cũng là tiền vào.
-                                        const isIncoming =
-                                            typeof transaction.incoming === 'boolean'
-                                                ? transaction.incoming
-                                                : transaction.transactionType === 'DEPOSTIE' ||
-                                                  transaction.transactionType === 'DEPOSIT' ||
-                                                  (transaction.transactionType === 'TRANSFER' &&
-                                                      !!transaction.message &&
-                                                      (transaction.message.startsWith('Release price for orderItem') ||
-                                                          transaction.message.startsWith('Refund for orderItem')));
-
-                                        const amountClass = isIncoming
-                                            ? 'text-green-400'
-                                            : transaction.transactionType === 'REQUEST_WITHDRAW'
-                                            ? 'text-yellow-400'
-                                            : 'text-red-400';
-
-                                        const sign = isIncoming ? '+' : '-';
-
+                                        const isInTab = inFilter !== false;
+                                        const amountClass = isInTab ? 'text-green-400' : 'text-red-400';
+                                        const sign = isInTab ? '+' : '-';
                                         return (
                                             <div className={`font-bold mb-1 ${amountClass}`}>
                                                 {sign}

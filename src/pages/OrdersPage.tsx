@@ -3,21 +3,13 @@ import { Card as UICard, CardContent, CardHeader, CardTitle } from '@/components
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ToastProvider, ToastViewport, Toast, ToastTitle, ToastDescription, ToastClose } from '@/components/ui/toast';
-import { listSellerApi, orderApi, OrderItemResponse, OrderDetailResponse, ShippingStatus, transactionApi, OrderSummaryResponse, OrderStatus, shipmentApi, TrackingResponse, cardApi, Card, getCardImageUrl, getFullImageUrl, returnRequestApi, ReturnRequestItem, ReturnRequestStatus, ReturnRequestCreate, userApi, UserProfile, blindBoxApi, BlindBoxHistoryItem } from '@/utils/api';
+import { listSellerApi, orderApi, OrderItemResponse, OrderDetailResponse, ShippingStatus, transactionApi, OrderSummaryResponse, OrderStatus, shipmentApi, TrackingResponse, cardApi, Card, getCardImageUrl, getFullImageUrl, returnRequestApi, ReturnRequestItem, ReturnRequestStatus, ReturnRequestCreate, userApi, UserProfile } from '@/utils/api';
 import { AlertCircle, Package, Search, Truck, MapPin, Phone, CreditCard, Star, Info, ImageIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 type UserShippingFilter = ShippingStatus | 'ALL';
-type BuyOrderFilter =
-    | 'ALL'
-    | 'UNPAID'
-    | 'WAIT_CONFIRM'
-    | 'WAIT_PICKUP'
-    | 'WAIT_SHIP'
-    | 'DELIVERED'
-    | 'RETURN'
-    | 'CANCELLED';
+type BuyStatusTab = 'ALL' | OrderStatus;
 
 const ALL_SHIPPING_STATUSES: ShippingStatus[] = [
     'PENDING',
@@ -91,14 +83,13 @@ const SHIPPING_FILTERS: { value: UserShippingFilter; label: string }[] = [
     { value: 'CANCELLED', label: 'Đã hủy' },
 ];
 
-const BUY_FILTERS: { value: BuyOrderFilter; label: string }[] = [
+const BUY_STATUS_TABS: { value: BuyStatusTab; label: string }[] = [
     { value: 'ALL', label: 'Tất cả' },
-    { value: 'UNPAID', label: 'Chưa thanh toán' },
-    { value: 'WAIT_CONFIRM', label: 'Chờ xác nhận' },
-    { value: 'WAIT_PICKUP', label: 'Chờ lấy hàng' },
-    { value: 'WAIT_SHIP', label: 'Chờ giao' },
-    { value: 'DELIVERED', label: 'Đã giao' },
-    // { value: 'RETURN', label: 'Trả hàng' }, // Ẩn filter Trả hàng ở tab Đơn mua (đã có tab riêng "Trả hàng")
+    { value: 'CREATED', label: 'Chưa thanh toán' },
+    { value: 'PAID', label: 'Đã thanh toán' },
+    { value: 'PARTIAL_COMPLETED', label: 'Hoàn tất 1 phần' },
+    { value: 'COMPLETED', label: 'Hoàn tất' },
+    { value: 'PARTIAL_CANCELLED', label: 'Hủy 1 phần' },
     { value: 'CANCELLED', label: 'Đã hủy' },
 ];
 
@@ -124,6 +115,9 @@ const SHIPPING_STATUS_LABELS: Record<ShippingStatus, string> = {
     LOST: 'Thất lạc',
     CANCELLED: 'Đã hủy',
 };
+
+/** Chỉ order item có status này mới được chọn trong form trả hàng (BE có thể trả RECIEVED typo) */
+const RETURN_ALLOWED_ORDER_ITEM_STATUSES = ['RECEIVED', 'RECIEVED'];
 
 // Nhãn tiếng Việt cho trạng thái yêu cầu trả hàng
 const RETURN_STATUS_LABELS: Record<ReturnRequestStatus, string> = {
@@ -199,7 +193,7 @@ export const OrdersPage: React.FC = () => {
     const [buyOrders, setBuyOrders] = useState<OrderSummaryResponse[]>([]);
     const [buyLoading, setBuyLoading] = useState(false);
     const [buyError, setBuyError] = useState<string>('');
-    const [buyFilter, setBuyFilter] = useState<BuyOrderFilter>('ALL');
+    const [buyStatusTab, setBuyStatusTab] = useState<BuyStatusTab>('ALL');
     const [unpaidOrders, setUnpaidOrders] = useState<OrderSummaryResponse[]>([]);
     const [unpaidLoading, setUnpaidLoading] = useState(false);
     const [unpaidError, setUnpaidError] = useState<string>('');
@@ -211,14 +205,19 @@ export const OrdersPage: React.FC = () => {
     const [feedbackComment, setFeedbackComment] = useState('');
     const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
     const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
+    const [detailOrderSummary, setDetailOrderSummary] = useState<OrderSummaryResponse | null>(null);
     const [detailItems, setDetailItems] = useState<(OrderItemResponse['orderDetailResponseList'][number] & { cardName?: string; cardImageUrl?: string })[]>([]);
-    const [detailBlindBoxCards, setDetailBlindBoxCards] = useState<OrderItemResponse['blindBoxDetails'] | null>(null);
-    const [detailBlindBoxShipment, setDetailBlindBoxShipment] = useState<OrderItemResponse['shipmentResponse'] | null>(null);
     const [detailShipments, setDetailShipments] = useState<Record<string, { shipmentId: string; status: string }[]>>({});
     const [detailTrackings, setDetailTrackings] = useState<Record<string, TrackingResponse[]>>({});
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailCanReturnByShipmentId, setDetailCanReturnByShipmentId] = useState<Record<string, boolean>>({});
     const [detailCheckingCanReturn, setDetailCheckingCanReturn] = useState(false);
+    // Per-shipment: can confirm? (checked via orderApi.canConfirmShipment)
+    const [detailCanConfirmByShipmentId, setDetailCanConfirmByShipmentId] = useState<Record<string, boolean>>({});
+    // Per-order-item: can cancel? (checked via orderApi.canCancelOrderItem)
+    const [detailCanCancelByItemId, setDetailCanCancelByItemId] = useState<Record<string, boolean>>({});
+    // Per-order: can cancel whole order? (checked via orderApi.canCancelOrder)
+    const [buyCanCancelByOrderId, setBuyCanCancelByOrderId] = useState<Record<string, boolean>>({});
 
     // Return/Refund state
     const [returnTab, setReturnTab] = useState<'MY' | 'RECEIVED'>('MY');
@@ -271,7 +270,15 @@ export const OrdersPage: React.FC = () => {
     const [trackingDetailList, setTrackingDetailList] = useState<TrackingResponse[]>([]);
     const [trackingDetailLoading, setTrackingDetailLoading] = useState(false);
     const [trackingImagePreviewUrl, setTrackingImagePreviewUrl] = useState<string | null>(null);
+    // Chi tiết đơn theo getByShippingStatus (Shopee style) + paging (page 1-based, size 2)
+    const [detailShippingStatusFilter, setDetailShippingStatusFilter] = useState<ShippingStatus | 'ALL'>('ALL');
+    const [detailByStatusContent, setDetailByStatusContent] = useState<OrderItemResponse[]>([]);
+    const [detailByStatusLoading, setDetailByStatusLoading] = useState(false);
+    const [detailByStatusPage, setDetailByStatusPage] = useState(1);
+    const [detailByStatusTotalPages, setDetailByStatusTotalPages] = useState(1);
     const [returnShowReasonDetail, setReturnShowReasonDetail] = useState(false);
+    /** Lightbox ảnh minh chứng trả hàng: { urls, index } hoặc null khi đóng */
+    const [returnImageLightbox, setReturnImageLightbox] = useState<{ urls: string[]; index: number } | null>(null);
     // Thông tin bổ sung cho list Đơn mua: join thêm item/shipper từ API chi tiết theo orderId
     const [buyOrderExtras, setBuyOrderExtras] = useState<
         Record<
@@ -361,7 +368,7 @@ export const OrdersPage: React.FC = () => {
         void load();
     }, [returnProvinceId, returnParsedAddress.districtName, returnCreateSendDistrictId]);
 
-    // Khi chọn quận/huyện gửi, load danh sách phường/xã GHN để user chọn sendWardId (giống checkout)
+    // Khi chọn quận/huyện gửi, load danh sách phường/xã GHN (shipmentApi) và gợi ý sendWardId từ địa chỉ
     useEffect(() => {
         if (!returnCreateSendDistrictId) {
             setReturnWards([]);
@@ -373,13 +380,42 @@ export const OrdersPage: React.FC = () => {
                 const w = await shipmentApi.getWards(Number(returnCreateSendDistrictId));
                 const list = Array.isArray(w) ? w : [];
                 setReturnWards(list);
-                // Nếu địa chỉ có wardName, có thể gợi ý sẵn sendWardId sau này nếu cần
+                if (returnParsedAddress.wardName && list.length > 0) {
+                    const wardNameNorm = returnParsedAddress.wardName.toLowerCase().trim();
+                    const found = list.find((x) => (x.WardName || '').toLowerCase().trim() === wardNameNorm || (x.WardName || '').toLowerCase().includes(wardNameNorm));
+                    if (found && found.WardCode != null) {
+                        const code = Number(found.WardCode);
+                        if (!Number.isNaN(code)) setReturnCreateSendWardId(code);
+                    }
+                }
             } catch {
                 setReturnWards([]);
             }
         };
         void load();
-    }, [returnCreateSendDistrictId]);
+    }, [returnCreateSendDistrictId, returnParsedAddress.wardName]);
+
+    // Khi mở modal trả hàng: load provinces từ shipment API nếu chưa có, pre-fill từ myProfile
+    useEffect(() => {
+        if (!returnCreateOpen) return;
+        const load = async () => {
+            if (returnProvinces.length > 0) return;
+            try {
+                const prov = await shipmentApi.getProvinces().catch(() => []);
+                const list = Array.isArray(prov) ? prov : [];
+                setReturnProvinces(list);
+                if (myProfile?.address) {
+                    const parts = parseAddressParts(myProfile.address);
+                    setReturnParsedAddress(parts);
+                    const pid = findProvinceIdByName(list, parts.provinceName);
+                    if (pid !== '') setReturnProvinceId(pid);
+                }
+            } catch {
+                setReturnProvinces([]);
+            }
+        };
+        void load();
+    }, [returnCreateOpen, returnProvinces.length, myProfile]);
 
     const pushToast = (t: { title: string; description?: string; variant?: 'default' | 'success' | 'error' | 'warning' }) => {
         const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -416,19 +452,7 @@ export const OrdersPage: React.FC = () => {
                 // Buyer: xem danh sách order của tôi → /api/orders/my-orders (lọc theo orderStatus)
                 setBuyLoading(true);
                 setBuyError('');
-                let orderStatusFilter: OrderStatus | undefined;
-                if (buyFilter === 'UNPAID') {
-                    orderStatusFilter = 'CREATED';
-                } else if (
-                    buyFilter === 'WAIT_CONFIRM' ||
-                    buyFilter === 'WAIT_PICKUP' ||
-                    buyFilter === 'WAIT_SHIP'
-                ) {
-                    orderStatusFilter = 'PAID';
-                } else {
-                    // TẤT CẢ / ĐÃ GIAO / ĐÃ HỦY / TRẢ HÀNG: không filter theo orderStatus, dùng shipmentStatus phía FE
-                    orderStatusFilter = undefined;
-                }
+                const orderStatusFilter: OrderStatus | undefined = buyStatusTab === 'ALL' ? undefined : buyStatusTab;
                 const res = await orderApi.getMyOrders(orderStatusFilter, pageIndex, pageSize);
                 setBuyOrders(res.content ?? []);
                 setTotalPages(res.totalPages || 1);
@@ -491,115 +515,53 @@ export const OrdersPage: React.FC = () => {
         }
     };
 
-    const loadOrderDetail = async (orderId: string, options?: { forFeedback?: boolean }) => {
-        setDetailOrderId(orderId);
-        if (options?.forFeedback) {
-            setPendingFeedbackOrderId(orderId);
-        }
-        setDetailLoading(true);
-        setDetailItems([]);
-        setDetailShipments({});
-        setDetailTrackings({});
-        setDetailBlindBoxCards(null);
-        setDetailBlindBoxShipment(null);
-        setDetailCanReturnByShipmentId({});
+    /** Load chi tiết đơn: tab ALL = không gửi shippingStatus (get all), tab khác = gửi shippingStatus. Page 1-based. */
+    const DETAIL_PAGE_SIZE = 2;
+    const loadDetailByShippingStatus = async (orderId: string, statusFilter: ShippingStatus | 'ALL', pageOneBased: number = 1) => {
+        setDetailByStatusLoading(true);
+        setDetailByStatusContent([]);
         try {
-            const page = await orderApi.getOrderItemsByOrderId(orderId, 0, 100);
-            const content = page.content ?? [];
-
-            // Nếu BE trả kèm blindBoxDetails trong orderItem → dùng trực tiếp
-            let blindBoxCards: OrderItemResponse['blindBoxDetails'] | null = null;
-            let blindBoxShipment: OrderItemResponse['shipmentResponse'] | null = null;
-            const blindBoxEntry = content.find((o) => (o.blindBoxDetails?.length ?? 0) > 0);
-            if (blindBoxEntry && (blindBoxEntry.blindBoxDetails?.length ?? 0) > 0) {
-                blindBoxCards = blindBoxEntry.blindBoxDetails || [];
-                blindBoxShipment = blindBoxEntry.shipmentResponse || null;
-            } else {
-                // Fallback: join từ lịch sử Hộp bí ẩn theo blindBoxId trong OrderSummary
-                const summary = buyOrders.find((o) => String(o.orderId) === String(orderId));
-                const blindBoxId = summary?.blindBoxId;
-                if (blindBoxId) {
-                    try {
-                        const history: BlindBoxHistoryItem[] = await blindBoxApi.getMyHistory();
-                        const cards = history
-                            .filter((h) => h.blindBoxId === blindBoxId)
-                            .map((h) => ({
-                                cardName: h.card.name,
-                                cardImageUrl: getCardImageUrl(h.card),
-                                basePrice: h.card.basePrice,
-                            }));
-                        if (cards.length > 0) {
-                            blindBoxCards = cards as any;
-                        }
-                    } catch {
-                        // ignore nếu join từ lịch sử thất bại
-                    }
-                }
-            }
-            setDetailBlindBoxCards(blindBoxCards);
-            setDetailBlindBoxShipment(blindBoxShipment);
-
-            const rawItems = content.flatMap((o) => o.orderDetailResponseList || []);
-            // Ưu tiên dùng cardResponse từ BE; nếu thiếu thì mới gọi cardApi
-            const enrichedItems: (OrderItemResponse['orderDetailResponseList'][number] & { cardName?: string; cardImageUrl?: string; cardId?: string })[] =
-                rawItems.map((it: any) => {
-                    const cardResp = it.cardResponse as { name?: string; imageUrl?: any } | undefined;
-                    const nameFromBe = cardResp?.name;
-                    const imgFromBe = cardResp ? getCardImageUrl(cardResp as any) : undefined;
-                    return {
-                        ...it,
-                        cardName: it.cardName ?? nameFromBe,
-                        cardImageUrl: it.cardImageUrl ?? imgFromBe,
-                    };
-                });
-            // Nếu thiếu tên/ảnh, cố gắng join thêm từ cardApi bằng cardId (nếu có)
-            for (let i = 0; i < enrichedItems.length; i++) {
-                const it = enrichedItems[i];
-                const hasDisplay = it.cardName && it.cardImageUrl;
-                const cardId = ((it as any).cardResponse?.cardId as string | undefined) || ((it as any).cardId as string | undefined);
-                if (!hasDisplay && cardId) {
-                    try {
-                        const card: Card = await cardApi.getCardById(cardId);
-                        const imageUrl =
-                            typeof card.imageUrl === 'string'
-                                ? card.imageUrl
-                                : Array.isArray(card.imageUrl) && card.imageUrl.length > 0
-                                    ? card.imageUrl[0]?.imageUrl
-                                    : undefined;
-                        enrichedItems[i] = {
-                            ...it,
-                            cardName: it.cardName || card.name,
-                            cardImageUrl: it.cardImageUrl || imageUrl,
-                        };
-                    } catch {
-                        // ignore nếu cardApi lỗi
-                    }
-                }
-            }
-            setDetailItems(enrichedItems);
-            const shipmentsByItem: Record<string, { shipmentId: string; status: string }[]> = {};
-            for (const it of enrichedItems) {
-                const id = String(it.orderItemId);
-                try {
-                    const ships = await shipmentApi.getByOrderItemId(id);
-                    shipmentsByItem[id] =
-                        (ships || []).map((s) => ({
-                            shipmentId: String(s.shipmentId),
-                            status: String(s.shipmentStatus),
-                        }));
-                } catch {
-                    shipmentsByItem[id] = [];
-                }
-            }
-            setDetailShipments(shipmentsByItem);
+            const page = Math.max(1, Math.min(pageOneBased, 999));
+            const res =
+                statusFilter === 'ALL'
+                    ? await orderApi.getOrderItemsByOrderId(orderId, undefined, page, DETAIL_PAGE_SIZE)
+                    : await orderApi.getByShippingStatus(orderId, statusFilter, page, DETAIL_PAGE_SIZE);
+            const content = res.content ?? [];
+            setDetailByStatusContent(content);
+            const totalEl = res.totalElements ?? 0;
+            const fromBackend = res.totalPages ?? 0;
+            const fromElements = totalEl > 0 ? Math.ceil(totalEl / DETAIL_PAGE_SIZE) : 0;
+            let totalPages = fromBackend > 0 ? fromBackend : (fromElements > 0 ? fromElements : 1);
+            if (page > 1 && content.length === 0) totalPages = page;
+            setDetailByStatusTotalPages(Math.max(1, totalPages));
         } catch (e) {
-            alert(e instanceof Error ? e.message : 'Không tải được chi tiết đơn hàng.');
+            setDetailByStatusContent([]);
+            setDetailByStatusTotalPages(1);
         } finally {
-            setDetailLoading(false);
+            setDetailByStatusLoading(false);
         }
     };
 
-    // Khi mở dialog chi tiết đơn mua (BUY), kiểm tra can-return theo từng shipment trong đơn
+    const loadOrderDetail = async (orderId: string, options?: { forFeedback?: boolean; summary?: OrderSummaryResponse }) => {
+        setDetailOrderId(orderId);
+        const summary = options?.summary ?? buyOrders.find((o) => String(o.orderId) === String(orderId)) ?? null;
+        setDetailOrderSummary(summary);
+        if (options?.forFeedback) {
+            setPendingFeedbackOrderId(orderId);
+        }
+        setDetailShippingStatusFilter('ALL');
+        setDetailByStatusContent([]);
+        setDetailByStatusPage(1);
+        setDetailItems([]);
+        setDetailShipments({});
+        setDetailTrackings({});
+        setDetailCanReturnByShipmentId({});
+
+        setDetailByStatusLoading(true);
+        loadDetailByShippingStatus(orderId, 'ALL', 1);
+    };
+
+    // Khi mở dialog chi tiết đơn mua (BUY), kiểm tra can-return theo từng shipment (từ detailShipments hoặc detailByStatusContent)
     useEffect(() => {
         if (!detailOrderId) return;
         const shipmentIds = new Set<string>();
@@ -609,6 +571,10 @@ export const OrdersPage: React.FC = () => {
                 if (s?.shipmentId) shipmentIds.add(String(s.shipmentId));
             }
         }
+        detailByStatusContent.forEach((oi) => {
+            const sid = oi.shipmentResponse?.shipmentId;
+            if (sid) shipmentIds.add(String(sid));
+        });
         const ids = Array.from(shipmentIds);
         if (ids.length === 0) {
             setDetailCanReturnByShipmentId({});
@@ -632,13 +598,93 @@ export const OrdersPage: React.FC = () => {
                 setDetailCanReturnByShipmentId(next);
             })
             .finally(() => setDetailCheckingCanReturn(false));
-    }, [detailOrderId, detailShipments]);
+    }, [detailOrderId, detailShipments, detailByStatusContent]);
+
+    // Per-order: check canCancelOrder for each order in the BUY list
+    useEffect(() => {
+        if (viewMode !== 'BUY' || buyOrders.length === 0) return;
+        const ids = buyOrders.map((o) => String(o.orderId));
+        Promise.all(
+            ids.map(async (orderId) => {
+                try {
+                    const can = await orderApi.canCancelOrder(orderId);
+                    return [orderId, !!can] as const;
+                } catch {
+                    return [orderId, false] as const;
+                }
+            })
+        ).then((pairs) => {
+            const next: Record<string, boolean> = {};
+            for (const [id, can] of pairs) next[id] = can;
+            setBuyCanCancelByOrderId(next);
+        });
+    }, [buyOrders, viewMode]);
+
+    // Per-order-item in detail: check canCancelOrderItem (từ detailItems hoặc detailByStatusContent)
+    useEffect(() => {
+        const fromDetailItems = detailItems.map((it) => String(it.orderItemId)).filter(Boolean);
+        const fromByStatus = detailByStatusContent.flatMap((o) =>
+            (o.orderDetailResponseList || []).map((d) => String(d.orderItemId)).filter(Boolean),
+        );
+        const ids = [...new Set([...fromDetailItems, ...fromByStatus])];
+        if (ids.length === 0) {
+            setDetailCanCancelByItemId({});
+            return;
+        }
+        Promise.all(
+            ids.map(async (id) => {
+                try {
+                    const can = await orderApi.canCancelOrderItem(id);
+                    return [id, !!can] as const;
+                } catch {
+                    return [id, false] as const;
+                }
+            }),
+        ).then((pairs) => {
+            const next: Record<string, boolean> = {};
+            for (const [id, ok] of pairs) next[id] = ok;
+            setDetailCanCancelByItemId(next);
+        });
+    }, [detailOrderId, detailItems, detailByStatusContent]);
+
+    // Per-shipment từ detailByStatusContent: check canConfirmShipment
+    useEffect(() => {
+        const fromDetailShipments = new Set<string>();
+        Object.values(detailShipments).forEach((ships) => {
+            (ships || []).forEach((s) => {
+                if (s?.shipmentId) fromDetailShipments.add(String(s.shipmentId));
+            });
+        });
+        const fromByStatus = detailByStatusContent
+            .map((o) => o.shipmentResponse?.shipmentId)
+            .filter(Boolean)
+            .map(String);
+        const sids = [...new Set([...fromDetailShipments, ...fromByStatus])];
+        if (sids.length === 0) {
+            setDetailCanConfirmByShipmentId({});
+            return;
+        }
+        Promise.all(
+            sids.map(async (sid) => {
+                try {
+                    const can = await orderApi.canConfirmShipment(sid);
+                    return [sid, !!can] as const;
+                } catch {
+                    return [sid, false] as const;
+                }
+            }),
+        ).then((pairs) => {
+            const next: Record<string, boolean> = {};
+            for (const [sid, ok] of pairs) next[sid] = ok;
+            setDetailCanConfirmByShipmentId(next);
+        });
+    }, [detailOrderId, detailShipments, detailByStatusContent]);
 
     useEffect(() => {
         if (!isAuthenticated) return;
         loadOrders(page, status, viewMode);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, status, viewMode, buyFilter, isAuthenticated]);
+    }, [page, status, viewMode, buyStatusTab, isAuthenticated]);
 
     // Khi mở dialog chi tiết tracking, gọi API lấy danh sách tracking theo shipmentId
     useEffect(() => {
@@ -736,7 +782,7 @@ export const OrdersPage: React.FC = () => {
             if (extra && extra.loaded) return;
             (async () => {
                 try {
-                    const page = await orderApi.getOrderItemsByOrderId(orderId, 0, 1);
+                    const page = await orderApi.getOrderItemsByOrderId(orderId, undefined, 1, 1);
                     const first = (page.content ?? [])[0] as OrderItemResponse | undefined;
                     if (!first) {
                         setBuyOrderExtras((prev) => ({
@@ -877,16 +923,16 @@ export const OrdersPage: React.FC = () => {
                             <div className="flex items-center gap-2 flex-wrap">
                                 <Truck className="w-4 h-4 text-muted-foreground" />
                                 <div className="flex flex-wrap gap-2">
-                                    {BUY_FILTERS.map((f) => (
+                                    {BUY_STATUS_TABS.map((f) => (
                                         <Button
                                             key={f.value}
                                             type="button"
                                             size="sm"
-                                            variant={buyFilter === f.value ? 'default' : 'outline'}
+                                            variant={buyStatusTab === f.value ? 'default' : 'outline'}
                                             className="text-xs"
                                             onClick={() => {
                                                 setPage(0);
-                                                setBuyFilter(f.value);
+                                                setBuyStatusTab(f.value);
                                             }}
                                         >
                                             {f.label}
@@ -1257,34 +1303,8 @@ export const OrdersPage: React.FC = () => {
                                     {filteredBuy.map((o) => {
                                         const orderId = String(o.orderId);
                                         const extra = buyOrderExtras[orderId] || {};
-                                        const shipStatus = extra.shipmentStatus as ShippingStatus | undefined;
 
-                                        // Lọc thêm theo trạng thái shipment cho từng filter Đơn mua
-                                        if (buyFilter === 'WAIT_CONFIRM') {
-                                            // Chờ xác nhận: đơn đã PAID nhưng shipment chưa ra khỏi PENDING.
-                                            // Nếu BE chưa tạo shipment => shipStatus undefined vẫn được xem là "chờ xác nhận".
-                                            if (shipStatus && shipStatus !== 'PENDING') return null;
-                                        } else if (buyFilter === 'WAIT_PICKUP') {
-                                            // Chờ lấy hàng: shipper đã được gán hoặc đã lấy nhưng chưa đi giao.
-                                            if (!shipStatus || (shipStatus !== 'ASIGNED' && shipStatus !== 'PICKED_UP')) {
-                                                return null;
-                                            }
-                                        } else if (buyFilter === 'WAIT_SHIP') {
-                                            // Chờ giao: đang trong quá trình vận chuyển.
-                                            if (shipStatus !== 'IN_TRANSIT') return null;
-                                        } else if (buyFilter === 'DELIVERED') {
-                                            // Đã giao: GHN có thể trả DELIVERED hoặc RECEIVED.
-                                            if (!shipStatus || (shipStatus !== 'DELIVERED' && shipStatus !== 'RECEIVED')) {
-                                                return null;
-                                            }
-                                        } else if (buyFilter === 'CANCELLED') {
-                                            // Đã hủy:
-                                            // - Nếu order.status = CANCELLED → luôn hiển thị, bất kể shipmentStatus
-                                            // - Nếu order chưa CANCELLED nhưng shipmentStatus = CANCELLED → cũng hiển thị
-                                            const isOrderCancelled = o.status === 'CANCELLED';
-                                            const isShipCancelled = shipStatus === 'CANCELLED';
-                                            if (!isOrderCancelled && !isShipCancelled) return null;
-                                        }
+                                        // Server-side filtering via OrderStatus tabs — no client-side filter needed
 
                                         return (
                                             <div
@@ -1362,162 +1382,76 @@ export const OrdersPage: React.FC = () => {
                                                             <button
                                                                 type="button"
                                                                 className="text-[11px] text-primary-300 underline"
-                                                                onClick={() => loadOrderDetail(orderId)}
+                                                                onClick={() => loadOrderDetail(orderId, { summary: o })}
                                                             >
                                                                 Xem thêm sản phẩm / chi tiết đơn
                                                             </button>
                                                         </div>
                                                     </div>
                                                     <div className="flex justify-end gap-2">
-                                                        {extra.shipmentStatus === 'RECEIVED' ? (
-                                                            // Đơn đã giao xong: Trả hàng/Hoàn tiền + Đánh giá
-                                                            <>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => {
-                                                                        // Mở dialog chi tiết đơn + tab tạo yêu cầu trả hàng
-                                                                        loadOrderDetail(orderId);
-                                                                        setTimeout(() => {
-                                                                            if (!detailItems.length) return;
-                                                                            const itemId = String(detailItems[0].orderItemId);
-                                                                            const ships = detailShipments[itemId] || [];
-                                                                            if (!ships.length) return;
-                                                                            const shipmentId = String(ships[0].shipmentId);
-                                                                            const items = detailItems.map((it) => ({
-                                                                                orderItemId: String(it.orderItemId),
-                                                                                cardName: it.cardName,
-                                                                                cardImageUrl: it.cardImageUrl,
-                                                                                quantity: it.quantity,
-                                                                                price: it.price,
-                                                                            }));
-                                                                            const ids = items.map((x) => x.orderItemId).filter(Boolean);
-                                                                            setReturnCreateShipmentId(shipmentId);
-                                                                            setReturnCreateItemIds(ids);
-                                                                            setReturnCreateItems(items.filter((x) => !!x.orderItemId));
-                                                                            setReturnCreateReasonPreset('PRESET');
-                                                                            setReturnCreateReason('');
-                                                                            setReturnCreateSendAddress('');
-                                                                            setReturnCreateSendDistrictId(0);
-                                                                            setReturnCreateSendPhone('');
-                                                                            setReturnCreateFiles([]);
-                                                                            setReturnCreateOpen(true);
-                                                                        }, 300);
-                                                                    }}
-                                                                >
-                                                                    Trả hàng / Hoàn tiền
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => {
-                                                                        // Mở popup chi tiết shipment + bật form đánh giá cho item đầu tiên
-                                                                        const extra = buyOrderExtras[orderId];
-                                                                        const targetShipmentId = extra?.shipmentId;
-                                                                        if (!targetShipmentId) return;
-
-                                                                        const shipment = orders.find(
-                                                                            (o) =>
-                                                                                String(o.shipmentResponse?.shipmentId || '') ===
-                                                                                String(targetShipmentId),
-                                                                        );
-                                                                        if (!shipment) return;
-
-                                                                        setSelectedShipment(shipment);
-                                                                        const firstItem = shipment.orderDetailResponseList?.[0];
-                                                                        if (firstItem?.orderItemId) {
-                                                                            setFeedbackEditingId(String(firstItem.orderItemId));
-                                                                            setFeedbackRating(5);
-                                                                            setFeedbackComment('');
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    Đánh giá
-                                                                </Button>
-                                                            </>
-                                                        ) : extra.shipmentStatus &&
-                                                            (extra.shipmentStatus === 'DELIVERED' || extra.shipmentStatus === 'RECEIVED') ? (
-                                                            // Đơn đã giao: chỉ cho xem chi tiết, không cho xác nhận ở list
+                                                        {/* Xem chi tiết — always shown */}
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => loadOrderDetail(orderId, { summary: o })}
+                                                        >
+                                                            Xem chi tiết
+                                                        </Button>
+                                                        {/* Thanh toán — only for CREATED (unpaid) orders */}
+                                                        {o.status === 'CREATED' && (
                                                             <Button
                                                                 size="sm"
-                                                                variant="outline"
-                                                                onClick={() => {
-                                                                    loadOrderDetail(orderId);
-                                                                }}
-                                                            >
-                                                                Xem chi tiết
-                                                            </Button>
-                                                        ) : buyFilter === 'WAIT_PICKUP' || buyFilter === 'WAIT_SHIP' ? (
-                                                            // Đơn đang chờ lấy hàng / chờ giao: chỉ cho xem chi tiết
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                onClick={() => {
-                                                                    loadOrderDetail(orderId);
-                                                                }}
-                                                            >
-                                                                Xem chi tiết
-                                                            </Button>
-                                                        ) : o.status === 'CANCELLED' ? (
-                                                            // Đơn đã hủy: chỉ cho xem chi tiết, không cho hủy thêm lần nữa
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                onClick={() => {
-                                                                    loadOrderDetail(orderId);
-                                                                }}
-                                                            >
-                                                                Xem chi tiết
-                                                            </Button>
-                                                        ) : (
-                                                            // Các trạng thái khác: giữ Xem chi tiết + Hủy như cũ
-                                                            <>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => {
-                                                                        loadOrderDetail(orderId);
-                                                                    }}
-                                                                >
-                                                                    {o.status === 'CREATED' ? 'Thanh toán' : 'Xem chi tiết'}
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    disabled={actionLoading}
-                                                                    onClick={async () => {
-                                                                        if (
-                                                                            !confirm(
-                                                                                `Hủy đơn #${orderId.slice(0, 8)}?`,
-                                                                            )
-                                                                        )
-                                                                            return;
-                                                                        setActionLoading(true);
-                                                                        try {
-                                                                            const can =
-                                                                                await orderApi.canCancelOrder(orderId);
-                                                                            if (!can) {
-                                                                                alert(
-                                                                                    'Backend không cho phép hủy đơn này (can-cancle-order = false).',
-                                                                                );
+                                                                className="bg-orange-500 hover:bg-orange-600 text-white"
+                                                                disabled={actionLoading}
+                                                                onClick={async () => {
+                                                                    setActionLoading(true);
+                                                                    try {
+                                                                        const map = loadOrderItemsMap();
+                                                                        const draftItems = map[orderId] as DraftOrderItem[] | undefined;
+                                                                        if (draftItems && draftItems.length > 0) {
+                                                                            const check = await precheckListingAvailability(draftItems);
+                                                                            if (!check.ok) {
+                                                                                pushToast({ title: 'Không thể thanh toán', description: check.message, variant: 'error' });
                                                                                 return;
                                                                             }
-                                                                            await orderApi.cancelOrder(orderId);
-                                                                            await loadOrders(page, status, viewMode);
-                                                                        } catch (err) {
-                                                                            alert(
-                                                                                err instanceof Error
-                                                                                    ? err.message
-                                                                                    : 'Không thể hủy đơn.',
-                                                                            );
-                                                                        } finally {
-                                                                            setActionLoading(false);
                                                                         }
-                                                                    }}
-                                                                >
-                                                                    Hủy
-                                                                </Button>
-                                                            </>
+                                                                        await transactionApi.payOrderWithWallet(orderId);
+                                                                        try { window.dispatchEvent(new Event('wallet-updated')); } catch { /* ignore */ }
+                                                                        pushToast({ title: 'Thanh toán thành công!', variant: 'success' });
+                                                                        await loadOrders(page, status, viewMode);
+                                                                    } catch (err) {
+                                                                        pushToast({ title: 'Thanh toán thất bại', description: err instanceof Error ? err.message : 'Có lỗi xảy ra.', variant: 'error' });
+                                                                    } finally {
+                                                                        setActionLoading(false);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Thanh toán
+                                                            </Button>
+                                                        )}
+                                                        {/* Hủy đơn — only when canCancelOrder returned true */}
+                                                        {buyCanCancelByOrderId[orderId] && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="text-red-400 border-red-400/50 hover:bg-red-500/10"
+                                                                disabled={actionLoading}
+                                                                onClick={async () => {
+                                                                    if (!confirm(`Hủy đơn #${orderId.slice(0, 8)}?`)) return;
+                                                                    setActionLoading(true);
+                                                                    try {
+                                                                        await orderApi.cancelOrder(orderId);
+                                                                        pushToast({ title: 'Đã hủy đơn hàng', variant: 'success' });
+                                                                        await loadOrders(page, status, viewMode);
+                                                                    } catch (err) {
+                                                                        pushToast({ title: 'Không thể hủy đơn', description: err instanceof Error ? err.message : 'Có lỗi xảy ra.', variant: 'error' });
+                                                                    } finally {
+                                                                        setActionLoading(false);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Hủy
+                                                            </Button>
                                                         )}
                                                     </div>
                                                 </div>
@@ -2085,32 +2019,6 @@ export const OrdersPage: React.FC = () => {
                                                     );
                                                 })}
                                             </div>
-                                        ) : (selectedShipment.blindBoxDetails?.length ?? 0) > 0 ? (
-                                            <>
-                                                <p className="text-xs text-yellow-200/90 mb-2">Giao thẻ từ Hộp bí ẩn</p>
-                                                <div className="space-y-4">
-                                                    {selectedShipment.blindBoxDetails?.map((card, i) => {
-                                                        const price = Number(card.basePrice ?? 0);
-                                                        return (
-                                                            <div key={i} className="flex gap-3 items-start py-3 border-b border-white/5 last:border-0">
-                                                                <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
-                                                                    {card.cardImageUrl ? (
-                                                                        <img src={card.cardImageUrl} alt={card.cardName || ''} className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        <span className="text-xl">🎴</span>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <div className="font-medium text-sm line-clamp-2">{card.cardName || '—'}</div>
-                                                                    <div className="text-xs text-muted-foreground mt-0.5">Phân loại hàng: 1 thẻ</div>
-                                                                    <div className="text-xs text-muted-foreground">x1</div>
-                                                                </div>
-                                                                <div className="shrink-0 text-right font-semibold text-sm">{price.toLocaleString('vi-VN')}₫</div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </>
                                         ) : (
                                             <p className="text-xs text-muted-foreground">
                                                 Đơn hàng này chưa có item chi tiết để hiển thị.
@@ -2126,24 +2034,16 @@ export const OrdersPage: React.FC = () => {
                                                     (sum, d) => sum + Number(d.price || 0) * Number(d.quantity || 0),
                                                     0
                                                 )
-                                                : (selectedShipment.blindBoxDetails || []).reduce(
-                                                    (sum, c) => sum + Number(c.basePrice ?? 0),
-                                                    0
-                                                );
+                                                : 0;
                                         const shipFee = Number(selectedShipment.shipfee || 0);
                                         const shipDiscount = 0;
                                         const voucherDiscount = 0;
-                                        const total =
-                                            (selectedShipment.blindBoxDetails?.length ?? 0) > 0
-                                                ? shipFee
-                                                : itemsTotal + shipFee - shipDiscount - voucherDiscount;
+                                        const total = itemsTotal + shipFee - shipDiscount - voucherDiscount;
                                         return (
                                             <div className="mt-6 pt-4 text-sm">
                                                 <div className="flex justify-between items-center py-2.5 border-t border-dotted border-white/20">
                                                     <span className="text-muted-foreground">
-                                                        {(selectedShipment.blindBoxDetails?.length ?? 0) > 0
-                                                            ? 'Tổng giá trị thẻ (tham khảo)'
-                                                            : 'Tổng tiền hàng'}
+                                                        Tổng tiền hàng
                                                     </span>
                                                     <span>{itemsTotal.toLocaleString('vi-VN')}₫</span>
                                                 </div>
@@ -2192,7 +2092,10 @@ export const OrdersPage: React.FC = () => {
                                                     disabled={checkingCanReturn || actionLoading}
                                                     onClick={() => {
                                                         const shipmentId = String(selectedShipment.shipmentResponse?.shipmentId);
-                                                        const items = (selectedShipment.orderDetailResponseList || []).map((d) => ({
+                                                        const list = (selectedShipment.orderDetailResponseList || []).filter(
+                                                            (d) => RETURN_ALLOWED_ORDER_ITEM_STATUSES.includes(String((d as any).orderItemStatus ?? '').toUpperCase()),
+                                                        );
+                                                        const items = list.map((d) => ({
                                                             orderItemId: String(d.orderItemId),
                                                             cardName: d.cardName,
                                                             cardImageUrl: d.cardImageUrl,
@@ -2225,13 +2128,12 @@ export const OrdersPage: React.FC = () => {
                                                         if (!selectedShipment?.shipmentResponse?.shipmentId) return;
                                                         setActionLoading(true);
                                                         try {
-                                                            // Đơn sàn giao dịch: có orderDetailResponseList => check quyền trước.
-                                                            if (
-                                                                firstOrderItemId &&
-                                                                (selectedShipment.orderDetailResponseList || []).length > 0
-                                                            ) {
-                                                                const canDo = await orderApi.canDo(String(firstOrderItemId));
-                                                                if (!canDo.canConfirmRecieve) {
+                                                            // Check if shipment can be confirmed
+                                                            if (selectedShipment?.shipmentResponse?.shipmentId) {
+                                                                const canConfirm = await orderApi.canConfirmShipment(
+                                                                    String(selectedShipment.shipmentResponse.shipmentId),
+                                                                );
+                                                                if (!canConfirm) {
                                                                     alert('Đơn này hiện không thể xác nhận nhận hàng.');
                                                                     return;
                                                                 }
@@ -2246,11 +2148,7 @@ export const OrdersPage: React.FC = () => {
                                                                 // ignore
                                                             }
                                                             await loadOrders(page, status, viewMode);
-                                                            alert(
-                                                                (selectedShipment.blindBoxDetails?.length ?? 0) > 0
-                                                                    ? 'Đã xác nhận nhận thẻ từ Hộp bí ẩn.'
-                                                                    : 'Đã xác nhận nhận hàng, tiền sẽ được chuyển cho người bán.'
-                                                            );
+                                                            alert('Đã xác nhận nhận hàng, tiền sẽ được chuyển cho người bán.');
                                                             setSelectedShipment(null);
                                                         } catch (err) {
                                                             alert(
@@ -2278,12 +2176,12 @@ export const OrdersPage: React.FC = () => {
 
                 {/* Create return request dialog (buyer) */}
                 <Dialog open={returnCreateOpen} onOpenChange={(open) => { if (!open) setReturnCreateOpen(false); }}>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="max-w-5xl w-[82vw] max-h-[90vh] overflow-y-auto p-6 md:p-8">
                         <DialogHeader>
                             <DialogTitle>Gửi yêu cầu trả hàng</DialogTitle>
-                            <DialogDescription>
+                            {/* <DialogDescription>
                                 Chọn item cần trả trong shipment, nhập lý do và thông tin gửi hàng (theo `ReturnRequestdto`).
-                            </DialogDescription>
+                            </DialogDescription> */}
                         </DialogHeader>
                         {/* Autofill from profile (do not override user input) */}
                         {returnCreateOpen && myProfile && (
@@ -2374,7 +2272,7 @@ export const OrdersPage: React.FC = () => {
                             </div>
                             <div className="space-y-2">
                                 <div>
-                                    <div className="text-xs text-muted-foreground mb-1">Lý do trả hàng (bắt buộc)</div>
+                                    <div className="text-xs text-muted-foreground mb-1">Lý do trả hàng <span className="text-red-500">*</span></div>
                                     <select
                                         value={returnCreateReasonPreset === 'OTHER' ? '__OTHER__' : (returnCreateReason || '')}
                                         onChange={(e) => {
@@ -2414,7 +2312,7 @@ export const OrdersPage: React.FC = () => {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                 <div>
-                                    <div className="text-xs text-muted-foreground mb-1">SĐT gửi (bắt buộc)</div>
+                                    <div className="text-xs text-muted-foreground mb-1">SĐT gửi <span className="text-red-500">*</span></div>
                                     <input
                                         value={returnCreateSendPhone}
                                         onChange={(e) => setReturnCreateSendPhone(e.target.value)}
@@ -2423,7 +2321,7 @@ export const OrdersPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground mb-1">Tỉnh/Thành gửi (GHN) (bắt buộc)</div>
+                                    <div className="text-xs text-muted-foreground mb-1">Tỉnh/Thành gửi (GHN) <span className="text-red-500">*</span></div>
                                     <select
                                         value={returnProvinceId || ''}
                                         onChange={(e) => {
@@ -2463,7 +2361,7 @@ export const OrdersPage: React.FC = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground mb-1">Quận/Huyện gửi (GHN) (bắt buộc)</div>
+                                    <div className="text-xs text-muted-foreground mb-1">Quận/Huyện gửi (GHN) <span className="text-red-500">*</span></div>
                                     <select
                                         value={returnCreateSendDistrictId || 0}
                                         onChange={(e) => {
@@ -2509,7 +2407,7 @@ export const OrdersPage: React.FC = () => {
                                     </div>
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground mb-1">Phường/Xã gửi (GHN) (bắt buộc)</div>
+                                    <div className="text-xs text-muted-foreground mb-1">Phường/Xã gửi (GHN) <span className="text-red-500">*</span></div>
                                     <select
                                         value={returnCreateSendWardId || 0}
                                         onChange={(e) => {
@@ -2576,7 +2474,7 @@ export const OrdersPage: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <div className="text-xs text-muted-foreground mb-1">Ảnh đính kèm (bắt buộc theo BE)</div>
+                                <div className="text-xs text-muted-foreground mb-1">Ảnh đính kèm <span className="text-red-500">*</span></div>
                                 <input
                                     type="file"
                                     multiple
@@ -2700,14 +2598,23 @@ export const OrdersPage: React.FC = () => {
                     </DialogContent>
                 </Dialog>
 
-                {/* Order detail dialog by orderId (BUY tab) - full màn hình, chỉ nội dung bên trong cuộn */}
-                <Dialog open={!!detailOrderId} onOpenChange={(open) => { if (!open) { setDetailOrderId(null); } }}>
-                    <DialogContent className=" max-w-none  w-[50vw]  h-[88vh] max-h-[88vh] flex flex-col overflow-hidden p-4 gap-0">
+                {/* Order detail dialog – 2/3 màn hình, luôn có thanh trạng thái giao */}
+                <Dialog open={!!detailOrderId} onOpenChange={(open) => { if (!open) { setDetailOrderId(null); setDetailOrderSummary(null); } }}>
+                    <DialogContent className="max-w-none w-[66.67vw] h-[85vh] max-h-[85vh] flex flex-col overflow-hidden p-5 gap-0 rounded-xl border border-white/10 shadow-2xl">
                         <DialogHeader className="shrink-0 pb-4 border-b border-white/10">
-                            <DialogTitle>
-                                Chi tiết đơn hàng #{detailOrderId?.slice(0, 8)}
+                            <DialogTitle className="text-lg flex items-center gap-2 flex-wrap">
+                                <Package className="w-5 h-5 text-primary-400 shrink-0" />
+                                <span>Chi tiết đơn hàng #{detailOrderId?.slice(0, 8)}</span>
+                                {(() => {
+                                    const st = detailOrderSummary?.status ?? buyOrders.find((o) => String(o.orderId) === String(detailOrderId || ''))?.status;
+                                    return st != null ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border border-primary-400/20 bg-primary-500/10 text-primary-200">
+                                            {ORDER_STATUS_LABELS[st as OrderStatus] || st}
+                                        </span>
+                                    ) : null;
+                                })()}
                             </DialogTitle>
-                            <DialogDescription>
+                            <DialogDescription className="text-muted-foreground">
                                 Sản phẩm, shipment và trạng thái giao hàng cho đơn này.
                             </DialogDescription>
                         </DialogHeader>
@@ -2715,75 +2622,38 @@ export const OrdersPage: React.FC = () => {
                             <div className="flex-1 flex items-center justify-center py-6 text-sm text-muted-foreground">
                                 Đang tải chi tiết đơn hàng...
                             </div>
-                        ) : detailItems.length === 0 && !(detailBlindBoxCards && detailBlindBoxCards.length > 0) ? (
-                            (() => {
-                                const summary = buyOrders.find(
-                                    (o) => String(o.orderId) === String(detailOrderId || ''),
-                                );
-                                const isBlindBoxOrder = !!summary?.blindBoxId;
-                                return (
-                                    <div className="flex-1 flex items-center justify-center py-6 text-sm text-muted-foreground text-center px-4">
-                                        {isBlindBoxOrder
-                                            ? 'Đây là đơn giao thẻ từ Hộp bí ẩn. Hiện backend chưa trả chi tiết thẻ cho màn Đơn mua, nên không thể hiển thị danh sách thẻ. Bạn vẫn có thể xem lịch sử thẻ trong trang Hộp bí ẩn.'
-                                            : 'Không tìm thấy order item cho đơn này.'}
-                                    </div>
-                                );
-                            })()
+                        ) : detailByStatusLoading ? (
+                            <div className="flex-1 flex items-center justify-center py-6 text-sm text-muted-foreground">
+                                Đang tải theo trạng thái giao hàng...
+                            </div>
                         ) : (
-                            <div className="flex-1 min-h-0 overflow-y-auto pr-1 mt-4">
+                            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-1 mt-4 overscroll-contain">
                                 <div className="space-y-6 text-sm">
-                                    {/* Thông tin đơn hàng (tóm tắt, không hiển thị thanh tiến trình) */}
+                                    {/* Thông tin đơn hàng (tóm tắt) — dùng detailOrderSummary hoặc fallback buyOrders */}
                                     {(() => {
-                                        const summary = buyOrders.find(
-                                            (o) => String(o.orderId) === String(detailOrderId || ''),
-                                        );
+                                        const summary = detailOrderSummary ?? buyOrders.find((o) => String(o.orderId) === String(detailOrderId || ''));
                                         const orderStatus = summary?.status as OrderStatus | undefined;
-
-                                        // Nếu được mở từ nút "Đánh giá" trên list Đơn mua: auto bật form đánh giá cho item đầu
-                                        if (pendingFeedbackOrderId && String(pendingFeedbackOrderId) === String(detailOrderId)) {
-                                            const firstItem = detailItems[0];
-                                            if (firstItem?.orderItemId) {
-                                                setTimeout(() => {
-                                                    setFeedbackEditingId(String(firstItem.orderItemId));
-                                                    setFeedbackRating(5);
-                                                    setFeedbackComment('');
-                                                    const el = document.getElementById(
-                                                        `order-item-${String(firstItem.orderItemId)}`
-                                                    );
-                                                    if (el) {
-                                                        el.scrollIntoView({
-                                                            behavior: 'smooth',
-                                                            block: 'center',
-                                                        });
-                                                    }
-                                                    setPendingFeedbackOrderId(null);
-                                                }, 0);
-                                            } else {
-                                                setPendingFeedbackOrderId(null);
-                                            }
-                                        }
-
                                         return (
-                                            <div className="border border-white/10 rounded-lg p-3 space-y-3">
-                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="border border-white/10 rounded-xl p-4 bg-white/[0.02] space-y-3">
+                                                <div className="flex flex-wrap items-center justify-between gap-3">
                                                     <div>
-                                                        <div className="text-xs text-muted-foreground">Mã đơn hàng</div>
-                                                        <div className="font-mono text-xs">
+                                                        <div className="text-xs text-muted-foreground mb-0.5">Mã đơn hàng</div>
+                                                        <div className="font-mono text-sm font-medium text-primary-300">
                                                             {detailOrderId ? `#${detailOrderId.slice(0, 8)}` : '—'}
                                                         </div>
                                                     </div>
                                                     <div>
-                                                        <div className="text-xs text-muted-foreground">Trạng thái đơn</div>
-                                                        <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] border bg-white/5 border-white/20">
-                                                            <Package className="w-3 h-3" />
-                                                            {orderStatus
-                                                                ? ORDER_STATUS_LABELS[orderStatus] || orderStatus
+                                                        <div className="text-xs text-muted-foreground mb-0.5">Trạng thái đơn</div>
+                                                        <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border border-primary-400/20 bg-primary-500/10 text-primary-200">
+                                                            <Package className="w-3.5 h-3.5" />
+                                                            {orderStatus != null
+                                                                ? (ORDER_STATUS_LABELS[orderStatus] || orderStatus)
                                                                 : '—'}
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <div className="text-xs text-muted-foreground">Đặt lúc</div>
-                                                        <div>
+                                                        <div className="text-xs text-muted-foreground mb-0.5">Đặt lúc</div>
+                                                        <div className="text-sm font-medium">
                                                             {summary?.orderDate
                                                                 ? new Date(summary.orderDate).toLocaleString('vi-VN')
                                                                 : '—'}
@@ -2794,79 +2664,239 @@ export const OrdersPage: React.FC = () => {
                                         );
                                     })()}
 
-                                    {/* Khối sản phẩm + vận chuyển */}
-                                    {detailBlindBoxCards && detailBlindBoxCards.length > 0 ? (
-                                        <>
-                                            <h3 className="text-sm font-semibold mb-2">Giao thẻ từ Hộp bí ẩn</h3>
-                                            <table className="w-full text-sm">
-                                                <thead>
-                                                    <tr className="border-b border-white/10">
-                                                        <th className="text-left p-2">Thẻ</th>
-                                                        <th className="text-right p-2">Giá tham khảo</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {detailBlindBoxCards.map((card, idx) => {
-                                                        const price = Number(card.basePrice ?? 0);
-                                                        return (
-                                                            <tr key={idx} className="border-b border-white/5">
-                                                                <td className="p-2">
-                                                                    <div className="flex items-center gap-2">
-                                                                        {card.cardImageUrl ? (
-                                                                            <img
-                                                                                src={card.cardImageUrl}
-                                                                                alt={card.cardName || ''}
-                                                                                className="w-12 h-18 rounded object-cover bg-white/5"
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="w-12 h-18 rounded bg-white/5 flex items-center justify-center text-lg">
-                                                                                🎴
-                                                                            </div>
-                                                                        )}
-                                                                        <span className="text-xs font-medium line-clamp-2">
-                                                                            {card.cardName || '—'}
-                                                                        </span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="p-2 text-right font-semibold">
-                                                                    {price.toLocaleString('vi-VN')} đ
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                            {detailBlindBoxShipment && (
-                                                <div className="mt-4 text-sm space-y-1">
-                                                    <div>
-                                                        <span className="font-semibold">Địa chỉ nhận:</span>{' '}
-                                                        <span>{detailBlindBoxShipment.toAddress}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-semibold">SĐT:</span>{' '}
-                                                        <span>{detailBlindBoxShipment.toPhone}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-semibold">Phí ship:</span>{' '}
-                                                        <span>
-                                                            {Number(detailBlindBoxShipment.shipmentFee || 0).toLocaleString('vi-VN')}{' '}
-                                                            đ
-                                                        </span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-semibold">Trạng thái:</span>{' '}
-                                                        <span>
-                                                            {SHIPPING_STATUS_LABELS[
-                                                                detailBlindBoxShipment.shipmentStatus as ShippingStatus
-                                                            ] || detailBlindBoxShipment.shipmentStatus}
-                                                        </span>
-                                                    </div>
+                                    {/* Thanh trạng thái giao: luôn hiện để có thể đổi tab */}
+                                    {<>
+                                            <div className="flex flex-wrap items-center gap-2 py-3 border-b border-white/10 bg-white/[0.02] rounded-lg px-3 -mx-1">
+                                                <span className="text-xs text-muted-foreground shrink-0 font-medium">Trạng thái giao:</span>
+                                                <Button
+                                                    size="sm"
+                                                    variant={detailShippingStatusFilter === 'ALL' ? 'default' : 'outline'}
+                                                    className="text-xs"
+                                                    onClick={() => {
+                                                        setDetailShippingStatusFilter('ALL');
+                                                        setDetailByStatusPage(1);
+                                                        if (detailOrderId) loadDetailByShippingStatus(detailOrderId, 'ALL', 1);
+                                                    }}
+                                                >
+                                                    Tất cả
+                                                </Button>
+                                                {ALL_SHIPPING_STATUSES.map((st) => (
+                                                    <Button
+                                                        key={st}
+                                                        size="sm"
+                                                        variant={detailShippingStatusFilter === st ? 'default' : 'outline'}
+                                                        className="text-xs"
+                                                        onClick={() => {
+                                                            setDetailShippingStatusFilter(st);
+                                                            setDetailByStatusPage(1);
+                                                            if (detailOrderId) loadDetailByShippingStatus(detailOrderId, st, 1);
+                                                        }}
+                                                    >
+                                                        {SHIPPING_STATUS_LABELS[st] || st}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                            {detailByStatusLoading ? (
+                                                <div className="py-10 text-center text-sm text-muted-foreground">
+                                                    Đang tải theo trạng thái giao hàng...
+                                                </div>
+                                            ) : detailByStatusContent.length > 0 ? (
+                                            <div className="space-y-4 pt-3">
+                                                {detailByStatusContent.map((oi) => {
+                                                    const ship = oi.shipmentResponse;
+                                                    const sid = ship?.shipmentId ? String(ship.shipmentId) : '';
+                                                    const statusLabel = ship?.shipmentStatus
+                                                        ? (SHIPPING_STATUS_LABELS[ship.shipmentStatus as ShippingStatus] || ship.shipmentStatus)
+                                                        : '—';
+                                                    const items = oi.orderDetailResponseList || [];
+                                                    return (
+                                                        <div key={sid || Math.random()} className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden shadow-lg hover:bg-white/[0.05] transition-colors">
+                                                            <div className="p-4 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.02]">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-muted-foreground text-xs font-medium">Shipment</span>
+                                                                    <span className="font-mono text-xs font-semibold text-primary-300">#{sid.slice(0, 8) || '—'}</span>
+                                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] border border-primary-400/20 bg-primary-500/10 text-primary-200">
+                                                                        <Truck className="w-3 h-3" />
+                                                                        {statusLabel}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="text-xs"
+                                                                        onClick={() => setDetailTrackingShipmentId(sid || null)}
+                                                                    >
+                                                                        Xem tracking
+                                                                    </Button>
+                                                                    {sid && detailCanConfirmByShipmentId[sid] && (
+                                                                        <Button
+                                                                            size="sm"
+                                                                            className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                                                                            disabled={actionLoading}
+                                                                            onClick={async () => {
+                                                                                if (!sid) return;
+                                                                                setActionLoading(true);
+                                                                                try {
+                                                                                    await orderApi.confirmReceive(sid);
+                                                                                    if (detailOrderId) loadDetailByShippingStatus(detailOrderId, detailShippingStatusFilter, detailByStatusPage);
+                                                                                    pushToast({ title: 'Đã xác nhận đã nhận hàng', variant: 'success' });
+                                                                                } catch (e) {
+                                                                                    pushToast({ title: 'Không thể xác nhận', description: e instanceof Error ? e.message : '', variant: 'error' });
+                                                                                } finally {
+                                                                                    setActionLoading(false);
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            Xác nhận đã nhận
+                                                                        </Button>
+                                                                    )}
+                                                                    {sid && detailCanReturnByShipmentId[sid] && (
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            className="text-xs border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
+                                                                            onClick={() => {
+                                                                                setReturnCreateShipmentId(sid);
+                                                                                const list = (oi.orderDetailResponseList || []).filter((d) =>
+                                                                                    RETURN_ALLOWED_ORDER_ITEM_STATUSES.includes(String((d as any).orderItemStatus ?? '').toUpperCase()),
+                                                                                );
+                                                                                const itemList = list.map((d) => ({
+                                                                                    orderItemId: String(d.orderItemId),
+                                                                                    cardName: (d as any).cardName || (d as any).cardResponse?.name || 'Thẻ',
+                                                                                    cardImageUrl: (d as any).cardImageUrl || ((d as any).cardResponse ? getCardImageUrl((d as any).cardResponse) : undefined),
+                                                                                    quantity: Number(d.quantity ?? 0),
+                                                                                    price: Number(d.price ?? 0),
+                                                                                }));
+                                                                                setReturnCreateItems(itemList);
+                                                                                setReturnCreateItemIds(itemList.map((x) => x.orderItemId));
+                                                                                if (myProfile) {
+                                                                                    setReturnCreateSendPhone(myProfile.phone || '');
+                                                                                    setReturnCreateSendAddress(myProfile.address || '');
+                                                                                    setReturnCreateAddressPreset('PROFILE');
+                                                                                }
+                                                                                setReturnCreateOpen(true);
+                                                                            }}
+                                                                        >
+                                                                            Trả hàng
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="p-3">
+                                                                <table className="w-full text-sm">
+                                                                    <thead>
+                                                                        <tr className="border-b border-white/10">
+                                                                            <th className="text-left p-2">Sản phẩm</th>
+                                                                            <th className="text-right p-2">SL</th>
+                                                                            <th className="text-right p-2">Đơn giá</th>
+                                                                            <th className="text-right p-2">Trạng thái</th>
+                                                                            <th className="text-right p-2">Thao tác</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {items.map((d) => {
+                                                                            const oid = String(d.orderItemId);
+                                                                            const name = (d as any).cardName || (d as any).cardResponse?.name || 'Thẻ';
+                                                                            const img = (d as any).cardImageUrl || ((d as any).cardResponse ? getCardImageUrl((d as any).cardResponse) : undefined);
+                                                                            const itemStatus = (d as any).orderItemStatus ?? '—';
+                                                                            return (
+                                                                                <tr key={oid} className="border-b border-white/5">
+                                                                                    <td className="p-2">
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            {img ? (
+                                                                                                <img src={img} alt={name} className="w-12 h-16 rounded object-cover bg-white/5" />
+                                                                                            ) : (
+                                                                                                <div className="w-12 h-16 rounded bg-white/5 flex items-center justify-center text-lg">🎴</div>
+                                                                                            )}
+                                                                                            <span className="text-sm line-clamp-2">{name}</span>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td className="p-2 text-right">{Number(d.quantity ?? 0)}</td>
+                                                                                    <td className="p-2 text-right">{Number(d.price ?? 0).toLocaleString('vi-VN')} đ</td>
+                                                                                    <td className="p-2 text-right">
+                                                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-white/10 text-primary-200">
+                                                                                            {itemStatus}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="p-2 text-right">
+                                                                                        {detailCanCancelByItemId[oid] && (
+                                                                                            <Button
+                                                                                                size="sm"
+                                                                                                variant="outline"
+                                                                                                className="h-7 text-[11px] text-red-400 border-red-400/50 hover:bg-red-500/10"
+                                                                                                disabled={actionLoading}
+                                                                                                onClick={async () => {
+                                                                                                    if (!confirm(`Hủy sản phẩm #${oid.slice(0, 8)}?`)) return;
+                                                                                                    setActionLoading(true);
+                                                                                                    try {
+                                                                                                        await orderApi.cancelOrderItem(oid);
+                                                                                                        pushToast({ title: 'Đã hủy sản phẩm', variant: 'success' });
+                                                                                                        if (detailOrderId) loadDetailByShippingStatus(detailOrderId, detailShippingStatusFilter, detailByStatusPage);
+                                                                                                    } catch (err) {
+                                                                                                        pushToast({ title: 'Không thể hủy', description: err instanceof Error ? err.message : '', variant: 'error' });
+                                                                                                    } finally {
+                                                                                                        setActionLoading(false);
+                                                                                                    }
+                                                                                                }}
+                                                                                            >
+                                                                                                Hủy
+                                                                                            </Button>
+                                                                                        )}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            ) : (
+                                                <div className="py-6 text-center text-sm text-muted-foreground">
+                                                    Chưa có shipment nào với trạng thái này.
                                                 </div>
                                             )}
+                                            {/* Paging: hiện khi chọn 1 trạng thái (không phải Tất cả), page 1..totalPages */}
+                                            <div className="flex items-center justify-between pt-4 border-t border-white/10 text-sm">
+                                                <span className="text-muted-foreground">
+                                                    Trang {detailByStatusPage} / {detailByStatusTotalPages}
+                                                </span>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        disabled={detailByStatusPage <= 1 || detailByStatusLoading}
+                                                        onClick={() => {
+                                                            const next = Math.max(1, detailByStatusPage - 1);
+                                                            setDetailByStatusPage(next);
+                                                            if (detailOrderId) loadDetailByShippingStatus(detailOrderId, detailShippingStatusFilter, next);
+                                                        }}
+                                                    >
+                                                        Trước
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        disabled={detailByStatusPage >= detailByStatusTotalPages || detailByStatusLoading}
+                                                        onClick={() => {
+                                                            const next = detailByStatusPage + 1;
+                                                            setDetailByStatusPage(next);
+                                                            if (detailOrderId) loadDetailByShippingStatus(detailOrderId, detailShippingStatusFilter, next);
+                                                        }}
+                                                    >
+                                                        Sau
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         </>
-                                    ) : (
+                                    }
+
+                                    {detailItems.length > 0 ? (
                                         (() => {
-                                            // Nhóm product theo shipmentId để hiển thị giống từng "đơn nhỏ" trong order
+                                            // Nhóm product theo shipmentId (luồng cũ khi có detailItems)
                                             const shipmentForItem: Record<
                                                 string,
                                                 { shipmentId: string; status?: string }
@@ -2968,6 +2998,30 @@ export const OrdersPage: React.FC = () => {
                                                                     return raw;
                                                                 })()}
                                                             </span>
+                                                            {/* Nút hủy order item — chỉ hiện khi canCancelOrderItem = true */}
+                                                            {detailCanCancelByItemId[id] && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="mt-1 h-6 text-[11px] text-red-400 border-red-400/50 hover:bg-red-500/10"
+                                                                    disabled={actionLoading}
+                                                                    onClick={async () => {
+                                                                        if (!confirm(`Hủy sản phẩm #${id.slice(0, 8)}?`)) return;
+                                                                        setActionLoading(true);
+                                                                        try {
+                                                                            await orderApi.cancelOrderItem(id);
+                                                                            pushToast({ title: 'Đã hủy sản phẩm', variant: 'success' });
+                                                                            if (detailOrderId) await loadOrderDetail(detailOrderId);
+                                                                        } catch (err) {
+                                                                            pushToast({ title: 'Không thể hủy sản phẩm', description: err instanceof Error ? err.message : 'Có lỗi xảy ra.', variant: 'error' });
+                                                                        } finally {
+                                                                            setActionLoading(false);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    Hủy item
+                                                                </Button>
+                                                            )}
                                                             {viewMode === 'BUY' && (
                                                                 <div className="mt-1">
                                                                     {hasFeedback ? (
@@ -3265,9 +3319,8 @@ export const OrdersPage: React.FC = () => {
                                                                 </div>
                                                             )}
                                                             {viewMode === 'BUY' &&
-                                                                shippingStatus === 'DELIVERED' &&
                                                                 g.shipmentId &&
-                                                                g.items.length > 0 && (
+                                                                detailCanConfirmByShipmentId[g.shipmentId] && (
                                                                     <div className="mt-3 pt-3 border-t border-white/10 flex justify-end gap-2">
                                                                         <Button
                                                                             size="sm"
@@ -3275,19 +3328,8 @@ export const OrdersPage: React.FC = () => {
                                                                             disabled={actionLoading}
                                                                             onClick={async () => {
                                                                                 if (!detailOrderId) return;
-                                                                                const firstItem = g.items[0];
-                                                                                if (!firstItem?.orderItemId) return;
                                                                                 try {
                                                                                     setActionLoading(true);
-                                                                                    const canDo = await orderApi.canDo(
-                                                                                        String(firstItem.orderItemId),
-                                                                                    );
-                                                                                    if (!canDo.canConfirmRecieve) {
-                                                                                        alert(
-                                                                                            'Đơn này hiện không thể xác nhận nhận hàng.',
-                                                                                        );
-                                                                                        return;
-                                                                                    }
                                                                                     await orderApi.confirmReceive(g.shipmentId);
                                                                                     try {
                                                                                         window.dispatchEvent(
@@ -3297,15 +3339,17 @@ export const OrdersPage: React.FC = () => {
                                                                                         // ignore
                                                                                     }
                                                                                     await loadOrderDetail(detailOrderId);
-                                                                                    alert(
-                                                                                        'Đã xác nhận đã nhận hàng, tiền sẽ được chuyển cho người bán.',
-                                                                                    );
+                                                                                    pushToast({
+                                                                                        title: 'Đã xác nhận đã nhận hàng',
+                                                                                        description: 'Tiền sẽ được chuyển cho người bán.',
+                                                                                        variant: 'success',
+                                                                                    });
                                                                                 } catch (e) {
-                                                                                    alert(
-                                                                                        e instanceof Error
-                                                                                            ? e.message
-                                                                                            : 'Không thể xác nhận nhận hàng.',
-                                                                                    );
+                                                                                    pushToast({
+                                                                                        title: 'Không thể xác nhận nhận hàng',
+                                                                                        description: e instanceof Error ? e.message : 'Có lỗi xảy ra.',
+                                                                                        variant: 'error',
+                                                                                    });
                                                                                 } finally {
                                                                                     setActionLoading(false);
                                                                                 }
@@ -3348,8 +3392,11 @@ export const OrdersPage: React.FC = () => {
                                                                             size="sm"
                                                                             variant="outline"
                                                                             onClick={() => {
-                                                                                // Mở form tạo yêu cầu trả hàng cho toàn bộ sản phẩm trong shipment này
-                                                                                const items = g.items.map((it) => ({
+                                                                                // Mở form tạo yêu cầu trả hàng — chỉ item có status RECEIVED/RECIEVED mới được chọn
+                                                                                const allowed = g.items.filter((it) =>
+                                                                                    RETURN_ALLOWED_ORDER_ITEM_STATUSES.includes(String((it as any).orderItemStatus ?? '').toUpperCase()),
+                                                                                );
+                                                                                const items = allowed.map((it) => ({
                                                                                     orderItemId: String(it.orderItemId),
                                                                                     cardName: it.cardName,
                                                                                     cardImageUrl: it.cardImageUrl,
@@ -3438,11 +3485,16 @@ export const OrdersPage: React.FC = () => {
                                                 </div>
                                             );
                                         })()
-                                    )}
-                                    {/* Tóm tắt tiền kiểu Shopee (dialog chi tiết theo orderId) */}
-                                    {(() => {
+                                    ) : null}
+                                    {/* Tóm tắt tiền: chỉ hiện khi có nội dung (có shipment/blind box/detail items), không hiện khi trạng thái không có gì */}
+                                    {(detailByStatusContent.length > 0 || detailItems.length > 0) && (() => {
                                         const summary = buyOrders.find((o) => String(o.orderId) === String(detailOrderId || ''));
-                                        const itemsTotal = detailItems.reduce((s, it) => s + Number(it.price ?? 0) * Number(it.quantity ?? 0), 0);
+                                        const fromDetailItems = detailItems.reduce((s, it) => s + Number(it.price ?? 0) * Number(it.quantity ?? 0), 0);
+                                        const fromByStatus = detailByStatusContent.flatMap((o) => o.orderDetailResponseList || []).reduce(
+                                            (s, it) => s + Number(it.price ?? 0) * Number(it.quantity ?? 0),
+                                            0,
+                                        );
+                                        const itemsTotal = fromByStatus > 0 ? fromByStatus : fromDetailItems;
                                         const totalAmount = Number(summary?.totalAmount ?? 0);
                                         const shippingFee = Math.max(totalAmount - itemsTotal, 0);
                                         const shipDiscount = 0;
@@ -3488,15 +3540,15 @@ export const OrdersPage: React.FC = () => {
                     </DialogContent>
                 </Dialog>
 
-                {/* Chi tiết tracking từng shipment (kiểu Shopee) - mở khi bấm Shipment #id */}
+                {/* Tracking – modal to, timeline so le trái phải */}
                 <Dialog open={!!detailTrackingShipmentId} onOpenChange={(open) => { if (!open) { setDetailTrackingShipmentId(null); setTrackingImagePreviewUrl(null); } }}>
-                    <DialogContent className="max-w-[50vw]  h-[95vh] max-h-[95vh] flex flex-col overflow-hidden p-4 gap-0">
-                        <DialogHeader className="shrink-0">
-                            <DialogTitle className="flex items-center gap-2">
-                                <Truck className="w-5 h-5" />
+                    <DialogContent className="max-w-4xl w-[90vw] h-[90vh] max-h-[90vh] flex flex-col overflow-hidden p-6 gap-0 rounded-2xl border border-white/10 shadow-2xl">
+                        <DialogHeader className="shrink-0 pb-4 border-b border-white/10">
+                            <DialogTitle className="flex items-center gap-2 text-lg">
+                                <Truck className="w-6 h-6 text-primary-400" />
                                 Chi tiết tracking
                                 {detailTrackingShipmentId && (
-                                    <span className="font-mono text-sm text-muted-foreground">
+                                    <span className="font-mono text-sm text-muted-foreground font-normal">
                                         Shipment #{detailTrackingShipmentId.slice(0, 8)}
                                     </span>
                                 )}
@@ -3505,26 +3557,27 @@ export const OrdersPage: React.FC = () => {
                                 Lịch sử cập nhật trạng thái, thời gian và ảnh đính kèm (bấm ảnh để xem lớn).
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="flex-1 min-h-0 overflow-y-auto mt-2 space-y-3 pr-1">
+                        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden mt-4 pr-1 overscroll-contain">
                             {trackingDetailLoading ? (
-                                <p className="text-sm text-muted-foreground py-6 text-center">
+                                <p className="text-sm text-muted-foreground py-12 text-center">
                                     Đang tải chi tiết tracking...
                                 </p>
                             ) : detailTrackingShipmentId && (() => {
                                 const list = trackingDetailList;
                                 const sorted = [...list].sort((a, b) =>
-                                    (b.createAt || '').localeCompare(a.createAt || ''),
+                                    (a.createAt || '').localeCompare(b.createAt || ''),
                                 );
                                 const FALLBACK: Record<string, string> = { PENDING_APPROVED: 'Chờ xác nhận' };
                                 if (sorted.length === 0) {
                                     return (
-                                        <p className="text-sm text-muted-foreground py-4 text-center">
+                                        <p className="text-sm text-muted-foreground py-12 text-center">
                                             Chưa có lịch sử tracking cho shipment này.
                                         </p>
                                     );
                                 }
                                 return (
-                                    <>
+                                    <div className="relative">
+                                        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 -translate-x-1/2 bg-gradient-to-b from-primary-500/70 via-primary-400/30 to-white/10 rounded-full" />
                                         {sorted.map((tr, index) => {
                                             const statusLabel = tr.shippingStatus
                                                 ? (SHIPPING_STATUS_LABELS[tr.shippingStatus as ShippingStatus] ||
@@ -3538,24 +3591,19 @@ export const OrdersPage: React.FC = () => {
                                                 })
                                                 : '—';
                                             const images = tr.images || [];
-                                            return (
-                                                <div
-                                                    key={tr.trackingId}
-                                                    className="border border-white/10 rounded-lg p-3 bg-white/5 space-y-2"
-                                                >
-                                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                                        <span className="text-xs font-mono text-muted-foreground">
-                                                            {dateStr}
-                                                        </span>
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border border-white/20 bg-white/5">
-                                                            {statusLabel}
-                                                        </span>
+                                            const isLeft = index % 2 === 0;
+                                            const contentBox = (
+                                                <div className="rounded-xl border border-white/10 bg-white/5 p-4 w-full shadow-lg hover:bg-white/[0.07] transition-colors">
+                                                    <div className="font-mono text-sm text-primary-300/90">{dateStr}</div>
+                                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-primary-400/30 bg-primary-500/10 mt-2">
+                                                        <Truck className="w-4 h-4" />
+                                                        {statusLabel}
                                                     </div>
                                                     {tr.note && (
-                                                        <p className="text-sm text-muted-foreground">{tr.note}</p>
+                                                        <p className="text-sm text-muted-foreground mt-2">{tr.note}</p>
                                                     )}
                                                     {images.length > 0 && (
-                                                        <div className="flex flex-wrap gap-2 mt-2">
+                                                        <div className="flex flex-wrap gap-2 mt-3">
                                                             {images.map((img: { imageId?: string; url?: string; imageUrl?: string }, i: number) => {
                                                                 const rawUrl = img.imageUrl || img.url || '';
                                                                 const fullUrl = getFullImageUrl(rawUrl);
@@ -3563,36 +3611,41 @@ export const OrdersPage: React.FC = () => {
                                                                     <button
                                                                         key={img.imageId || i}
                                                                         type="button"
-                                                                        onClick={() => {
-                                                                            if (fullUrl) {
-                                                                                setTrackingImagePreviewUrl(fullUrl);
-                                                                            }
-                                                                        }}
-                                                                        className="rounded-lg overflow-hidden border border-white/20 hover:border-white/40 focus:outline-none focus:ring-2 focus:ring-white/30"
+                                                                        onClick={() => fullUrl && setTrackingImagePreviewUrl(fullUrl)}
+                                                                        className="rounded-xl overflow-hidden border-2 border-white/20 hover:border-primary-400/50 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-colors"
                                                                     >
                                                                         {rawUrl ? (
                                                                             <img
                                                                                 src={fullUrl}
                                                                                 alt={`Tracking ${index + 1}`}
-                                                                                className="w-20 h-20 object-cover cursor-pointer"
+                                                                                className="w-24 h-24 object-cover cursor-pointer"
                                                                             />
                                                                         ) : (
-                                                                            <div className="w-20 h-20 bg-white/10 flex items-center justify-center">
-                                                                                <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                                                                            <div className="w-24 h-24 bg-white/10 flex items-center justify-center">
+                                                                                <ImageIcon className="w-10 h-10 text-muted-foreground" />
                                                                             </div>
                                                                         )}
                                                                     </button>
                                                                 );
                                                             })}
-                                                            <span className="text-[11px] text-muted-foreground self-center">
-                                                                Bấm ảnh để xem
-                                                            </span>
+                                                            <span className="text-xs text-muted-foreground w-full block mt-1">Bấm ảnh để xem lớn</span>
                                                         </div>
                                                     )}
                                                 </div>
                                             );
+                                            return (
+                                                <div key={tr.trackingId} className="relative flex items-start pb-8 min-h-[80px]">
+                                                    <div className="w-[calc(50%-24px)] flex justify-end pr-3">
+                                                        {isLeft ? contentBox : <div className="min-h-[60px] w-full" aria-hidden />}
+                                                    </div>
+                                                    <div className="absolute left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-primary-500 border-4 border-background shrink-0 top-4 shadow-md z-10" />
+                                                    <div className="w-[calc(50%-24px)] pl-3">
+                                                        {!isLeft ? contentBox : <div className="min-h-[60px] w-full" aria-hidden />}
+                                                    </div>
+                                                </div>
+                                            );
                                         })}
-                                    </>
+                                    </div>
                                 );
                             })()}
                         </div>
@@ -3613,7 +3666,7 @@ export const OrdersPage: React.FC = () => {
                 </Dialog>
 
                 {/* Return request detail dialog (Shopee-like) */}
-                <Dialog open={!!selectedReturn} onOpenChange={(open) => { if (!open) setSelectedReturn(null); }}>
+                <Dialog open={!!selectedReturn} onOpenChange={(open) => { if (!open) { setSelectedReturn(null); setReturnImageLightbox(null); } }}>
                     <DialogContent className="w-[96vw] max-w-3xl max-h-[85vh] overflow-y-auto">
                         {selectedReturn && (
                             <>
@@ -3705,7 +3758,7 @@ export const OrdersPage: React.FC = () => {
 
                                                 <div className="border border-white/10 rounded-lg p-3 space-y-1">
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-xs text-muted-foreground">Tổng tiền hàng</span>
+                                                        <span className="text-xs text-muted-foreground">Tiền hàng (được hoàn)</span>
                                                         <span className="font-semibold">{goodsTotal.toLocaleString('vi-VN')} đ</span>
                                                     </div>
                                                     <button
@@ -3718,7 +3771,7 @@ export const OrdersPage: React.FC = () => {
                                                     {returnShowRefundDetail && (
                                                         <div className="mt-2 space-y-1 text-xs">
                                                             <div className="flex justify-between">
-                                                                <span className="text-muted-foreground">Số tiền hàng</span>
+                                                                <span className="text-muted-foreground">Số tiền được hoàn</span>
                                                                 <span className="font-semibold">{goodsTotal.toLocaleString('vi-VN')} đ</span>
                                                             </div>
                                                             <div className="flex justify-between">
@@ -3740,7 +3793,40 @@ export const OrdersPage: React.FC = () => {
                                         );
                                     })()}
 
-                                    {/* Lý do + xem chi tiết (kèm ảnh minh chứng) */}
+                                    {/* Tiền ship phải trả: luôn hiện (từ shipment hoặc return level) */}
+                                    <div className="border border-white/10 rounded-lg p-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-muted-foreground">Tiền ship (bạn phải trả)</span>
+                                            <span className="font-semibold">
+                                                {Number(
+                                                    selectedReturn.shipmentResponse?.shipmentFee ??
+                                                        (selectedReturn as any).returnShipmentFee ??
+                                                        (selectedReturn as any).shipmentFee ??
+                                                        0
+                                                ).toLocaleString('vi-VN')}{' '}
+                                                đ
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Địa chỉ lấy hàng (From address - nơi shipper đến lấy hàng) */}
+                                    {(selectedReturn.shipmentResponse?.fromAddress ?? (selectedReturn as any).pickupAddress ?? (selectedReturn as any).fromAddress) && (
+                                        <div className="border border-white/10 rounded-lg p-3">
+                                            <div className="text-xs text-muted-foreground mb-1">Địa chỉ lấy hàng</div>
+                                            <div className="text-sm">
+                                                {selectedReturn.shipmentResponse?.fromAddress ??
+                                                    (selectedReturn as any).pickupAddress ??
+                                                    (selectedReturn as any).fromAddress}
+                                            </div>
+                                            {selectedReturn.shipmentResponse?.fromPhone && (
+                                                <div className="text-xs text-muted-foreground mt-1">
+                                                    SĐT: {selectedReturn.shipmentResponse.fromPhone}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Lý do + ảnh minh chứng (luôn hiện ảnh nếu có) */}
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
                                             <div className="text-xs text-muted-foreground">Lý do hàng trả/hoàn tiền</div>
@@ -3761,29 +3847,39 @@ export const OrdersPage: React.FC = () => {
                                                 <div className="glass-card p-3 rounded-lg border border-white/10">
                                                     {selectedReturn.reason || '—'}
                                                 </div>
-                                                {(selectedReturn.listImages?.length ?? 0) > 0 && (
-                                                    <div>
-                                                        <div className="text-xs text-muted-foreground mb-2">Ảnh minh chứng</div>
-                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                                            {(selectedReturn.listImages || []).map((img: any, idx: number) => {
-                                                                const url = img.imageUrl || img.url;
-                                                                if (!url) return null;
-                                                                return (
-                                                                    <a key={idx} href={url} target="_blank" rel="noreferrer" className="block">
-                                                                        <img
-                                                                            src={url}
-                                                                            alt={`img-${idx}`}
-                                                                            className="w-full h-32 object-cover rounded-lg border border-white/10"
-                                                                        />
-                                                                    </a>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                )}
                                             </div>
                                         )}
                                     </div>
+                                    {/* Ảnh minh chứng: luôn hiện khi có, click mở lightbox (đóng + Trước/Sau) */}
+                                    {(() => {
+                                        const raw = selectedReturn.listImages ?? (selectedReturn as any).images ?? (selectedReturn as any).imageUrls ?? [];
+                                        const imgs = Array.isArray(raw) ? raw : [];
+                                        const urls = imgs
+                                            .map((img: any) => (typeof img === 'string' ? img : img?.imageUrl ?? img?.url))
+                                            .filter(Boolean) as string[];
+                                        if (!urls.length) return null;
+                                        return (
+                                            <div>
+                                                <div className="text-xs text-muted-foreground mb-2">Ảnh minh chứng (ấn vào ảnh để xem phóng to, chuyển ảnh)</div>
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                    {urls.map((url, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            className="block text-left rounded-lg border border-white/10 overflow-hidden focus:ring-2 focus:ring-primary focus:outline-none"
+                                                            onClick={() => setReturnImageLightbox({ urls, index: idx })}
+                                                        >
+                                                            <img
+                                                                src={url}
+                                                                alt={`Ảnh ${idx + 1}`}
+                                                                className="w-full h-32 object-cover"
+                                                            />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Shipment trả hàng + theo dõi hành trình */}
                                     {selectedReturn.shipmentResponse?.shipmentId && (
@@ -3800,12 +3896,6 @@ export const OrdersPage: React.FC = () => {
                                                             selectedReturn.shipmentResponse
                                                                 .shipmentStatus as ShippingStatus
                                                         ] || selectedReturn.shipmentResponse.shipmentStatus}
-                                                    </span>
-                                                </div>
-                                                <div className="text-xs">
-                                                    Phí ship:{' '}
-                                                    <span className="font-semibold">
-                                                        {Number(selectedReturn.shipmentResponse.shipmentFee ?? 0).toLocaleString('vi-VN')} đ
                                                     </span>
                                                 </div>
                                             </div>
@@ -3856,6 +3946,58 @@ export const OrdersPage: React.FC = () => {
                         )}
                     </DialogContent>
                 </Dialog>
+
+                {/* Lightbox ảnh minh chứng: ảnh nhỏ vừa đủ nhìn, căn giữa màn hình */}
+                <Dialog open={!!returnImageLightbox} onOpenChange={(open) => { if (!open) setReturnImageLightbox(null); }}>
+                    <DialogContent className="max-w-[min(480px,92vw)] max-h-[90vh] w-auto overflow-hidden p-4 flex flex-col items-center justify-center gap-3">
+                        {returnImageLightbox && returnImageLightbox.urls[returnImageLightbox.index] && (
+                            <>
+                                <div className="flex items-center justify-center min-h-[200px] w-full">
+                                    <img
+                                        src={returnImageLightbox.urls[returnImageLightbox.index]}
+                                        alt={`Ảnh ${returnImageLightbox.index + 1}`}
+                                        className="max-w-[min(420px,85vw)] max-h-[55vh] w-auto h-auto object-contain rounded"
+                                    />
+                                </div>
+                                <div className="flex items-center justify-center gap-2 flex-wrap">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={returnImageLightbox.index <= 0}
+                                        onClick={() =>
+                                            setReturnImageLightbox((prev) =>
+                                                prev && prev.index > 0 ? { ...prev, index: prev.index - 1 } : prev
+                                            )
+                                        }
+                                    >
+                                        ← Trước
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground px-2">
+                                        {returnImageLightbox.index + 1} / {returnImageLightbox.urls.length}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={returnImageLightbox.index >= returnImageLightbox.urls.length - 1}
+                                        onClick={() =>
+                                            setReturnImageLightbox((prev) =>
+                                                prev && prev.index < prev.urls.length - 1
+                                                    ? { ...prev, index: prev.index + 1 }
+                                                    : prev
+                                            )
+                                        }
+                                    >
+                                        Sau →
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={() => setReturnImageLightbox(null)}>
+                                        Đóng
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                    </DialogContent>
+                </Dialog>
+
                 {/* Confirm dialog (replaces window.confirm) */}
                 <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog((p) => ({ ...p, open }))}>
                     <DialogContent className="max-w-md">

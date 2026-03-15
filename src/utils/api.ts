@@ -1352,6 +1352,8 @@ export interface PageResponse<T> {
     totalElements: number;
     size: number;
     number: number;
+    /** BE có thể trả page (0-based) thay vì number; last = trang cuối */
+    last?: boolean;
 }
 
 // Order summary (BE: OrderResponse from GET /api/orders/my-orders)
@@ -1614,45 +1616,73 @@ export const transactionApi = {
 // Order API (đơn hàng: lấy theo trạng thái + tạo đơn mua từ sàn)
 export const orderApi = {
     getByShippingStatus: async (
+        orderId: string | undefined,
         shippingStatus: ShippingStatus,
-        page: number = 0,
+        page: number = 1,
         size: number = 10
     ): Promise<PageResponse<OrderItemResponse>> => {
-        const pageOneBased = Math.max(1, page + 1);
+
         const params = new URLSearchParams({
-            page: pageOneBased.toString(),
+            page: page.toString(),
             size: size.toString(),
         });
-        // BE: POST /api/orders/orderItems/status (body: { orderId?: UUID, shippingStatus: enum })
-        const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse>>>(
+
+        const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse> & { page?: number; last?: boolean }>>(
             `/orders/orderItems/status?${params.toString()}`,
             {
-                method: 'POST',
-                body: JSON.stringify({ shippingStatus }),
+                method: "POST",
+                body: JSON.stringify({
+                    orderId,
+                    shippingStatus
+                }),
             }
         );
-        return res.data;
+        const raw = res.data as any;
+        return {
+            content: raw?.content ?? [],
+            totalPages: raw?.totalPages ?? 1,
+            totalElements: raw?.totalElements ?? 0,
+            size: raw?.size ?? 10,
+            number: raw?.number ?? raw?.page ?? 0,
+            last: raw?.last,
+        };
     },
 
-    /** Lấy chi tiết orderItem theo orderId (BE: POST /api/orders/orderItems/status với body { orderId }) */
+    /** Lấy chi tiết orderItem theo orderId (BE: POST /api/orders/orderItems/status với body { orderId }); BE trả { content, page, size, totalElements, totalPages, last } */
     getOrderItemsByOrderId: async (
         orderId: string,
-        page: number = 0,
+        shippingStatus?: ShippingStatus,
+        page: number = 1,
         size: number = 50
     ): Promise<PageResponse<OrderItemResponse>> => {
-        const pageOneBased = Math.max(1, page + 1);
+    
         const params = new URLSearchParams({
-            page: pageOneBased.toString(),
+            page: page.toString(),
             size: size.toString(),
         });
-        const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse>>>(
+    
+        const body: any = { orderId };
+    
+        if (shippingStatus) {
+            body.shippingStatus = shippingStatus;
+        }
+    
+        const res = await apiRequest<ApiResponse<PageResponse<OrderItemResponse> & { page?: number; last?: boolean }>>(
             `/orders/orderItems/status?${params.toString()}`,
             {
-                method: 'POST',
-                body: JSON.stringify({ orderId }),
+                method: "POST",
+                body: JSON.stringify(body),
             }
         );
-        return res.data;
+        const raw = res.data as any;
+        return {
+            content: raw?.content ?? [],
+            totalPages: raw?.totalPages ?? 1,
+            totalElements: raw?.totalElements ?? 0,
+            size: raw?.size ?? 10,
+            number: raw?.number ?? raw?.page ?? 0,
+            last: raw?.last,
+        };
     },
 
     getByShippingStatusAdmin: async (
@@ -1694,17 +1724,43 @@ export const orderApi = {
         return res.data;
     },
 
-    /** Kiểm tra một order item hiện tại có thể cancel / confirm không (BE: GET /api/orders/can-do/{orderItemId}) */
-    canDo: async (orderItemId: string): Promise<{ canCancle: boolean; canConfirmRecieve: boolean }> => {
-        const res = await apiRequest<ApiResponse<{ canCancle: boolean; canConfirmRecieve: boolean }>>(
-            `/orders/can-do/${orderItemId}`,
+    // /** Kiểm tra một order item hiện tại có thể cancel / confirm không (BE: GET /api/orders/can-do/{orderItemId}) */
+    // canDo: async (orderItemId: string): Promise<{ canCancle: boolean; canConfirmRecieve: boolean }> => {
+    //     const res = await apiRequest<ApiResponse<{ canCancle: boolean; canConfirmRecieve: boolean }>>(
+    //         `/orders/can-do/${orderItemId}`,
+    //         {
+    //             method: 'GET',
+    //         }
+    //     );
+    //     return res.data;
+    // },\
+
+    canCancelOrderItem: async (
+        orderItemId: string
+    ): Promise<boolean> => {
+
+        const res = await apiRequest<ApiResponse<boolean>>(
+            `/orders/can-cancle-orderdetail/${orderItemId}`,
             {
-                method: 'GET',
+                method: "GET"
             }
         );
+
         return res.data;
     },
+    canConfirmShipment: async (
+        shipmentId: string
+    ): Promise<boolean> => {
 
+        const res = await apiRequest<ApiResponse<boolean>>(
+            `/orders/can-confirm/${shipmentId}`,
+            {
+                method: "GET"
+            }
+        );
+
+        return res.data;
+    },
     /** Buyer gửi đánh giá cho order item (sau khi đã nhận hàng). */
     createFeedback: async (orderItemId: string, rating: number, comment: string): Promise<{ feedbackId: string }> => {
         const res = await apiRequest<ApiResponse<{ feedbackId: string }>>('/orders/feedback', {
@@ -2614,7 +2670,7 @@ export const shipmentApi = {
                 "Content-Type": "application/json",
                 'Authorization': `Bearer ${tokenManager.getAccessToken()}`
             },
-             body: JSON.stringify({
+            body: JSON.stringify({
                 orderId: params.orderId,
                 toDistrictId: params.toDistrictId,
                 toWardId: params.toWardId,

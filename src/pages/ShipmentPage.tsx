@@ -58,8 +58,8 @@ export const ShipmentPage: React.FC = () => {
     const [updateNote, setUpdateNote] = useState('');
     const [updateFiles, setUpdateFiles] = useState<File[]>([]);
     const [submitting, setSubmitting] = useState(false);
-    const [allowed,setAllowed] = useState(false);
-        useEffect(() => {
+    const [allowed, setAllowed] = useState(false);
+    useEffect(() => {
         if (!isAuthenticated) {
             navigate('/login');
             return;
@@ -68,8 +68,7 @@ export const ShipmentPage: React.FC = () => {
             try {
                 const p = await userApi.getMyProfile();
                 setProfile(p);
-                const allowed = await shipmentApi.checkAllowReceive();
-                  setAllowed(allowed);
+
             } catch (err) {
                 const rawMessage = (err as Error).message || '';
                 const normalized = rawMessage.toLowerCase();
@@ -89,8 +88,8 @@ export const ShipmentPage: React.FC = () => {
                 }
 
                 setProfile(null);
-                  
-                  
+
+
             }
         };
         loadProfile();
@@ -104,7 +103,7 @@ export const ShipmentPage: React.FC = () => {
                 pageMine,
                 10
             );
-            console.log("My shipment ",res);
+            console.log("My shipment ", res);
             setMyShipments(res.content ?? []);
             setTotalPagesMine(res.totalPages ?? 1);
         } catch (err) {
@@ -130,6 +129,8 @@ export const ShipmentPage: React.FC = () => {
     const loadUnassigned = async () => {
         setLoading(true);
         try {
+            const allowed = await shipmentApi.checkAllowReceive();
+            setAllowed(allowed);
             const res = await shipmentApi.getNotAssignedShipments(pageUnassigned, 10);
             setUnassignedShipments(res.content ?? []);
             setTotalPagesUnassigned(res.totalPages ?? 1);
@@ -169,6 +170,7 @@ export const ShipmentPage: React.FC = () => {
             await shipmentApi.receiveShipment(String(shipment.shipmentId));
             setMessage({ type: 'success', text: 'Đã nhận đơn giao hàng.' });
             loadUnassigned();
+
         } catch (err) {
             setMessage({ type: 'error', text: (err as Error).message });
         } finally {
@@ -219,11 +221,10 @@ export const ShipmentPage: React.FC = () => {
 
                 {message && (
                     <div
-                        className={`mb-4 rounded-lg px-4 py-2 text-sm ${
-                            message.type === 'success'
+                        className={`mb-4 rounded-lg px-4 py-2 text-sm ${message.type === 'success'
                                 ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                                 : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                        }`}
+                            }`}
                     >
                         {message.text}
                     </div>
@@ -285,13 +286,12 @@ export const ShipmentPage: React.FC = () => {
                                                 #{s.shipmentId.slice(0, 8)}
                                             </span>
                                             <span
-                                                className={`px-2 py-0.5 rounded text-xs ${
-                                                    s.shipmentStatus === 'DELIVERED' || s.shipmentStatus === 'RECEIVED'
+                                                className={`px-2 py-0.5 rounded text-xs ${s.shipmentStatus === 'DELIVERED' || s.shipmentStatus === 'RECEIVED'
                                                         ? 'bg-green-500/20 text-green-400'
                                                         : s.shipmentStatus === 'CANCELLED'
-                                                        ? 'bg-red-500/20 text-red-400'
-                                                        : 'bg-amber-500/20 text-amber-400'
-                                                }`}
+                                                            ? 'bg-red-500/20 text-red-400'
+                                                            : 'bg-amber-500/20 text-amber-400'
+                                                    }`}
                                             >
                                                 {STATUS_LABEL[s.shipmentStatus] ?? s.shipmentStatus}
                                             </span>
@@ -365,9 +365,9 @@ export const ShipmentPage: React.FC = () => {
                                     Không có đơn chưa phân shipper.
                                 </CardContent>
                             </Card>
-                        ) :  !allowed ? (
-                            
-                             <Card className="glass-card border-white/10">
+                        ) : !allowed ? (
+
+                            <Card className="glass-card border-white/10">
                                 <CardContent className="py-12 text-center text-muted-foreground">
                                     Bạn có đơn hàng chưa hoàn thành
                                 </CardContent>
@@ -375,40 +375,40 @@ export const ShipmentPage: React.FC = () => {
                         )
                             :
                             (
-                            unassignedShipments.map((s) => (
-                                <Card key={s.shipmentId} className="glass-card border-white/10 hover:border-white/20">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base font-mono text-primary-400">
-                                            #{s.shipmentId.slice(0, 8)}
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-2 text-sm">
-                                        {s.toAddress && (
-                                            <p className="flex items-center gap-2">
-                                                <MapPin className="h-4 w-4 shrink-0 text-primary-400" />
-                                                {s.toAddress}
-                                            </p>
-                                        )}
-                                        {s.toPhone && (
-                                            <p className="flex items-center gap-2">
-                                                <Phone className="h-4 w-4 shrink-0 text-primary-400" />
-                                                {s.toPhone}
-                                            </p>
-                                        )}
-                                        <p className="font-medium">Phí ship: {Number(s.shipmentFee).toLocaleString('vi-VN')} ₫</p>
-                                        <Button
-                                            variant="default"
-                                            size="sm"
-                                            className="mt-2"
-                                            disabled={submitting}
-                                            onClick={() => handleAssignShipper(s)}
-                                        >
-                                            Nhận đơn
-                                        </Button>
-                                    </CardContent>
-                                </Card>
-                            ))
-                        )}
+                                unassignedShipments.map((s) => (
+                                    <Card key={s.shipmentId} className="glass-card border-white/10 hover:border-white/20">
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-base font-mono text-primary-400">
+                                                #{s.shipmentId.slice(0, 8)}
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-2 text-sm">
+                                            {s.toAddress && (
+                                                <p className="flex items-center gap-2">
+                                                    <MapPin className="h-4 w-4 shrink-0 text-primary-400" />
+                                                    {s.toAddress}
+                                                </p>
+                                            )}
+                                            {s.toPhone && (
+                                                <p className="flex items-center gap-2">
+                                                    <Phone className="h-4 w-4 shrink-0 text-primary-400" />
+                                                    {s.toPhone}
+                                                </p>
+                                            )}
+                                            <p className="font-medium">Phí ship: {Number(s.shipmentFee).toLocaleString('vi-VN')} ₫</p>
+                                            <Button
+                                                variant="default"
+                                                size="sm"
+                                                className="mt-2"
+                                                disabled={submitting}
+                                                onClick={() => handleAssignShipper(s)}
+                                            >
+                                                Nhận đơn
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+                                ))
+                            )}
                         {totalPagesUnassigned > 1 && (
                             <div className="flex justify-center gap-2 pt-4">
                                 <Button
