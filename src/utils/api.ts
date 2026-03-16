@@ -294,6 +294,13 @@ export const userApi = {
         return response.data;
     },
 
+    getUserById: async (userId: string): Promise<UserProfile> => {
+        const response = await apiRequest<ApiResponse<UserProfile>>(`/users/${userId}`, {
+            method: 'GET',
+        });
+        return response.data;
+    },
+
     register: async (data: RegisterRequest, avatar?: File): Promise<UserProfile> => {
         const formData = new FormData();
 
@@ -1055,7 +1062,23 @@ export interface ListingItem {
     sellerFeedbackCount?: number;
 }
 
+export interface ListSellerResponse {
+    listSellerId: string;
+    price: number;
+    quantity: number;
+    cardResponse: Card;
+    sellerResponse: UserProfile;
+}
+
 export const listSellerApi = {
+    getSellerListings: async (userId: string, page = 1, size = 10): Promise<PageResponse<ListSellerResponse>> => {
+        const res = await apiRequest<ApiResponse<PageResponse<ListSellerResponse>>>(
+            `/listseller/sell-listings/${userId}?page=${page}&size=${size}`,
+            { method: 'GET' },
+        );
+        return res.data;
+    },
+
     createListing: async (cardId: string, data: ListSellerRequest): Promise<unknown> => {
         const response = await apiRequest<ApiResponse<unknown>>(`/listseller/${cardId}`, {
             method: 'POST',
@@ -1414,12 +1437,36 @@ export interface OrderCardResponse {
     orderItems: OrderItemResponse[];
 }
 
+// Feedback
+export interface FeedbackRequest {
+    comment: string;
+    rating: number;
+    orderItemId: string;
+}
+
+export interface FeedbackImageResponse {
+    imageId?: string;
+    imageUrl?: string;
+    url?: string;
+}
+
+export interface FeedbackResponse {
+    feedBackId: string;
+    comment: string;
+    rating: number;
+    createdAt: string;
+    userResponse: UserProfile;
+    cardResponse: Card;
+    imageResponses: FeedbackImageResponse[];
+}
+
 // Payload tạo đơn từ sàn giao dịch (match OrderCardRequest ở BE)
 export interface CreateOrderRequest {
     buyerAddress: string;
     toDistrictId: number;
     toWardId: number;
     buyerPhone: string;
+    toName?: string;
     orderItemsList: {
         quantity: number;
         listSellerId: string;
@@ -1502,9 +1549,10 @@ export const transactionApi = {
 
     // Get my transaction history (backend dùng page 1-based)
     getMyTransactions: async (
-        statusPayment?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED',
+        statusPayment?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'REFUNDED' | 'ESCROWED' | 'RELEASED',
         page: number = 0,
-        size: number = 10
+        size: number = 10,
+        inFilter?: boolean,
     ): Promise<PageResponse<TransactionResponse>> => {
         const pageOneBased = Math.max(1, page + 1);
         const params = new URLSearchParams({
@@ -1514,6 +1562,9 @@ export const transactionApi = {
         if (statusPayment) {
             params.append('statusPayment', statusPayment);
         }
+         if (typeof inFilter === 'boolean') {
+             params.append('in', String(inFilter));
+         }
 
         const response = await apiRequest<ApiResponse<PageResponse<TransactionResponse>>>(
             `/transactions/me?${params.toString()}`,
@@ -1691,7 +1742,7 @@ export const orderApi = {
         size: number = 10
     ): Promise<PageResponse<OrderItemResponse>> => {
         // Hiện BE không có endpoint status-admin riêng; dùng chung /orders/orderItems/status để tránh gọi nhầm 404.
-        return orderApi.getByShippingStatus(shippingStatus, page, size);
+        return orderApi.getByShippingStatus(undefined, shippingStatus, page, size);
     },
 
     getByShippingStatusSeller: async (
@@ -1700,7 +1751,7 @@ export const orderApi = {
         size: number = 10
     ): Promise<PageResponse<OrderItemResponse>> => {
         // Hiện BE không có endpoint status-seller riêng; dùng chung /orders/orderItems/status để tránh gọi nhầm 404.
-        return orderApi.getByShippingStatus(shippingStatus, page, size);
+        return orderApi.getByShippingStatus(undefined, shippingStatus, page, size);
     },
 
     confirmReceive: async (shipmentId: string): Promise<OrderItemResponse> => {
@@ -1761,14 +1812,15 @@ export const orderApi = {
 
         return res.data;
     },
-    /** Buyer gửi đánh giá cho order item (sau khi đã nhận hàng). */
-    createFeedback: async (orderItemId: string, rating: number, comment: string): Promise<{ feedbackId: string }> => {
-        const res = await apiRequest<ApiResponse<{ feedbackId: string }>>('/orders/feedback', {
-            method: 'POST',
-            body: JSON.stringify({ orderItemId, rating, comment: comment || '' }),
-        });
-        return res.data;
-    },
+    // /** Buyer gửi đánh giá cho order item (sau khi đã nhận hàng). */
+    // createFeedback: async (orderItemId: string, rating: number, comment: string): Promise<{ feedbackId: string }> => {
+    //     // Tạm thời vẫn giữ cho tương thích, nhưng khuyến khích dùng feedbackApi.create
+    //     const res = await apiRequest<ApiResponse<{ feedbackId: string }>>('/feedbacks', {
+    //         method: 'POST',
+    //         body: JSON.stringify({ orderItemId, rating, comment: comment || '' }),
+    //     });
+    //     return res.data;
+    // },
 
     createOrder: async (payload: CreateOrderRequest): Promise<OrderCardResponse> => {
         const res = await apiRequest<ApiResponse<OrderCardResponse>>('/orders/create', {
@@ -1803,6 +1855,14 @@ export const orderApi = {
     cancelOrderItem: async (orderItemId: string): Promise<OrderDetailResponse> => {
         const res = await apiRequest<ApiResponse<OrderDetailResponse>>(`/orders/cancel/${orderItemId}`, {
             method: 'POST',
+        });
+        return res.data;
+    },
+
+    /** Lấy chi tiết đơn theo orderId (BE: GET /api/orders/{orderId}) */
+    getByOrderId: async (orderId: string): Promise<OrderCardResponse> => {
+        const res = await apiRequest<ApiResponse<OrderCardResponse>>(`/orders/${orderId}`, {
+            method: 'GET',
         });
         return res.data;
     },
@@ -1880,14 +1940,76 @@ export const orderApi = {
         );
         return res.data;
     },
+
+    // ... các hàm khác ...
+};
+
+// Feedback API
+export const feedbackApi = {
+    // POST /api/feedbacks (multipart/form-data: feedback + file[])
+    create: async (payload: FeedbackRequest, files: File[] = []): Promise<FeedbackResponse> => {
+        const formData = new FormData();
+        formData.append(
+            'feedback',
+            new Blob([JSON.stringify(payload)], { type: 'application/json' }),
+        );
+        files.forEach((f) => {
+            if (f) formData.append('file', f);
+        });
+
+        const token = tokenManager.getAccessToken();
+        const res = await fetch(`${API_BASE_URL}/feedbacks`, {
+            method: 'POST',
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: formData,
+        });
+
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(text || 'Gửi feedback thất bại');
+        }
+
+        const json: ApiResponse<FeedbackResponse> = await res.json();
+        return json.data;
+    },
+
+    // GET /api/feedbacks/check-can-feedback/{orderItemsId}
+    checkCanFeedback: async (orderItemId: string): Promise<boolean> => {
+        const res = await apiRequest<ApiResponse<boolean>>(
+            `/feedbacks/check-can-feedback/${orderItemId}`,
+            { method: 'GET' },
+        );
+        return res.data;
+    },
+
+    // GET /api/feedbacks/{userId}?page=&size=
+    getByUser: async (userId: string, page = 1, size = 10): Promise<PageResponse<FeedbackResponse>> => {
+        const res = await apiRequest<ApiResponse<PageResponse<FeedbackResponse>>>(
+            `/feedbacks/${userId}?page=${page}&size=${size}`,
+            { method: 'GET' },
+        );
+        return res.data;
+    },
 };
 
 // Return Request API (Trả hàng / hoàn tiền)
-export type ReturnRequestStatus = 'REQUESTED' | 'APPROVED' | 'PAID' | 'REJECTED' | 'CANCELED';
+export type ReturnRequestStatus =
+    | 'REQUESTED'
+    | 'APPROVED'
+    | 'PAID'
+    | 'REJECTED'
+    | 'CANCELED'
+    | 'CANCELLED'
+    | 'COMPLETE'
+    | 'COMPLETED';
 
 export interface ReturnRequestCreate {
     orderItemIds: string[];
     reason: string;
+    /** Tên người gửi (buyer gửi hàng trả về seller) */
+    sendName?: string;
     sendAddress?: string;
     sendDistrictId: number;
     sendWardId: number;
@@ -1899,6 +2021,8 @@ export interface ReturnRequestCanDo {
     /** BE typo: canjectOrApproved = canReject/canApprove for seller */
     canjectOrApproved: boolean;
     canPayment: boolean;
+    /** Seller có thể xác nhận đã nhận hàng trả (hoàn tất yêu cầu) */
+    canConfirmRecieved?: boolean;
 }
 
 export interface ReturnRequestItem {
@@ -2055,6 +2179,17 @@ export const returnRequestApi = {
         const res = await apiRequest<ApiResponse<ReturnRequestItem>>(`/return-requests/cancel/${returnRequestId}`, {
             method: 'POST',
         });
+        return res.data;
+    },
+
+    /** Seller xác nhận đã nhận được hàng trả (hoàn tất return request).
+     *  BE: POST /return-requests/comfirm-recieve/{id} (typo giữ nguyên theo backend)
+     */
+    confirmReceive: async (returnRequestId: string): Promise<ReturnRequestItem> => {
+        const res = await apiRequest<ApiResponse<ReturnRequestItem>>(
+            `/return-requests/comfirm-recieve/${returnRequestId}`,
+            { method: 'POST' }
+        );
         return res.data;
     },
 };
@@ -2458,6 +2593,7 @@ export const rateConfigApi = {
 // Shipment API
 export type ShippingStatus =
     | 'PENDING'
+    | 'PENDING_APPROVED'
     | 'ASIGNED'
     | 'PICKED_UP'
     | 'IN_TRANSIT'
@@ -2471,8 +2607,12 @@ export interface ShipmentResponse {
     shipmentId: string;
     toAddress?: string;
     toPhone?: string;
+    toName?: string;
+    toDistrictId?: number;
+    toWardId?: number;
     fromAddress?: string;
     fromPhone?: string;
+    fromName?: string;
     shipmentStatus: ShippingStatus;
     shipmentFee: number;
     createAt?: string;
@@ -2646,24 +2786,15 @@ export const shipmentApi = {
         return result.data;
     },
 
-    /** Tính lại phí ship khi đổi địa chỉ (BE: POST /shipments/calculate-fee). Dùng sau khi đã tạo order, trước khi thanh toán. */
+    /** Tính lại phí ship khi đổi địa chỉ / tên / SĐT (BE: POST /shipments/calculate-fee). */
     recalculateFee: async (params: {
         orderId: string;
         toDistrictId: number;
         toWardId: number;
-        newAddress: string
-
-    }): Promise<number> => {
-        // const res = await apiRequest<ApiResponse<number>>('/shipments/calculate-fee', {
-        //     method: 'POST',
-        //     body: JSON.stringify({
-        //         orderId: params.orderId,
-        //         toDistrictId: params.toDistrictId,
-        //         toWardId: params.toWardId,
-        //         newAddress: params.newAddress
-
-        //     }),
-        // });
+        newAddress: string;
+        toName?: string;
+        toPhone?: string;
+    }): Promise<ApiResponse<OrderCardResponse> | unknown> => {
         const res = await fetch(`${API_BASE_URL}/shipments/calculate-fee`, {
             method: "POST",
             headers: {
@@ -2674,11 +2805,11 @@ export const shipmentApi = {
                 orderId: params.orderId,
                 toDistrictId: params.toDistrictId,
                 toWardId: params.toWardId,
-                newAddress: params.newAddress
-
+                newAddress: params.newAddress,
+                ...(params.toName != null && { toName: params.toName }),
+                ...(params.toPhone != null && { toPhone: params.toPhone }),
             }),
-        })
-
+        });
         return res.json();
     },
 

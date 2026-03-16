@@ -8,10 +8,12 @@ import {
     PageResponse,
     userApi,
     UserProfile,
+    TrackingResponse,
+    getFullImageUrl,
 } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Package, Truck, MapPin, Phone, Calendar, RefreshCw } from 'lucide-react';
+import { Package, Truck, MapPin, Phone, Calendar, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -21,16 +23,21 @@ import {
     DialogFooter,
 } from '@/components/ui/dialog';
 
-const STATUS_LABEL: Record<ShippingStatus, string> = {
+const STATUS_LABEL: Record<string, string> = {
     PENDING: 'Chờ giao',
     ASIGNED: 'Đã phân shipper',
     PICKED_UP: 'Đã lấy hàng',
     IN_TRANSIT: 'Đang giao',
     DELIVERED: 'Đã giao',
-    FAILED: 'Thất bại'
+    FAILED: 'Thất bại',
+    RECEIVED: 'Đã nhận',
+    LOST: 'Thất lạc',
+    CANCELLED: 'Đã hủy',
+    PENDING_APPROVED: 'Chờ xác nhận',
 };
 
-const STATUS_OPTIONS: ShippingStatus[] = [
+const STATUS_FLOW: ShippingStatus[] = [
+    'PENDING_APPROVED',
     'PENDING',
     'ASIGNED',
     'PICKED_UP',
@@ -59,6 +66,11 @@ export const ShipmentPage: React.FC = () => {
     const [updateFiles, setUpdateFiles] = useState<File[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [allowed, setAllowed] = useState(false);
+    const [detailShipment, setDetailShipment] = useState<ShipmentResponse | null>(null);
+    const [detailTrackingShipmentId, setDetailTrackingShipmentId] = useState<string | null>(null);
+    const [trackingDetailList, setTrackingDetailList] = useState<TrackingResponse[]>([]);
+    const [trackingDetailLoading, setTrackingDetailLoading] = useState(false);
+    const [trackingImagePreviewUrl, setTrackingImagePreviewUrl] = useState<string | null>(null);
     useEffect(() => {
         if (!isAuthenticated) {
             navigate('/login');
@@ -207,6 +219,21 @@ export const ShipmentPage: React.FC = () => {
         }
     };
 
+    // Load tracking cho modal chi tiết shipment
+    useEffect(() => {
+        if (!detailTrackingShipmentId) {
+            setTrackingDetailList([]);
+            return;
+        }
+        setTrackingDetailLoading(true);
+        setTrackingDetailList([]);
+        shipmentApi
+            .getTrackingsByShipmentId(detailTrackingShipmentId)
+            .then((list: TrackingResponse[]) => setTrackingDetailList(list || []))
+            .catch(() => setTrackingDetailList([]))
+            .finally(() => setTrackingDetailLoading(false));
+    }, [detailTrackingShipmentId]);
+
     if (!isAuthenticated) return null;
 
     return (
@@ -293,11 +320,17 @@ export const ShipmentPage: React.FC = () => {
                                                             : 'bg-amber-500/20 text-amber-400'
                                                     }`}
                                             >
-                                                {STATUS_LABEL[s.shipmentStatus] ?? s.shipmentStatus}
+                                                {STATUS_LABEL[s.shipmentStatus] || 'Không rõ'}
                                             </span>
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-2 text-sm">
+                                        {s.toName && (
+                                            <p className="flex items-center gap-2">
+                                                <Truck className="h-4 w-4 shrink-0 text-primary-400" />
+                                                <span className="font-semibold">Người nhận:</span> {s.toName}
+                                            </p>
+                                        )}
                                         {s.toAddress && (
                                             <p className="flex items-center gap-2">
                                                 <MapPin className="h-4 w-4 shrink-0 text-primary-400" />
@@ -319,16 +352,35 @@ export const ShipmentPage: React.FC = () => {
                                         <p className="font-medium">
                                             Phí ship: {Number(s.shipmentFee).toLocaleString('vi-VN')} ₫
                                         </p>
-                                        {s.shipmentStatus !== 'DELIVERED' && s.shipmentStatus !== 'RECEIVED' && (
+                                        <div className="flex gap-2 mt-2">
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                className="mt-2"
-                                                onClick={() => handleOpenUpdate(s)}
+                                                onClick={() => {
+                                                    setDetailShipment(s);
+                                                }}
                                             >
-                                                Cập nhật trạng thái
+                                                Xem chi tiết
                                             </Button>
-                                        )}
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setDetailTrackingShipmentId(String(s.shipmentId));
+                                                }}
+                                            >
+                                                Xem tracking
+                                            </Button>
+                                            {s.shipmentStatus !== 'DELIVERED' && s.shipmentStatus !== 'RECEIVED' && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleOpenUpdate(s)}
+                                                >
+                                                    Cập nhật trạng thái
+                                                </Button>
+                                            )}
+                                        </div>
                                     </CardContent>
                                 </Card>
                             ))
@@ -383,6 +435,12 @@ export const ShipmentPage: React.FC = () => {
                                             </CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-2 text-sm">
+                                            {s.toName && (
+                                                <p className="flex items-center gap-2">
+                                                    <Truck className="h-4 w-4 shrink-0 text-primary-400" />
+                                                    <span className="font-semibold">Người nhận:</span> {s.toName}
+                                                </p>
+                                            )}
                                             {s.toAddress && (
                                                 <p className="flex items-center gap-2">
                                                     <MapPin className="h-4 w-4 shrink-0 text-primary-400" />
@@ -437,7 +495,7 @@ export const ShipmentPage: React.FC = () => {
             </div>
 
             <Dialog open={!!updateModal} onOpenChange={() => setUpdateModal(null)}>
-                <DialogContent className="glass-card border-white/20 bg-gray-900/95">
+                <DialogContent className="glass-card border-white/20 bg-gray-900/95 max-w-md w-[90vw] mx-auto">
                     <DialogHeader>
                         <DialogTitle>Cập nhật trạng thái đơn</DialogTitle>
                         <DialogDescription>
@@ -448,17 +506,23 @@ export const ShipmentPage: React.FC = () => {
                         <div className="space-y-4 py-2">
                             <div>
                                 <label className="block text-sm font-medium mb-1">Trạng thái</label>
-                                <select
-                                    className="w-full rounded-md border border-white/20 bg-black/30 text-foreground px-3 py-2"
-                                    value={updateStatus}
-                                    onChange={(e) => setUpdateStatus(e.target.value as ShippingStatus)}
-                                >
-                                    {STATUS_OPTIONS.map((st) => (
-                                        <option key={st} value={st}>
-                                            {STATUS_LABEL[st]}
-                                        </option>
-                                    ))}
-                                </select>
+                                {(() => {
+                                    const currentIndex = STATUS_FLOW.indexOf(updateModal.shipmentStatus);
+                                    const allowedNext = currentIndex >= 0 ? STATUS_FLOW.slice(currentIndex) : STATUS_FLOW;
+                                    return (
+                                        <select
+                                            className="w-full rounded-md border border-white/20 bg-black/30 text-foreground px-3 py-2"
+                                            value={updateStatus}
+                                            onChange={(e) => setUpdateStatus(e.target.value as ShippingStatus)}
+                                        >
+                                            {allowedNext.map((st) => (
+                                                <option key={st} value={st}>
+                                                    {STATUS_LABEL[st]}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    );
+                                })()}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1">Ghi chú (tùy chọn)</label>
@@ -489,6 +553,221 @@ export const ShipmentPage: React.FC = () => {
                             {submitting ? 'Đang xử lý...' : 'Cập nhật'}
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Chi tiết shipment cho shipper: người gửi/nhận + tracking giống OrdersPage */}
+            <Dialog
+                open={!!detailShipment}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setDetailShipment(null);
+                        setDetailTrackingShipmentId(null);
+                    }
+                }}
+            >
+                <DialogContent className="max-w-3xl w-[92vw] md:w-[58vw] max-h-[70vh] flex flex-col overflow-hidden p-4 gap-0 rounded-xl border border-white/10 shadow-2xl">
+                    {detailShipment && (
+                        <>
+                            <DialogHeader className="shrink-0 pb-4 border-b border-white/10">
+                                <DialogTitle className="flex items-center justify-between gap-2 flex-wrap text-lg">
+                                    <div className="flex items-center gap-2">
+                                        <Truck className="w-5 h-5 text-primary-400" />
+                                        <span className="font-mono text-sm text-primary-300">
+                                            Shipment #{String(detailShipment.shipmentId).slice(0, 8)}
+                                        </span>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border border-primary-400/20 bg-primary-500/10 text-primary-200">
+                                        {STATUS_LABEL[detailShipment.shipmentStatus] || 'Không rõ'}
+                                    </span>
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Thông tin người gửi / người nhận và lịch sử cập nhật trạng thái shipment.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="flex-1 min-h-0 overflow-y-auto mt-4 space-y-4 pr-1">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                    <div className="space-y-2">
+                                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                            Người nhận
+                                        </h3>
+                                        <p className="flex items-center gap-2">
+                                            <Truck className="h-4 w-4 shrink-0 text-primary-400" />
+                                            <span>{detailShipment.toName || '—'}</span>
+                                        </p>
+                                        {detailShipment.toPhone && (
+                                            <p className="flex items-center gap-2">
+                                                <Phone className="h-4 w-4 shrink-0 text-primary-400" />
+                                                <span>{detailShipment.toPhone}</span>
+                                            </p>
+                                        )}
+                                        {detailShipment.toAddress && (
+                                            <p className="flex items-center gap-2">
+                                                <MapPin className="h-4 w-4 shrink-0 text-primary-400" />
+                                                <span>{detailShipment.toAddress}</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                            Người gửi
+                                        </h3>
+                                        <p className="flex items-center gap-2">
+                                            <Truck className="h-4 w-4 shrink-0 text-primary-400" />
+                                            <span>{detailShipment.fromName || '—'}</span>
+                                        </p>
+                                        {detailShipment.fromPhone && (
+                                            <p className="flex items-center gap-2">
+                                                <Phone className="h-4 w-4 shrink-0 text-primary-400" />
+                                                <span>{detailShipment.fromPhone}</span>
+                                            </p>
+                                        )}
+                                        {detailShipment.fromAddress && (
+                                            <p className="flex items-center gap-2">
+                                                <MapPin className="h-4 w-4 shrink-0 text-primary-400" />
+                                                <span>{detailShipment.fromAddress}</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                            </div>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal tracking riêng (giống OrdersPage) */}
+            <Dialog
+                open={!!detailTrackingShipmentId}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setDetailTrackingShipmentId(null);
+                        setTrackingDetailList([]);
+                    }
+                }}
+            >
+                <DialogContent className="max-w-4xl w-[90vw] h-[85vh] max-h-[85vh] flex flex-col overflow-hidden p-6 gap-0 rounded-2xl border border-white/10 shadow-2xl">
+                    <DialogHeader className="shrink-0 pb-4 border-b border-white/10">
+                        <DialogTitle className="flex items-center gap-2 text-lg">
+                            <Truck className="w-5 h-5 text-primary-400" />
+                            <span>Chi tiết tracking</span>
+                            {detailTrackingShipmentId && (
+                                <span className="font-mono text-sm text-muted-foreground font-normal">
+                                    Shipment #{detailTrackingShipmentId.slice(0, 8)}
+                                </span>
+                            )}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Lịch sử cập nhật trạng thái, thời gian và ảnh đính kèm (bấm ảnh để xem lớn).
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden mt-4 pr-1 overscroll-contain">
+                        {trackingDetailLoading ? (
+                            <p className="text-sm text-muted-foreground py-12 text-center">
+                                Đang tải chi tiết tracking...
+                            </p>
+                        ) : detailTrackingShipmentId && (() => {
+                            const list = trackingDetailList;
+                            const sorted = [...list].sort((a, b) =>
+                                (a.createAt || '').localeCompare(b.createAt || ''),
+                            );
+                            if (sorted.length === 0) {
+                                return (
+                                    <p className="text-sm text-muted-foreground py-12 text-center">
+                                        Chưa có lịch sử tracking cho shipment này.
+                                    </p>
+                                );
+                            }
+                            return (
+                                <div className="relative">
+                                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 -translate-x-1/2 bg-gradient-to-b from-primary-500/70 via-primary-400/30 to-white/10 rounded-full" />
+                                    {sorted.map((tr, index) => {
+                                        const statusLabel = tr.shippingStatus
+                                            ? (STATUS_LABEL[tr.shippingStatus] || 'Không rõ')
+                                            : '—';
+                                        const dateStr = tr.createAt
+                                            ? new Date(tr.createAt).toLocaleString('vi-VN', {
+                                                dateStyle: 'short',
+                                                timeStyle: 'short',
+                                            })
+                                            : '—';
+                                        const images = tr.images || [];
+                                        const isLeft = index % 2 === 0;
+                                        const contentBox = (
+                                            <div className="rounded-xl border border-white/10 bg-white/5 p-4 w-full shadow-lg hover:bg-white/[0.07] transition-colors">
+                                                <div className="font-mono text-sm text-primary-300/90">{dateStr}</div>
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-primary-400/30 bg-primary-500/10 mt-2">
+                                                    <Truck className="w-4 h-4" />
+                                                    {statusLabel}
+                                                </div>
+                                                {tr.note && (
+                                                    <p className="text-sm text-muted-foreground mt-2">{tr.note}</p>
+                                                )}
+                                                {images.length > 0 && (
+                                                    <div className="flex flex-wrap gap-2 mt-3">
+                                                        {images.map((img: { imageId?: string; url?: string; imageUrl?: string }, i: number) => {
+                                                            const rawUrl = img.imageUrl || img.url || '';
+                                                            const fullUrl = getFullImageUrl(rawUrl);
+                                                            return (
+                                                                <button
+                                                                    key={img.imageId || i}
+                                                                    type="button"
+                                                                    onClick={() => fullUrl && setTrackingImagePreviewUrl(fullUrl)}
+                                                                    className="rounded-lg overflow-hidden border-2 border-white/20 hover:border-primary-400/50 focus:outline-none focus:ring-2 focus:ring-primary-400/50 transition-colors"
+                                                                >
+                                                                    {rawUrl ? (
+                                                                        <img
+                                                                            src={fullUrl}
+                                                                            alt={`Tracking ${index + 1}`}
+                                                                            className="w-20 h-20 object-cover cursor-pointer"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="w-20 h-20 bg-white/10 flex items-center justify-center">
+                                                                            <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                                                                        </div>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                        <span className="text-xs text-muted-foreground w-full block mt-1">Bấm ảnh để xem lớn</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                        return (
+                                            <div
+                                                key={tr.trackingId}
+                                                className={`relative flex items-center mb-8 ${isLeft ? 'justify-start' : 'justify-end'
+                                                    }`}
+                                            >
+                                                <div
+                                                    className={`w-1/2 ${isLeft ? 'pr-6' : 'pl-6'}`}
+                                                >
+                                                    {contentBox}
+                                                </div>
+                                                <div className="absolute left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-primary-400 border-2 border-gray-900" />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Xem ảnh tracking phóng to */}
+            <Dialog open={!!trackingImagePreviewUrl} onOpenChange={(open) => { if (!open) setTrackingImagePreviewUrl(null); }}>
+                <DialogContent className="max-w-[90vw] max-h-[90vh] w-auto overflow-hidden p-2 flex items-center justify-center">
+                    {trackingImagePreviewUrl && (
+                        <img
+                            src={trackingImagePreviewUrl}
+                            alt="Ảnh tracking"
+                            className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded"
+                        />
+                    )}
                 </DialogContent>
             </Dialog>
         </div>

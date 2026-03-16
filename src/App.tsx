@@ -44,6 +44,7 @@ import { WishlistPage } from '@/pages/WishlistPage';
 import { WishlistDetailPage } from '@/pages/WishlistDetailPage';
 import { SellerCardRequestPage } from '@/pages/SellerCardRequestPage';
 import { MyCardRequestsPage } from '@/pages/MyCardRequestsPage';
+import { SellerProfilePage } from '@/pages/SellerProfilePage';
 
 // Placeholder pages
 const ShopPage = () => {
@@ -118,6 +119,7 @@ function App() {
                         <Route path="sell/request-card" element={<SellerCardRequestPage />} />
                         <Route path="my-card-requests" element={<MyCardRequestsPage />} />
                         <Route path="profile" element={<ProfilePage />} />
+                        <Route path="seller/:sellerId" element={<SellerProfilePage />} />
                         <Route path="orders" element={<OrdersPage />} />
                         <Route path="wishlist" element={<WishlistPage />} />
                         <Route path="wishlist/:cardId" element={<WishlistDetailPage />} />
