@@ -6,7 +6,7 @@ import {
     Settings, Image as ImageIcon, CreditCard,
     Briefcase, Activity, Heart, Trash2, Package, Star
 } from 'lucide-react';
-import { userApi, UserProfile, transactionApi, cardApi, listSellerApi, ListingItem, UpdateProfileRequest, WishlistItem, Card as CardType, getCardImageUrl } from '@/utils/api';
+import { userApi, UserProfile, transactionApi, cardApi, listSellerApi, ListingItem, ListSellerResponse, UpdateProfileRequest, WishlistItem, Card as CardType, feedbackApi, FeedbackResponse, getFullImageUrl } from '@/utils/api';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +28,9 @@ export const Profile: React.FC = () => {
     const [stats, setStats] = useState({ listingsCount: 0, wishlistCount: 0, transactionsCount: 0 });
     const [listings, setListings] = useState<ListingItem[]>([]);
     const [listingsLoading, setListingsLoading] = useState(false);
+    const [listingsPage, setListingsPage] = useState(1);
+    const [listingsTotalPages, setListingsTotalPages] = useState(0);
+    const [listingsTotalElements, setListingsTotalElements] = useState(0);
     const [wishlistRows, setWishlistRows] = useState<{ item: WishlistItem; card: CardType | null }[]>([]);
     const [wishlistTotal, setWishlistTotal] = useState(0);
     const [wishlistLoading, setWishlistLoading] = useState(false);
@@ -36,6 +39,15 @@ export const Profile: React.FC = () => {
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+    // Feedback
+    const [feedbackList, setFeedbackList] = useState<FeedbackResponse[]>([]);
+    const [feedbackPage, setFeedbackPage] = useState(1);
+    const [feedbackTotalPages, setFeedbackTotalPages] = useState(0);
+    const [feedbackTotalElements, setFeedbackTotalElements] = useState(0);
+    const [feedbackLoading, setFeedbackLoading] = useState(false);
+    const [feedbackAvgRating, setFeedbackAvgRating] = useState(0);
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
 
     // Check for payment callback parameters
     useEffect(() => {
@@ -78,10 +90,10 @@ export const Profile: React.FC = () => {
 
     // Fetch stats (listings, wishlist, transactions) - wishlist từ API backend
     const fetchStats = async () => {
-        if (!isAuthenticated) return;
+        if (!isAuthenticated || !profile?.userId) return;
         try {
             const [listingsRes, wishlistRes, transactionsRes] = await Promise.all([
-                listSellerApi.getMyListings(0, 1),
+                listSellerApi.getSellerListings(profile.userId, 1, 1),
                 cardApi.getUserWishlist(0, 1),
                 transactionApi.getMyTransactions(undefined, 0, 1),
             ]);
@@ -151,14 +163,30 @@ export const Profile: React.FC = () => {
         }
     };
 
-    // Fetch my listings for "Đang bán" section
-    const fetchListings = async () => {
-        if (!isAuthenticated) return;
+    const fetchListings = async (page: number = 1) => {
+        if (!isAuthenticated || !profile?.userId) return;
         setListingsLoading(true);
         try {
-            const res = await listSellerApi.getMyListings(0, 8);
-            const content = (res.content ?? []) as ListingItem[];
-            setListings(Array.isArray(content) ? content : []);
+            const res = await listSellerApi.getSellerListings(profile.userId, page, 8);
+            const content: ListingItem[] = (res.content ?? []).map((item: ListSellerResponse) => ({
+                listSellerId: item.listSellerId,
+                price: item.price,
+                quantity: item.quantity,
+                status: 'ON',
+                sellerId: item.sellerResponse?.userId ?? '',
+                sellerName: item.sellerResponse?.name,
+                cardId: item.cardResponse?.cardId ?? '',
+                cardName: item.cardResponse?.name ?? 'Thẻ',
+                imageUrl: (item.cardResponse?.imageUrl as any)?.[0]?.imageUrl || '',
+                categoryName: item.cardResponse?.categoryName,
+                rarity: item.cardResponse?.rarity ?? 'COMMON',
+                basePrice: item.cardResponse?.basePrice ?? 0,
+                minPrice: item.cardResponse?.minPrice,
+                maxPrice: item.cardResponse?.maxPrice,
+            }));
+            setListings(content);
+            setListingsTotalPages(res.totalPages ?? 0);
+            setListingsTotalElements(res.totalElements ?? 0);
         } catch {
             setListings([]);
         } finally {
@@ -167,7 +195,31 @@ export const Profile: React.FC = () => {
     };
 
     useEffect(() => {
-        if (profile?.userId) fetchListings();
+        if (profile?.userId) fetchListings(1);
+    }, [profile?.userId]);
+
+    const fetchFeedback = async (page: number) => {
+        if (!profile?.userId) return;
+        setFeedbackLoading(true);
+        try {
+            const res = await feedbackApi.getByUser(profile.userId, page, 5);
+            setFeedbackList(res.content ?? []);
+            setFeedbackTotalPages(res.totalPages ?? 0);
+            setFeedbackTotalElements(res.totalElements ?? 0);
+
+            if (page === 1 && (res.content ?? []).length > 0) {
+                const sum = (res.content ?? []).reduce((s, f) => s + (f.rating ?? 0), 0);
+                setFeedbackAvgRating(res.totalElements > 0 ? sum / (res.content ?? []).length : 0);
+            }
+        } catch {
+            setFeedbackList([]);
+        } finally {
+            setFeedbackLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (profile?.userId) fetchFeedback(1);
     }, [profile?.userId]);
 
     const openEditProfile = () => {
@@ -277,7 +329,7 @@ export const Profile: React.FC = () => {
     };
 
     const totalValue = profile?.walletResponse?.balance ?? 0;
-    const [activeTab, setActiveTab] = useState<'stats' | 'badges' | 'support'>('stats');
+    const [activeTab, setActiveTab] = useState<'stats' | 'feedback'>('stats');
 
     if (isLoading) {
         return (
@@ -351,8 +403,15 @@ export const Profile: React.FC = () => {
                     </div>
 
                     <div className="flex-1 mb-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <h1 className="text-2xl font-bold text-white">{profile.name}</h1>
+                            {feedbackTotalElements > 0 && (
+                                <span className="flex items-center gap-1 text-sm text-yellow-400">
+                                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                                    {feedbackAvgRating.toFixed(1)}
+                                    <span className="text-muted-foreground">({feedbackTotalElements})</span>
+                                </span>
+                            )}
                             <button
                                 type="button"
                                 onClick={openEditProfile}
@@ -387,26 +446,26 @@ export const Profile: React.FC = () => {
             <div className="px-4 space-y-6">
                 {/* 2. Stats Bar (API) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card className="bg-transparent border-none shadow-none">
-                        <CardContent className="p-4 text-center">
+                    <Card className="bg-white/5 border border-white/10 rounded-xl shadow-none">
+                        <CardContent className="p-4 flex flex-col items-center justify-center text-center">
                             <div className="text-xs font-bold text-[#FFF9C4] uppercase tracking-wider mb-1">Đang bán</div>
                             <div className="text-2xl font-bold text-blue-400">{stats.listingsCount}</div>
                         </CardContent>
                     </Card>
-                    <Card className="bg-transparent border-none shadow-none">
-                        <CardContent className="p-4 text-center">
+                    <Card className="bg-white/5 border border-white/10 rounded-xl shadow-none">
+                        <CardContent className="p-4 flex flex-col items-center justify-center text-center">
                             <div className="text-xs font-bold text-[#E1F5FE] uppercase tracking-wider mb-1">Wishlist</div>
                             <div className="text-2xl font-bold text-blue-400">{stats.wishlistCount}</div>
                         </CardContent>
                     </Card>
-                    <Card className="bg-transparent border-none shadow-none">
-                        <CardContent className="p-4 text-center">
+                    <Card className="bg-white/5 border border-white/10 rounded-xl shadow-none">
+                        <CardContent className="p-4 flex flex-col items-center justify-center text-center">
                             <div className="text-xs font-bold text-[#E8F5E9] uppercase tracking-wider mb-1">Giao dịch</div>
                             <div className="text-2xl font-bold text-green-400">{stats.transactionsCount}</div>
                         </CardContent>
                     </Card>
-                    <Card className="bg-transparent border-none shadow-none">
-                        <CardContent className="p-4 text-center">
+                    <Card className="bg-white/5 border border-white/10 rounded-xl shadow-none">
+                        <CardContent className="p-4 flex flex-col items-center justify-center text-center">
                             <div className="text-xs font-bold text-[#FFEBEE] uppercase tracking-wider mb-1">Số dư ví</div>
                             <div className="text-2xl font-bold text-red-400">{totalValue.toLocaleString('vi-VN')} đ</div>
                         </CardContent>
@@ -424,20 +483,30 @@ export const Profile: React.FC = () => {
                 </div>
 
                 {/* 4. Tabs */}
-                <div className="grid grid-cols-3 gap-1 bg-white/5 p-1 rounded-lg">
-                    {['stats', 'badges', 'support'].map((tab) => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab as any)}
-                            className={`py-2 text-sm font-medium rounded-md ${activeTab === tab
-                                ? 'bg-primary-500 text-white shadow-lg'
-                                : 'text-muted-foreground hover:text-white hover:bg-white/5'
-                                }`}
-                        >
-                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                        </button>
-                    ))}
+                <div className="grid grid-cols-2 gap-1 bg-white/5 p-1 rounded-lg">
+                    <button
+                        onClick={() => setActiveTab('stats')}
+                        className={`py-2 text-sm font-medium rounded-md ${activeTab === 'stats'
+                            ? 'bg-primary-500 text-white shadow-lg'
+                            : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                            }`}
+                    >
+                        Tổng quan
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('feedback')}
+                        className={`py-2 text-sm font-medium rounded-md ${activeTab === 'feedback'
+                            ? 'bg-primary-500 text-white shadow-lg'
+                            : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                            }`}
+                    >
+                        Đánh giá ({feedbackTotalElements})
+                    </button>
                 </div>
+
+                {/* ===== Tab: Stats ===== */}
+                {activeTab === 'stats' && (
+                <>
 
                 {/* 5. Wallet Section */}
                 <div>
@@ -532,8 +601,8 @@ export const Profile: React.FC = () => {
                     <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-[#FFF9C4]">
                         <Package className="w-5 h-5" />
                         Đang bán
-                        {listings.length > 0 && (
-                            <span className="text-sm font-normal text-muted-foreground">({stats.listingsCount} tin)</span>
+                        {listingsTotalElements > 0 && (
+                            <span className="text-sm font-normal text-muted-foreground">({listingsTotalElements} tin)</span>
                         )}
                     </h3>
                     {listingsLoading ? (
@@ -588,10 +657,45 @@ export const Profile: React.FC = () => {
                                     </Card>
                                 ))}
                             </div>
-                            {stats.listingsCount > 8 && (
-                                <div className="mt-4 text-center">
-                                    <Button variant="outline" size="sm" onClick={() => navigate('/my-listings')}>
-                                        Xem tất cả tin đăng
+                            {listingsTotalPages > 1 && (
+                                <div className="flex items-center justify-center gap-2 mt-6">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={listingsPage <= 1}
+                                        onClick={() => {
+                                            const p = listingsPage - 1;
+                                            setListingsPage(p);
+                                            fetchListings(p);
+                                        }}
+                                    >
+                                        ‹
+                                    </Button>
+                                    {Array.from({ length: listingsTotalPages }, (_, i) => i + 1).map((p) => (
+                                        <Button
+                                            key={p}
+                                            size="sm"
+                                            variant={p === listingsPage ? 'default' : 'outline'}
+                                            className={p === listingsPage ? 'bg-primary-500' : ''}
+                                            onClick={() => {
+                                                setListingsPage(p);
+                                                fetchListings(p);
+                                            }}
+                                        >
+                                            {p}
+                                        </Button>
+                                    ))}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={listingsPage >= listingsTotalPages}
+                                        onClick={() => {
+                                            const p = listingsPage + 1;
+                                            setListingsPage(p);
+                                            fetchListings(p);
+                                        }}
+                                    >
+                                        ›
                                     </Button>
                                 </div>
                             )}
@@ -634,7 +738,7 @@ export const Profile: React.FC = () => {
                                         <Link to={card ? `/portfolio?card=${card.cardId}` : '/portfolio'} className="block">
                                             <div className="relative aspect-[2.5/3.5] rounded-t-lg overflow-hidden bg-white/5">
                                                 <img
-                                                    src={getCardImageUrl(card) || PLACEHOLDER_IMG}
+                                                    src={(card?.imageUrl as any)?.[0]?.imageUrl || PLACEHOLDER_IMG}
                                                     alt={card?.name || 'Thẻ'}
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
@@ -687,19 +791,9 @@ export const Profile: React.FC = () => {
                     </h3>
                     <Card className="glass-card p-6 min-h-[200px] flex items-center justify-center relative overflow-hidden">
                         <div className="absolute inset-0 opacity-20">
-                            {/* Fake Graph SVG */}
                             <svg className="w-full h-full" viewBox="0 0 1000 200" preserveAspectRatio="none">
-                                <path
-                                    d="M0,150 Q250,50 500,100 T1000,20"
-                                    fill="none"
-                                    stroke="#3D7DCA"
-                                    strokeWidth="4"
-                                />
-                                <path
-                                    d="M0,150 Q250,50 500,100 T1000,20 V200 H0 Z"
-                                    fill="url(#gradient)"
-                                    opacity="0.3"
-                                />
+                                <path d="M0,150 Q250,50 500,100 T1000,20" fill="none" stroke="#3D7DCA" strokeWidth="4" />
+                                <path d="M0,150 Q250,50 500,100 T1000,20 V200 H0 Z" fill="url(#gradient)" opacity="0.3" />
                                 <defs>
                                     <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="0%" stopColor="#3D7DCA" />
@@ -718,6 +812,161 @@ export const Profile: React.FC = () => {
                         </div>
                     </Card>
                 </div>
+
+                </>
+                )}
+
+                {/* ===== Tab: Feedback ===== */}
+                {activeTab === 'feedback' && (
+                    <div>
+                        <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-yellow-400">
+                            <Star className="w-5 h-5" />
+                            Đánh giá ({feedbackTotalElements})
+                        </h3>
+                        {feedbackLoading ? (
+                            <div className="flex items-center justify-center py-12">
+                                <div className="rounded-full h-10 w-10 border-2 border-yellow-500/30 border-t-yellow-500 animate-spin" />
+                            </div>
+                        ) : feedbackList.length === 0 ? (
+                            <Card className="glass-card p-8 text-center">
+                                <div className="w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center mx-auto mb-4">
+                                    <Star className="w-8 h-8 text-yellow-400" />
+                                </div>
+                                <p className="text-muted-foreground">Chưa có đánh giá nào</p>
+                            </Card>
+                        ) : (
+                            <>
+                                <div className="space-y-4">
+                                    {feedbackList.map((fb) => {
+                                        const reviewer = fb.userResponse;
+                                        const card = fb.cardResponse;
+                                        const images = fb.imageResponses ?? [];
+                                        const cardImg = (card?.imageUrl as any)?.[0]?.imageUrl || '';
+                                        return (
+                                            <Card key={fb.feedBackId} className="glass-card p-4">
+                                                <div className="flex gap-3">
+                                                    <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
+                                                        {reviewer?.avatarUrl ? (
+                                                            <img src={reviewer.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <User className="w-4 h-4 text-muted-foreground" />
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="font-medium text-sm text-white">
+                                                                {reviewer?.name || 'Ẩn danh'}
+                                                            </span>
+                                                            <span className="flex items-center gap-0.5">
+                                                                {[1, 2, 3, 4, 5].map((i) => (
+                                                                    <Star
+                                                                        key={i}
+                                                                        className={`h-3.5 w-3.5 ${i <= fb.rating
+                                                                            ? 'fill-yellow-400 text-yellow-400'
+                                                                            : 'text-white/20'
+                                                                            }`}
+                                                                    />
+                                                                ))}
+                                                            </span>
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {new Date(fb.createdAt).toLocaleDateString('vi-VN')}
+                                                            </span>
+                                                            {card && (
+                                                                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                                                    X
+                                                                    {cardImg && (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="shrink-0 rounded overflow-hidden border border-white/10 hover:border-primary-400/50 transition-colors focus:outline-none"
+                                                                            onClick={() => setPreviewImage(cardImg)}
+                                                                        >
+                                                                            <img src={cardImg} alt={card.name} className="w-6 h-8 object-cover" />
+                                                                        </button>
+                                                                    )}
+                                                                    <span className="line-clamp-1">{card.name}</span>
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {fb.comment && (
+                                                            <p className="text-sm text-muted-foreground mt-2">{fb.comment}</p>
+                                                        )}
+                                                        {images.length > 0 && (
+                                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                                {images.map((img, idx) => {
+                                                                    const rawUrl = img.imageUrl || img.url || '';
+                                                                    const fullUrl = getFullImageUrl(rawUrl);
+                                                                    return fullUrl ? (
+                                                                        <button
+                                                                            key={img.imageId || idx}
+                                                                            type="button"
+                                                                            onClick={() => setPreviewImage(fullUrl)}
+                                                                            className="rounded-lg overflow-hidden border border-white/10 hover:border-primary-400/50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400/40"
+                                                                        >
+                                                                            <img
+                                                                                src={fullUrl}
+                                                                                alt={`Feedback ${idx + 1}`}
+                                                                                className="w-16 h-16 object-cover"
+                                                                            />
+                                                                        </button>
+                                                                    ) : null;
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </Card>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Pagination */}
+                                {feedbackTotalPages > 1 && (
+                                    <div className="flex items-center justify-center gap-2 mt-6">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={feedbackPage <= 1}
+                                            onClick={() => {
+                                                const p = feedbackPage - 1;
+                                                setFeedbackPage(p);
+                                                fetchFeedback(p);
+                                            }}
+                                        >
+                                            ‹
+                                        </Button>
+                                        {Array.from({ length: feedbackTotalPages }, (_, i) => i + 1).map((p) => (
+                                            <Button
+                                                key={p}
+                                                size="sm"
+                                                variant={p === feedbackPage ? 'default' : 'outline'}
+                                                className={p === feedbackPage ? 'bg-primary-500' : ''}
+                                                onClick={() => {
+                                                    setFeedbackPage(p);
+                                                    fetchFeedback(p);
+                                                }}
+                                            >
+                                                {p}
+                                            </Button>
+                                        ))}
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={feedbackPage >= feedbackTotalPages}
+                                            onClick={() => {
+                                                const p = feedbackPage + 1;
+                                                setFeedbackPage(p);
+                                                fetchFeedback(p);
+                                            }}
+                                        >
+                                            ›
+                                        </Button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                )}
+
             </div>
 
             {/* Edit Profile Modal */}
@@ -908,6 +1157,29 @@ export const Profile: React.FC = () => {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Image Preview Overlay */}
+            {previewImage && (
+                <div
+                    className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4"
+                    onClick={() => setPreviewImage(null)}
+                >
+                    <button
+                        type="button"
+                        className="absolute top-4 right-4 text-white/70 hover:text-white text-3xl font-bold z-10"
+                        onClick={() => setPreviewImage(null)}
+                        aria-label="Đóng"
+                    >
+                        ✕
+                    </button>
+                    <img
+                        src={previewImage}
+                        alt="Preview"
+                        className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
                 </div>
             )}
         </div>

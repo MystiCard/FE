@@ -720,7 +720,9 @@ export const Marketplace: React.FC = () => {
                                         <div className="flex justify-between text-sm">
                                             <span className="text-muted-foreground">Người bán</span>
                                             <span>
-                                                {selectedListing.sellerName || '—'}
+                                                <Link to={`/seller/${selectedListing.sellerId}`} className="text-primary-400 hover:underline">
+                                                    {selectedListing.sellerName || '—'}
+                                                </Link>
                                                 {(selectedListing.sellerFeedbackCount != null && selectedListing.sellerFeedbackCount > 0) && (
                                                     <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-400/90">
                                                         <Star className="h-3 w-3 fill-amber-400 shrink-0" />
@@ -993,7 +995,9 @@ function ListingOffersModal({
 
                                             <td className="px-4 py-2 text-sm text-muted-foreground">
 
-                                                <span>{offer.sellerName || '—'}</span>
+                                                <Link to={`/seller/${offer.sellerId}`} className="text-primary-400 hover:underline">
+                                                    {offer.sellerName || '—'}
+                                                </Link>
 
                                                 {(offer.sellerFeedbackCount != null && offer.sellerFeedbackCount > 0) && (
 

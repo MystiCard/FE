@@ -29,6 +29,8 @@ export const WalletPage: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [statusFilter, setStatusFilter] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | undefined>(undefined);
+    // true = tab "Tiền vào", false = tab "Tiền ra"
+    const [inFilter, setInFilter] = useState<true | false>(true);
 
     const fetchProfile = async () => {
         if (!isAuthenticated) {
@@ -54,7 +56,8 @@ export const WalletPage: React.FC = () => {
             const data: PageResponse<TransactionResponse> = await transactionApi.getMyTransactions(
                 statusFilter,
                 currentPage - 1,
-                10
+                10,
+                inFilter,
             );
             setTransactions(data.content);
             setTotalPages(data.totalPages);
@@ -78,7 +81,7 @@ export const WalletPage: React.FC = () => {
         if (isAuthenticated && !isLoading) {
             fetchTransactions();
         }
-    }, [isAuthenticated, isLoading, currentPage, statusFilter]);
+    }, [isAuthenticated, isLoading, currentPage, statusFilter, inFilter]);
 
     // Khi ví thay đổi từ màn khác (checkout / rút tiền / mở hộp...), refetch profile + transactions.
     useEffect(() => {
@@ -133,7 +136,7 @@ export const WalletPage: React.FC = () => {
             const data = await userApi.getMyProfile();
             setProfile(data);
             // Refresh transactions
-            const txData = await transactionApi.getMyTransactions(statusFilter, currentPage - 1, 10);
+            const txData = await transactionApi.getMyTransactions(statusFilter, currentPage - 1, 10, inFilter);
             setTransactions(txData.content);
             setTotalPages(txData.totalPages);
         } catch (err) {
@@ -291,9 +294,14 @@ export const WalletPage: React.FC = () => {
                     isLoading={isLoadingTransactions}
                     currentPage={currentPage}
                     totalPages={totalPages}
-                    statusFilter={statusFilter}
+                    statusFilter={statusFilter as any}
                     onPageChange={setCurrentPage}
-                    onStatusFilterChange={setStatusFilter}
+                    onStatusFilterChange={(st) => setStatusFilter(st as any)}
+                    inFilter={inFilter}
+                    onInFilterChange={(val) => {
+                        setInFilter(val);
+                        setCurrentPage(1);
+                    }}
                 />
             </div>
 

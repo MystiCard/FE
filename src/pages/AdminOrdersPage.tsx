@@ -7,6 +7,7 @@ type AdminShippingFilter = ShippingStatus | 'ALL';
 
 // Các trạng thái thật để gọi API BE
 const ALL_SHIPPING_STATUSES: ShippingStatus[] = [
+    'PENDING_APPROVED',
     'PENDING',
     'ASIGNED',
     'PICKED_UP',
@@ -18,28 +19,24 @@ const ALL_SHIPPING_STATUSES: ShippingStatus[] = [
     'CANCELLED',
 ];
 
+const SHIPPING_LABELS: Record<string, string> = {
+    PENDING: 'Chờ xử lý',
+    PENDING_APPROVED: 'Chờ xác nhận',
+    ASIGNED: 'Đã gán shipper',
+    PICKED_UP: 'Đã lấy hàng',
+    IN_TRANSIT: 'Đang giao',
+    DELIVERED: 'Đã giao',
+    RECEIVED: 'Đã nhận',
+    FAILED: 'Giao thất bại',
+    LOST: 'Thất lạc',
+    CANCELLED: 'Đã hủy',
+};
+
 const SHIPPING_FILTERS: { value: AdminShippingFilter; label: string }[] = [
     { value: 'ALL', label: 'Tất cả' },
     ...ALL_SHIPPING_STATUSES.map((v) => ({
         value: v,
-        label:
-            v === 'PENDING'
-                ? 'Chờ xử lý'
-                : v === 'ASIGNED'
-                ? 'Đã gán shipper'
-                : v === 'PICKED_UP'
-                ? 'Đã lấy hàng'
-                : v === 'IN_TRANSIT'
-                ? 'Đang giao'
-                : v === 'DELIVERED'
-                ? 'Đã giao'
-                : v === 'RECEIVED'
-                ? 'Người nhận đã xác nhận'
-                : v === 'FAILED'
-                ? 'Giao thất bại'
-                : v === 'LOST'
-                ? 'Thất lạc'
-                : 'Đã hủy',
+        label: SHIPPING_LABELS[v] || 'Không rõ',
     })),
 ];
 
@@ -206,7 +203,7 @@ export const AdminOrdersPage: React.FC = () => {
                                                 <td className="p-3">
                                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-primary-500/10 text-primary-200">
                                                         <Package className="w-3 h-3" />
-                                                        {shipmentStatus}
+                                                        {SHIPPING_LABELS[shipmentStatus] || 'Không rõ'}
                                                     </span>
                                                 </td>
                                                 <td className="p-3 text-xs max-w-xs">

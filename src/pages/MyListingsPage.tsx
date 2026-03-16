@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tag, ArrowLeft, Package, Star, Trash2, Loader2 } from 'lucide-react';
-import { listSellerApi, ListingItem } from '@/utils/api';
+import { listSellerApi, ListingItem, ListSellerResponse, userApi } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PLACEHOLDER_IMG =
@@ -29,18 +29,40 @@ export const MyListingsPage: React.FC = () => {
 
     const [myListings, setMyListings] = useState<ListingItem[]>([]);
     const [myListingsLoading, setMyListingsLoading] = useState(false);
+    const [listingsPage, setListingsPage] = useState(1);
+    const [listingsTotalPages, setListingsTotalPages] = useState(0);
+    const [listingsTotalElements, setListingsTotalElements] = useState(0);
     const [selectedListing, setSelectedListing] = useState<ListingItem | null>(null);
     const [editPrice, setEditPrice] = useState('');
     const [editQuantity, setEditQuantity] = useState('');
     const [editSaving, setEditSaving] = useState(false);
     const [editError, setEditError] = useState('');
 
-    const loadMyListings = async () => {
+    const loadMyListings = async (page: number = 1) => {
         if (!isAuthenticated) return;
         setMyListingsLoading(true);
         try {
-            const res = await listSellerApi.getMyListings(0, 100);
-            setMyListings(res.content ?? []);
+            const me = await userApi.getMyProfile();
+            const res = await listSellerApi.getSellerListings(me.userId, page, 8);
+            const mapped: ListingItem[] = (res.content ?? []).map((item: ListSellerResponse) => ({
+                listSellerId: item.listSellerId,
+                price: item.price,
+                quantity: item.quantity,
+                status: 'ON',
+                sellerId: item.sellerResponse?.userId ?? '',
+                sellerName: item.sellerResponse?.name,
+                cardId: item.cardResponse?.cardId ?? '',
+                cardName: item.cardResponse?.name ?? 'Thẻ',
+                imageUrl: (item.cardResponse?.imageUrl as any)?.[0]?.imageUrl || '',
+                categoryName: item.cardResponse?.categoryName,
+                rarity: item.cardResponse?.rarity ?? 'COMMON',
+                basePrice: item.cardResponse?.basePrice ?? 0,
+                minPrice: item.cardResponse?.minPrice,
+                maxPrice: item.cardResponse?.maxPrice,
+            }));
+            setMyListings(mapped);
+            setListingsTotalPages(res.totalPages ?? 0);
+            setListingsTotalElements(res.totalElements ?? 0);
         } catch {
             setMyListings([]);
         } finally {
@@ -84,7 +106,7 @@ export const MyListingsPage: React.FC = () => {
                 price: priceNum,
                 quantity: qtyNum,
             });
-            await loadMyListings();
+            await loadMyListings(listingsPage);
             setSelectedListing(null);
         } catch (err) {
             setEditError(
@@ -107,7 +129,7 @@ export const MyListingsPage: React.FC = () => {
                 price: selectedListing.price,
                 quantity: 0,
             });
-            await loadMyListings();
+            await loadMyListings(listingsPage);
             setSelectedListing(null);
         } catch (err) {
             setEditError(
@@ -151,9 +173,9 @@ export const MyListingsPage: React.FC = () => {
                         <CardTitle className="text-base flex items-center gap-2">
                             <Tag className="h-4 w-4 text-primary-400" />
                             Bài đăng bán của tôi
-                            {myListings.length > 0 && (
+                            {listingsTotalElements > 0 && (
                                 <span className="text-sm font-normal text-muted-foreground">
-                                    ({myListings.length} tin)
+                                    ({listingsTotalElements} tin)
                                 </span>
                             )}
                         </CardTitle>
@@ -181,68 +203,113 @@ export const MyListingsPage: React.FC = () => {
                                 </Button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                {myListings.map((item) => {
-                                    const soldOut = item.quantity <= 0;
-                                    return (
-                                        <button
-                                            key={item.listSellerId}
-                                            type="button"
-                                            onClick={() => openListingDetail(item)}
-                                            className="text-left rounded-xl overflow-hidden border border-white/10 hover:border-primary-500/50 transition-colors relative bg-black/40"
-                                        >
-                                            <div className="aspect-[2.5/3.5] relative">
-                                                <img
-                                                    src={item.imageUrl || PLACEHOLDER_IMG}
-                                                    alt={item.cardName}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                        e.currentTarget.src = PLACEHOLDER_IMG;
-                                                    }}
-                                                />
-                                                {soldOut && (
-                                                    <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                                                        <span className="px-2 py-1 rounded text-xs font-bold bg-red-500/90 text-white uppercase">
-                                                            Hết hàng
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                {!soldOut && (
-                                                    <span className="absolute bottom-1 left-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary-500/80 text-center">
-                                                        SL: {item.quantity}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="p-2">
-                                                <p className="text-xs font-medium truncate">
-                                                    {item.cardName}
-                                                </p>
-                                                <p className="text-xs font-semibold text-yellow-400">
-                                                    {formatVND(item.price)}
-                                                </p>
-                                                {item.sellerFeedbackCount != null &&
-                                                    item.sellerFeedbackCount > 0 && (
-                                                        <p className="text-[10px] text-amber-400/90 mt-0.5 flex items-center gap-0.5 flex-wrap">
-                                                            <Star className="h-3 w-3 fill-amber-400 shrink-0" />
-                                                            <span>
-                                                                {Number(
-                                                                    item.sellerAverageRating ?? 0,
-                                                                ).toFixed(1)}
+                            <>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                    {myListings.map((item) => {
+                                        const soldOut = item.quantity <= 0;
+                                        return (
+                                            <button
+                                                key={item.listSellerId}
+                                                type="button"
+                                                onClick={() => openListingDetail(item)}
+                                                className="text-left rounded-xl overflow-hidden border border-white/10 hover:border-primary-500/50 transition-colors relative bg-black/40"
+                                            >
+                                                <div className="aspect-[2.5/3.5] relative">
+                                                    <img
+                                                        src={item.imageUrl || PLACEHOLDER_IMG}
+                                                        alt={item.cardName}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            e.currentTarget.src = PLACEHOLDER_IMG;
+                                                        }}
+                                                    />
+                                                    {soldOut && (
+                                                        <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                                                            <span className="px-2 py-1 rounded text-xs font-bold bg-red-500/90 text-white uppercase">
+                                                                Hết hàng
                                                             </span>
-                                                            <span className="text-muted-foreground">
-                                                                (
-                                                                {item.sellerFeedbackCount} đánh giá)
-                                                            </span>
-                                                        </p>
+                                                        </div>
                                                     )}
-                                                <p className="text-[10px] text-muted-foreground mt-0.5">
-                                                    Xem / Chỉnh sửa
-                                                </p>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                                                    {!soldOut && (
+                                                        <span className="absolute bottom-1 left-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary-500/80 text-center">
+                                                            SL: {item.quantity}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="p-2">
+                                                    <p className="text-xs font-medium truncate">
+                                                        {item.cardName}
+                                                    </p>
+                                                    <p className="text-xs font-semibold text-yellow-400">
+                                                        {formatVND(item.price)}
+                                                    </p>
+                                                    {item.sellerFeedbackCount != null &&
+                                                        item.sellerFeedbackCount > 0 && (
+                                                            <p className="text-[10px] text-amber-400/90 mt-0.5 flex items-center gap-0.5 flex-wrap">
+                                                                <Star className="h-3 w-3 fill-amber-400 shrink-0" />
+                                                                <span>
+                                                                    {Number(
+                                                                        item.sellerAverageRating ?? 0,
+                                                                    ).toFixed(1)}
+                                                                </span>
+                                                                <span className="text-muted-foreground">
+                                                                    (
+                                                                    {item.sellerFeedbackCount} đánh giá)
+                                                                </span>
+                                                            </p>
+                                                        )}
+                                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                                        Xem / Chỉnh sửa
+                                                    </p>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {listingsTotalPages > 1 && (
+                                    <div className="flex items-center justify-center gap-2 mt-6">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={listingsPage <= 1}
+                                            onClick={() => {
+                                                const p = listingsPage - 1;
+                                                setListingsPage(p);
+                                                loadMyListings(p);
+                                            }}
+                                        >
+                                            ‹
+                                        </Button>
+                                        {Array.from({ length: listingsTotalPages }, (_, i) => i + 1).map((p) => (
+                                            <Button
+                                                key={p}
+                                                size="sm"
+                                                variant={p === listingsPage ? 'default' : 'outline'}
+                                                className={p === listingsPage ? 'bg-primary-500' : ''}
+                                                onClick={() => {
+                                                    setListingsPage(p);
+                                                    loadMyListings(p);
+                                                }}
+                                            >
+                                                {p}
+                                            </Button>
+                                        ))}
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={listingsPage >= listingsTotalPages}
+                                            onClick={() => {
+                                                const p = listingsPage + 1;
+                                                setListingsPage(p);
+                                                loadMyListings(p);
+                                            }}
+                                        >
+                                            ›
+                                        </Button>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </CardContent>
                 </Card>

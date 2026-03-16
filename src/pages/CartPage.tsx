@@ -49,23 +49,21 @@ export const CartPage: React.FC = () => {
                 buyerPhone: profile.phone,
                 toDistrictId: Number(profile.districtId),
                 toWardId: Number(profile.wardId),
+                toName: profile.name ?? undefined,
                 orderItemsList: selectedProducts.map(item => ({
                     listSellerId: item.seller.listSellerId,
                     quantity: item.quantity > item.seller.quantity ? item.seller.quantity : item.quantity
                 }))
             };
 
-            // 4. Gọi API tạo đơn hàng
-            // Giả sử orderApi được import từ @/utils/api
             const orderResponse = await orderApi.createOrder2(orderPayload);
-            console.log("Order response",orderResponse.data);
-            // 5. Chuyển hướng sang trang marketcheckoutPage cùng với dữ liệu đơn hàng
-            navigate("/marketplace/checkout", {
-                state: {
-                    order: orderResponse.data,
-                    user: profile// Có thể gửi kèm profile để hiển thị lại thông tin người nhận
-                }
-            });
+            const orderData = (orderResponse as any)?.data ?? orderResponse;
+            const orderId = orderData?.orderId;
+            if (!orderId) {
+                alert("Tạo đơn thất bại: không nhận được orderId.");
+                return;
+            }
+            navigate(`/marketplace/checkout?orderId=${encodeURIComponent(orderId)}`);
 
         } catch (error) {
             console.error("Lỗi quá trình thanh toán:", error);
