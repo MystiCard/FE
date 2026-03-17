@@ -228,7 +228,7 @@ export const MysteryBoxHistoryPage: React.FC = () => {
         blindBoxApi
             .getAllResultCardOpened(
                 Math.max(0, allResultsPage - 1),
-                10,
+                20,
                 resultStatusFilter === 'ALL' ? undefined : resultStatusFilter,
             )
             .then((res) => {
@@ -829,13 +829,17 @@ export const MysteryBoxHistoryPage: React.FC = () => {
                                     return (
                                     <div
                                         key={String(r.blindBoxResultId)}
+                                        onClick={() => {
+                                            if (!shipSelectMode || !selectable) return;
+                                            toggleResultSelect(String(r.blindBoxResultId));
+                                        }}
                                         className={`rounded-xl border p-3 transition-colors ${
                                             selected
                                                 ? 'border-emerald-400/60 bg-emerald-500/10 shadow-[0_0_0_1px_rgba(52,211,153,0.25)]'
                                                 : selectable
                                                     ? 'border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.03] hover:bg-white/10'
                                                     : 'border-white/10 bg-white/[0.03] opacity-90'
-                                        }`}
+                                        } ${shipSelectMode && selectable ? 'cursor-pointer' : ''}`}
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="space-y-1">
@@ -845,6 +849,7 @@ export const MysteryBoxHistoryPage: React.FC = () => {
                                                             type="checkbox"
                                                             checked={selectedResultIds.includes(String(r.blindBoxResultId))}
                                                             disabled={!isResultSelectable(r)}
+                                                            onClick={(e) => e.stopPropagation()}
                                                             onChange={() => toggleResultSelect(String(r.blindBoxResultId))}
                                                             className="w-4 h-4 accent-yellow-400"
                                                         />
@@ -869,7 +874,10 @@ export const MysteryBoxHistoryPage: React.FC = () => {
                                             {r.cardImageUrl && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => setImagePreviewUrl(r.cardImageUrl || null)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setImagePreviewUrl(r.cardImageUrl || null);
+                                                    }}
                                                     className="rounded-lg border border-white/20 overflow-hidden hover:border-yellow-400/50"
                                                 >
                                                     <img src={r.cardImageUrl} alt={r.cardName || 'card'} className="w-16 h-24 object-cover" />
@@ -938,20 +946,26 @@ export const MysteryBoxHistoryPage: React.FC = () => {
                     ) : allResults.length === 0 ? (
                         <div className="text-sm text-muted-foreground">Không có kết quả nào.</div>
                     ) : (
-                        <div className="space-y-2">
-                            {allResults.map((r) => {
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            {[allResults.slice(0, 10), allResults.slice(10, 20)].map((columnRows, colIdx) => (
+                                <div key={`all-results-col-${colIdx}`} className="space-y-2">
+                                    {columnRows.map((r) => {
                                 const selected = selectedResultIds.includes(String(r.blindBoxResultId));
                                 const selectable = isResultSelectable(r);
                                 return (
                                 <div
                                     key={String(r.blindBoxResultId)}
+                                    onClick={() => {
+                                        if (!shipSelectMode || !selectable) return;
+                                        toggleResultSelect(String(r.blindBoxResultId));
+                                    }}
                                     className={`rounded-xl border p-3 transition-colors ${
                                         selected
                                             ? 'border-emerald-400/60 bg-emerald-500/10 shadow-[0_0_0_1px_rgba(52,211,153,0.25)]'
                                             : selectable
                                                 ? 'border-white/10 bg-white/5 hover:bg-white/10'
                                                 : 'border-white/10 bg-white/[0.03] opacity-90'
-                                    }`}
+                                    } ${shipSelectMode && selectable ? 'cursor-pointer' : ''}`}
                                 >
                                     <div className="flex items-start justify-between gap-2">
                                         <div>
@@ -961,6 +975,7 @@ export const MysteryBoxHistoryPage: React.FC = () => {
                                                         type="checkbox"
                                                         checked={selectedResultIds.includes(String(r.blindBoxResultId))}
                                                         disabled={!isResultSelectable(r)}
+                                                        onClick={(e) => e.stopPropagation()}
                                                         onChange={() => toggleResultSelect(String(r.blindBoxResultId))}
                                                         className="w-4 h-4 accent-yellow-400"
                                                     />
@@ -982,7 +997,10 @@ export const MysteryBoxHistoryPage: React.FC = () => {
                                         {r.cardImageUrl && (
                                             <button
                                                 type="button"
-                                                onClick={() => setImagePreviewUrl(r.cardImageUrl || null)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setImagePreviewUrl(r.cardImageUrl || null);
+                                                }}
                                                 className="rounded-lg border border-white/20 overflow-hidden hover:border-yellow-400/50"
                                             >
                                                 <img src={r.cardImageUrl} alt={r.cardName || 'card'} className="w-14 h-20 object-cover rounded" />
@@ -991,6 +1009,8 @@ export const MysteryBoxHistoryPage: React.FC = () => {
                                     </div>
                                 </div>
                             )})}
+                                </div>
+                            ))}
                         </div>
                     )}
 

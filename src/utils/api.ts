@@ -2353,18 +2353,7 @@ export interface BlindBoxShipmentResponse {
     blindBoxShipDetails?: BlindBoxShipmentDetail[]; // optional naming fallback
 }
 
-/** BE OrderResponse: sau khi mua hộp bí ẩn */
-export interface BlindBoxOrderResponse {
-    orderId: string;
-    totalAmount: number;
-    status: string;
-    orderDate: string;
-    quantity: number;
-    buyerId: string;
-    blindBoxId: string;
-}
-
-/** BE DrawResultResponse: kết quả mở 1 lần (id = orderId) */
+/** BE DrawResultResponse: kết quả mở 1 lần */
 export interface DrawResultResponse {
     card: Card;
     drawPrice: number;
@@ -2503,12 +2492,12 @@ export const blindBoxApi = {
         return Array.isArray(list) ? list : [];
     },
 
-    /** BE: POST /blind-boxes/{blindBoxId}/buy?all=true|false */
-    buyBlindBox: async (blindBoxId: string, all: boolean = false): Promise<BlindBoxOrderResponse> => {
-        const response = await apiRequest<ApiResponse<BlindBoxOrderResponse>>(`/blind-boxes/${blindBoxId}/buy?all=${all ? 'true' : 'false'}`, {
+    /** BE: POST /blind-boxes/{blindBoxId}/buy?buyAll=true|false */
+    buyBlindBox: async (blindBoxId: string, buyAll: boolean = false): Promise<DrawResultResponse[]> => {
+        const response = await apiRequest<ApiResponse<DrawResultResponse[]>>(`/blind-boxes/${blindBoxId}/buy?buyAll=${buyAll ? 'true' : 'false'}`, {
             method: 'POST',
         });
-        return response.data;
+        return Array.isArray(response.data) ? response.data : [];
     },
 
     /** BE: GET /blind-boxes/{id}/draw-card */

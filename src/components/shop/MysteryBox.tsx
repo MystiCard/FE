@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Gift, Package, Sparkles, Star, Zap } from 'lucide-react';
 import { blindBoxApi, userApi, BlindBox, BlindBoxStatus, getCardImageUrl } from '@/utils/api';
@@ -70,11 +70,77 @@ export function MysteryBox() {
     /** Tỉ lệ theo rarity cho từng hộp (blindBoxId -> [{ rarity, probability }]). */
     const [boxProbabilities, setBoxProbabilities] = useState<Record<string, { rarity: string; probability: number }[]>>({});
     const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'OUT_OF_STOCK'>('ACTIVE');
+    const [reloadBoxesKey, setReloadBoxesKey] = useState(0);
     const [drawMode, setDrawMode] = useState<'ONE' | 'ALL'>('ONE');
     /** Phase cho hiệu ứng mở hộp kiểu blind box: shake → lid open → light → done */
     const [boxOpenPhase, setBoxOpenPhase] = useState<'shake' | 'lid' | 'light' | null>(null);
+    const skipRequestedRef = useRef(false);
+    const cardsFlyingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const navigate = useNavigate();
+
+    const completeOpenImmediately = (cardsInput?: Card[]) => {
+        const list = cardsInput && cardsInput.length > 0 ? cardsInput : openedCards;
+        if (!list || list.length === 0) {
+            skipRequestedRef.current = true;
+            return;
+        }
+        if (cardsFlyingTimeoutRef.current) {
+            clearTimeout(cardsFlyingTimeoutRef.current);
+            cardsFlyingTimeoutRef.current = null;
+        }
+        const flipped = list.map((c) => ({ ...c, flipped: true }));
+        setOpenedCards(flipped);
+        setTotalValue(flipped.reduce((sum, c) => sum + c.value, 0));
+        setShowInteractiveBag(false);
+        setIsTearing(false);
+        setIsCardsFlying(false);
+        setCardsReady(false);
+        setShowResults(true);
+        setIsBuying(false);
+        setBoxOpenPhase(null);
+        skipRequestedRef.current = false;
+    };
+
+    const checkWalletBeforeOpen = async (box: BlindBox, mode: 'ONE' | 'ALL') => {
+        const pricePerDraw = getBoxPrice(box);
+        let requiredBalance = pricePerDraw;
+        if (mode === 'ALL') {
+            const boxTotal =
+                typeof box.allBoxPrice === 'number'
+                    ? Number(box.allBoxPrice)
+                    : 0;
+            requiredBalance = boxTotal > 0 ? boxTotal : pricePerDraw * 10;
+        }
+
+        try {
+            const profile = await userApi.getMyProfile();
+            const balance = profile?.walletResponse?.balance ?? 0;
+            if (balance < requiredBalance) {
+                alert(`Số dư ví không đủ (cần ${requiredBalance.toLocaleString('vi-VN')} VND, hiện có ${balance.toLocaleString('vi-VN')} VND). Vui lòng nạp thêm vào ví.`);
+                navigate('/wallet');
+                return false;
+            }
+            return true;
+        } catch {
+            alert('Vui lòng đăng nhập để mở hộp bí ẩn.');
+            navigate('/login');
+            return false;
+        }
+    };
+
+    const mapDrawResultsToCards = (drawResults: { card: any; drawPrice: number; profitOrLoss: number }[]) => {
+        return drawResults.map((result) => {
+            const c = result.card;
+            return {
+                name: c?.name ?? 'Thẻ bí ẩn',
+                rarity: (c?.rarity as string) ?? 'COMMON',
+                value: typeof c?.basePrice === 'number' ? c.basePrice : Number(c?.basePrice) || 0,
+                image: getCardImageUrl(c) || '🎴',
+                flipped: false,
+            } as Card;
+        });
+    };
 
     useEffect(() => {
         let cancelled = false;
@@ -104,7 +170,7 @@ export function MysteryBox() {
             .catch((e) => { if (!cancelled) setBoxError(e?.message || 'Không tải được danh sách hộp bí ẩn'); })
             .finally(() => { if (!cancelled) setIsLoadingBoxes(false); });
         return () => { cancelled = true; };
-    }, [statusFilter]);
+    }, [statusFilter, reloadBoxesKey]);
 
     const getRarityColor = (rarity: string) => {
         const r = (rarity || '').toUpperCase();
@@ -141,6 +207,59 @@ export function MysteryBox() {
         setIsTearing(false);
         setIsBuying(false);
         setBoxOpenPhase(null);
+
+        if (mode === 'ALL') {
+            setShowInteractiveBag(false);
+            (async () => {
+                const ok = await checkWalletBeforeOpen(box, 'ALL');
+                if (!ok) {
+                    resetBox();
+                    return;
+                }
+                setIsBuying(true);
+                try {
+                    const drawResults = await blindBoxApi.buyBlindBox(box.blindBoxId, true);
+                    const cards = mapDrawResultsToCards(drawResults as any[]);
+                    if (cards.length === 0) {
+                        throw new Error('Mua / mở hộp thất bại. Kiểm tra ví hoặc đăng nhập.');
+                    }
+                    const totalPaid = drawResults.reduce((sum, result) => sum + Number(result.drawPrice ?? 0), 0);
+                    const totalProfit = drawResults.reduce((sum, result) => sum + Number(result.profitOrLoss ?? 0), 0);
+                    const totalBaseValue = cards.reduce((sum, card) => sum + card.value, 0);
+                    setOpenedCards(cards);
+                    setLastDrawResult({
+                        drawPrice: totalPaid,
+                        profitOrLoss: Number.isFinite(totalProfit) ? totalProfit : (totalBaseValue - totalPaid),
+                    });
+                    // Refetch box list để cập nhật giá/trạng thái mới nhất từ BE
+                    setReloadBoxesKey((v) => v + 1);
+                    if (skipRequestedRef.current) {
+                        completeOpenImmediately(cards);
+                        return;
+                    }
+                    setCardsReady(true);
+                } catch (err) {
+                    const raw = err instanceof Error ? err.message : String(err);
+                    const isEmptyBox = /empty|refill/i.test(raw);
+                    const msg = isEmptyBox
+                        ? 'Hộp đã SOLD OUT.'
+                        : raw || 'Mua / mở hộp thất bại. Kiểm tra ví hoặc đăng nhập.';
+                    alert(msg);
+                    if (isEmptyBox && box?.blindBoxId) {
+                        setBlindBoxes((prev) =>
+                            prev.map((b) =>
+                                b.blindBoxId === box.blindBoxId
+                                    ? { ...b, blindBoxStatus: 'OUT_OF_STOCK' }
+                                    : b
+                            )
+                        );
+                    }
+                    resetBox();
+                } finally {
+                    setIsBuying(false);
+                }
+            })();
+        }
     };
 
     const handleBagClick = async () => {
@@ -151,27 +270,8 @@ export function MysteryBox() {
             return;
         }
 
-        const pricePerDraw = getBoxPrice(selectedBox);
-        let requiredBalance = pricePerDraw;
-        if (drawMode === 'ALL') {
-            const boxTotal =
-                typeof selectedBox.allBoxPrice === 'number'
-                    ? Number(selectedBox.allBoxPrice)
-                    : 0;
-            requiredBalance = boxTotal > 0 ? boxTotal : pricePerDraw * 10;
-        }
-
-        try {
-            const profile = await userApi.getMyProfile();
-            const balance = profile?.walletResponse?.balance ?? 0;
-            if (balance < requiredBalance) {
-                alert(`Số dư ví không đủ (cần ${requiredBalance.toLocaleString('vi-VN')} VND, hiện có ${balance.toLocaleString('vi-VN')} VND). Vui lòng nạp thêm vào ví.`);
-                navigate('/wallet');
-                return;
-            }
-        } catch {
-            alert('Vui lòng đăng nhập để mở hộp bí ẩn.');
-            navigate('/login');
+        const ok = await checkWalletBeforeOpen(selectedBox, drawMode);
+        if (!ok) {
             return;
         }
 
@@ -198,53 +298,27 @@ export function MysteryBox() {
             clearInterval(tearInterval);
             setIsBuying(true);
             try {
-                const cards: Card[] = [];
-                let totalPaid = 0;
-
-                const boxTotal = Number(selectedBox.allBoxPrice ?? 0);
-                const estimatedAllDraws =
-                    pricePerDraw > 0 && boxTotal > 0
-                        ? Math.max(1, Math.floor(boxTotal / pricePerDraw))
-                        : 999;
-
-                const maxDraws = drawMode === 'ONE' ? 1 : estimatedAllDraws;
-
-                await blindBoxApi.buyBlindBox(selectedBox.blindBoxId, drawMode === 'ALL');
-
-                for (let i = 0; i < maxDraws; i++) {
-                    try {
-                        const result = await blindBoxApi.drawCard(selectedBox.blindBoxId);
-                        const c = result.card;
-                        const card: Card = {
-                            name: c?.name ?? 'Thẻ bí ẩn',
-                            rarity: (c?.rarity as string) ?? 'COMMON',
-                            value: typeof c?.basePrice === 'number' ? c.basePrice : Number(c?.basePrice) || 0,
-                            image: getCardImageUrl(c) || '🎴',
-                            flipped: false,
-                        };
-                        cards.push(card);
-                        totalPaid += Number(result.drawPrice ?? 0);
-                    } catch (err) {
-                        const rawInner = err instanceof Error ? err.message : String(err);
-                        const isEmptyBoxInner = /empty|refill/i.test(rawInner);
-                        // Nếu hộp hết thẻ trong lúc đang mở nhiều thẻ, dừng vòng lặp và dùng những thẻ đã mở được
-                        if (isEmptyBoxInner && cards.length > 0) {
-                            break;
-                        }
-                        throw err;
-                    }
-                }
+                const drawResults = await blindBoxApi.buyBlindBox(selectedBox.blindBoxId, drawMode === 'ALL');
+                const cards: Card[] = mapDrawResultsToCards(drawResults as any[]);
 
                 if (cards.length === 0) {
                     throw new Error('Mua / mở hộp thất bại. Kiểm tra ví hoặc đăng nhập.');
                 }
 
+                const totalPaid = drawResults.reduce((sum, result) => sum + Number(result.drawPrice ?? 0), 0);
+                const totalProfit = drawResults.reduce((sum, result) => sum + Number(result.profitOrLoss ?? 0), 0);
                 setOpenedCards(cards);
                 const totalBaseValue = cards.reduce((sum, card) => sum + card.value, 0);
                 setLastDrawResult({
                     drawPrice: totalPaid,
-                    profitOrLoss: totalBaseValue - totalPaid,
+                    profitOrLoss: Number.isFinite(totalProfit) ? totalProfit : (totalBaseValue - totalPaid),
                 });
+                // Refetch box list để cập nhật giá/trạng thái mới nhất từ BE
+                setReloadBoxesKey((v) => v + 1);
+                if (skipRequestedRef.current) {
+                    completeOpenImmediately(cards);
+                    return;
+                }
 
                 // Sau khi mua/mở xong, refetch số dư ví và phát sự kiện để Header + Wallet cập nhật realtime
                 try {
@@ -280,12 +354,41 @@ export function MysteryBox() {
             setIsBuying(false);
             setIsTearing(false);
             setIsCardsFlying(true);
-            setTimeout(() => {
+            if (cardsFlyingTimeoutRef.current) {
+                clearTimeout(cardsFlyingTimeoutRef.current);
+            }
+            cardsFlyingTimeoutRef.current = setTimeout(() => {
+                cardsFlyingTimeoutRef.current = null;
                 setIsCardsFlying(false);
                 setCardsReady(true);
             }, 2500);
         }, 2000);
     };
+
+    useEffect(() => {
+        if (drawMode !== 'ALL' || !cardsReady || showResults || openedCards.length === 0) return;
+        const nextIndex = openedCards.findIndex((c) => !c.flipped);
+        if (nextIndex < 0) {
+            const total = openedCards.reduce((sum, c) => sum + c.value, 0);
+            setTotalValue(total);
+            const doneTimer = setTimeout(() => {
+                setShowResults(true);
+                setCardsReady(false);
+            }, 900);
+            return () => clearTimeout(doneTimer);
+        }
+
+        const timer = setTimeout(() => {
+            setOpenedCards((prev) => {
+                const idx = prev.findIndex((c) => !c.flipped);
+                if (idx < 0) return prev;
+                const copy = [...prev];
+                copy[idx] = { ...copy[idx], flipped: true };
+                return copy;
+            });
+        }, 480);
+        return () => clearTimeout(timer);
+    }, [drawMode, cardsReady, showResults, openedCards]);
 
     const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
         if (!showInteractiveBag || isTearing) return;
@@ -335,6 +438,10 @@ export function MysteryBox() {
     };
 
     const resetBox = () => {
+        if (cardsFlyingTimeoutRef.current) {
+            clearTimeout(cardsFlyingTimeoutRef.current);
+            cardsFlyingTimeoutRef.current = null;
+        }
         setSelectedBox(null);
         setLastDrawResult(null);
         setShowResults(false);
@@ -352,6 +459,7 @@ export function MysteryBox() {
         setIsFlipping(false);
         setIsCardsFlying(false);
         setBoxOpenPhase(null);
+        skipRequestedRef.current = false;
     };
 
     const handleCardDragStart = (e: React.MouseEvent | React.TouchEvent) => {
@@ -622,6 +730,23 @@ export function MysteryBox() {
                 </div>
             )}
 
+            {/* ALL mode: mua cả hộp thì không cần kéo/chạm để mở */}
+            {selectedBox && drawMode === 'ALL' && isBuying && !cardsReady && !showResults && (
+                <div className="bg-gradient-to-br from-[#0B0112] to-[#1a0a2e] rounded-2xl p-12 shadow-[0_0_50px_rgba(160,32,240,0.4)] border-4 border-[#D4AF37]">
+                    <div className="text-center">
+                        <h4
+                            className="text-3xl font-bold text-[#D4AF37] mb-3"
+                            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+                        >
+                            Đang mở cả hộp...
+                        </h4>
+                        <p className="text-[#E0E0E0]/85" style={{ fontFamily: "'Open Sans', sans-serif" }}>
+                            Đang tải toàn bộ thẻ trong hộp, vui lòng chờ một chút.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Màn chạm để mở — hộp 3D kiểu video unboxing */}
             {showInteractiveBag && (
                 <div className="bg-gradient-to-br from-[#0B0112] to-[#1a0a2e] rounded-2xl p-12 shadow-[0_0_50px_rgba(160,32,240,0.4)] border-4 border-[#D4AF37] relative overflow-hidden select-none">
@@ -825,6 +950,15 @@ export function MysteryBox() {
                         >
                             {isBuying ? 'Đang mua & mở thẻ...' : (boxOpenPhase === 'light' ? 'Sắp ra thẻ...' : 'Đang mở hộp...')}
                         </h4>
+                        <div className="mt-3">
+                            <button
+                                onClick={() => completeOpenImmediately()}
+                                className="px-5 py-2 rounded-full border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#FFD700] hover:bg-[#D4AF37]/20 font-semibold"
+                                style={{ fontFamily: "'Open Sans', sans-serif" }}
+                            >
+                                Bỏ qua hiệu ứng
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -832,6 +966,15 @@ export function MysteryBox() {
             {/* Cards Flying Animation */}
             {isCardsFlying && openedCards.length > 0 && (
                 <div className="bg-gradient-to-br from-[#0B0112] to-[#1a0a2e] rounded-2xl p-12 shadow-[0_0_50px_rgba(160,32,240,0.4)] border-4 border-[#D4AF37] relative overflow-hidden min-h-[600px]">
+                    <div className="absolute top-4 right-4 z-20">
+                        <button
+                            onClick={() => completeOpenImmediately()}
+                            className="px-4 py-2 rounded-full border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#FFD700] hover:bg-[#D4AF37]/20 font-semibold text-sm"
+                            style={{ fontFamily: "'Open Sans', sans-serif" }}
+                        >
+                            Bỏ qua hiệu ứng
+                        </button>
+                    </div>
                     <div className="relative w-full h-[500px]">
                         {openedCards.map((_card, index) => {
                             const angle = (360 / openedCards.length) * index;
@@ -888,8 +1031,17 @@ export function MysteryBox() {
             )}
 
             {/* Card Flipping Interface */}
-            {cardsReady && !showResults && (
+            {cardsReady && !showResults && drawMode !== 'ALL' && (
                 <div className="bg-gradient-to-br from-[#0B0112] to-[#1a0a2e] rounded-2xl p-12 shadow-[0_0_50px_rgba(160,32,240,0.4)] border-4 border-[#D4AF37]">
+                    <div className="flex justify-end mb-4">
+                        <button
+                            onClick={() => completeOpenImmediately()}
+                            className="px-4 py-2 rounded-full border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#FFD700] hover:bg-[#D4AF37]/20 font-semibold text-sm"
+                            style={{ fontFamily: "'Open Sans', sans-serif" }}
+                        >
+                            Bỏ qua hiệu ứng
+                        </button>
+                    </div>
                     <div className="text-center mb-8">
                         <h4
                             className="text-3xl font-bold text-[#D4AF37] mb-3 flex items-center gap-3 justify-center"
@@ -1034,6 +1186,51 @@ export function MysteryBox() {
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* ALL mode: hiển thị tất cả thẻ úp, rồi tự lật lần lượt */}
+            {cardsReady && !showResults && drawMode === 'ALL' && (
+                <div className="bg-gradient-to-br from-[#0B0112] to-[#1a0a2e] rounded-2xl p-8 shadow-[0_0_50px_rgba(160,32,240,0.4)] border-4 border-[#D4AF37]">
+                    <div className="flex justify-end mb-4">
+                        <button
+                            onClick={() => completeOpenImmediately()}
+                            className="px-4 py-2 rounded-full border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#FFD700] hover:bg-[#D4AF37]/20 font-semibold text-sm"
+                            style={{ fontFamily: "'Open Sans', sans-serif" }}
+                        >
+                            Bỏ qua hiệu ứng
+                        </button>
+                    </div>
+                    <div className="text-center mb-6">
+                        <h4
+                            className="text-3xl font-bold text-[#D4AF37] mb-2"
+                            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+                        >
+                            Mở toàn bộ thẻ
+                        </h4>
+                        <p className="text-[#E0E0E0]/80" style={{ fontFamily: "'Open Sans', sans-serif" }}>
+                            {openedCards.filter((c) => c.flipped).length} / {openedCards.length} thẻ đã mở
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+                        {openedCards.map((card, idx) => (
+                            <div
+                                key={`${card.name}-${idx}`}
+                                className="relative h-64 md:h-72 rounded-xl border-2 border-[#D4AF37]/30 overflow-hidden bg-[#1a0a2e]"
+                            >
+                                {!card.flipped ? (
+                                    <div className="absolute inset-0 bg-gradient-to-br from-[#A020F0] to-[#D4AF37] flex items-center justify-center">
+                                        <span className="text-5xl">🎴</span>
+                                    </div>
+                                ) : (
+                                    <div className="absolute inset-0">
+                                        <img src={card.image} alt={card.name} className="w-full h-full object-cover" />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
 
