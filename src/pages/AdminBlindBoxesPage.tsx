@@ -19,13 +19,24 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { blindBoxApi, cardApi, categoryApi, rateConfigApi, BlindBox, BlindBoxCardInBox, Card as CardType, BlindBoxProbability, Category, RateConfig, getCardImageUrl } from '@/utils/api';
+import { blindBoxApi, cardApi, categoryApi, rateConfigApi, BlindBox, BlindBoxStatus, BlindBoxCardInBox, Card as CardType, BlindBoxProbability, Category, RateConfig, getCardImageUrl } from '@/utils/api';
+
+const BLIND_BOX_STATUS_FILTERS: { value: 'ALL' | BlindBoxStatus; label: string }[] = [
+    { value: 'ALL', label: 'Tất cả' },
+    { value: 'DRAFT', label: 'Nháp' },
+    { value: 'ACTIVE', label: 'Đang mở bán' },
+    { value: 'OUT_OF_STOCK', label: 'Hết hàng' },
+    { value: 'DISABLED', label: 'Tạm khóa' },
+    { value: 'UPCOMING', label: 'Sắp mở bán' },
+    { value: 'ENDED', label: 'Đã kết thúc' },
+];
 
 export const AdminBlindBoxesPage: React.FC = () => {
     const navigate = useNavigate();
     // --- State: List View ---
     const [searchQuery, setSearchQuery] = useState('');
     const [blindBoxes, setBlindBoxes] = useState<BlindBox[]>([]);
+    const [statusFilter, setStatusFilter] = useState<'ALL' | BlindBoxStatus>('ALL');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -57,13 +68,13 @@ export const AdminBlindBoxesPage: React.FC = () => {
     // --- Load Data ---
     useEffect(() => {
         loadData();
-    }, []);
+    }, [statusFilter]);
 
     const loadData = async () => {
         setIsLoading(true);
         try {
             const [boxes, cards, cats, configs] = await Promise.all([
-                blindBoxApi.getAllBlindBoxes(),
+                blindBoxApi.getAllBlindBoxes(1, 100, statusFilter === 'ALL' ? undefined : statusFilter),
                 cardApi.getAllCards(),
                 categoryApi.getAllCategories(),
                 rateConfigApi.getAllRateConfigs().catch(() => []),
@@ -628,14 +639,30 @@ export const AdminBlindBoxesPage: React.FC = () => {
                     </div>
 
                     {/* Search Bar */}
-                    <div className="relative max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Tìm hộp..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 glass-card"
-                        />
+                    <div className="space-y-3">
+                        <div className="relative max-w-md">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Tìm hộp..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 glass-card"
+                            />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {BLIND_BOX_STATUS_FILTERS.map((f) => (
+                                <Button
+                                    key={f.value}
+                                    type="button"
+                                    size="sm"
+                                    variant={statusFilter === f.value ? 'default' : 'outline'}
+                                    className="text-xs"
+                                    onClick={() => setStatusFilter(f.value)}
+                                >
+                                    {f.label}
+                                </Button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Grid of Boxes */}

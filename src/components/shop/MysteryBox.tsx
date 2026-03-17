@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Gift, Package, Sparkles, Star, Zap } from 'lucide-react';
-import { blindBoxApi, userApi, BlindBox, getCardImageUrl } from '@/utils/api';
+import { blindBoxApi, userApi, BlindBox, BlindBoxStatus, getCardImageUrl } from '@/utils/api';
 
 const defaultBoxImage = '/mystery.png';
 
@@ -20,10 +20,27 @@ function getBoxPrice(box: BlindBox): number {
     return typeof p === 'number' ? p : Number(p) || 0;
 }
 
-function isSoldOut(box: BlindBox | null | undefined): boolean {
-    const s = box?.blindBoxStatus;
-    if (!s) return false;
-    return String(s).toUpperCase() === 'OUT_OF_STOCK';
+function getBlindBoxStatus(box: BlindBox | null | undefined): BlindBoxStatus {
+    const raw = String(box?.blindBoxStatus || '').toUpperCase();
+    switch (raw) {
+        case 'DRAFT':
+        case 'ACTIVE':
+        case 'OUT_OF_STOCK':
+        case 'DISABLED':
+        case 'UPCOMING':
+        case 'ENDED':
+            return raw;
+        default:
+            return 'ACTIVE';
+    }
+}
+
+function isBuyable(box: BlindBox | null | undefined): boolean {
+    return getBlindBoxStatus(box) === 'ACTIVE';
+}
+
+function getStatusLabel(box: BlindBox | null | undefined): string {
+    return getBlindBoxStatus(box) === 'ACTIVE' ? 'Đang mở bán' : 'Đã bán hết';
 }
 
 /** Nền tối tím đậm dễ đọc, viền vàng nhẹ giữ cảm giác hộp bí ẩn */
@@ -52,7 +69,8 @@ export function MysteryBox() {
     const [isBuying, setIsBuying] = useState(false);
     /** Tỉ lệ theo rarity cho từng hộp (blindBoxId -> [{ rarity, probability }]). */
     const [boxProbabilities, setBoxProbabilities] = useState<Record<string, { rarity: string; probability: number }[]>>({});
-    const [drawMode, setDrawMode] = useState<'ONE' | 'TEN' | 'ALL'>('ONE');
+    const [statusFilter, setStatusFilter] = useState<'ACTIVE' | 'OUT_OF_STOCK'>('ACTIVE');
+    const [drawMode, setDrawMode] = useState<'ONE' | 'ALL'>('ONE');
     /** Phase cho hiệu ứng mở hộp kiểu blind box: shake → lid open → light → done */
     const [boxOpenPhase, setBoxOpenPhase] = useState<'shake' | 'lid' | 'light' | null>(null);
 
@@ -60,41 +78,10 @@ export function MysteryBox() {
 
     useEffect(() => {
         let cancelled = false;
-        blindBoxApi.getAllBlindBoxes()
+        blindBoxApi.getAllBlindBoxes(1, 20, statusFilter)
             .then(async (list) => {
                 if (cancelled) return;
                 setBlindBoxes(list);
-
-                // FE-only: xác định SOLD OUT ngay trên danh sách (không cần bấm mua)
-                // Dựa vào API /blind-boxes/{id}/cards: nếu không còn card.status=true => SOLD OUT
-                try {
-                    const CONCURRENCY = 4;
-                    const next = [...list];
-                    for (let i = 0; i < list.length; i += CONCURRENCY) {
-                        const batch = list.slice(i, i + CONCURRENCY);
-                        const results = await Promise.all(
-                            batch.map(async (box) => {
-                                try {
-                                    const cards = await blindBoxApi.getBlindBoxCards(box.blindBoxId);
-                                    const hasAny = Array.isArray(cards) && cards.some((c) => c.status);
-                                    return { id: box.blindBoxId, soldOut: !hasAny };
-                                } catch {
-                                    // Nếu lỗi thì không tự phán sold out (giữ nguyên theo BE)
-                                    return { id: box.blindBoxId, soldOut: false };
-                                }
-                            })
-                        );
-                        for (const r of results) {
-                            const idx = next.findIndex((b) => b.blindBoxId === r.id);
-                            if (idx >= 0 && r.soldOut) {
-                                next[idx] = { ...next[idx], blindBoxStatus: 'OUT_OF_STOCK' };
-                            }
-                        }
-                        if (!cancelled) setBlindBoxes([...next]);
-                    }
-                } catch {
-                    // ignore
-                }
 
                 const probs: Record<string, { rarity: string; probability: number }[]> = {};
                 await Promise.all(
@@ -117,7 +104,7 @@ export function MysteryBox() {
             .catch((e) => { if (!cancelled) setBoxError(e?.message || 'Không tải được danh sách hộp bí ẩn'); })
             .finally(() => { if (!cancelled) setIsLoadingBoxes(false); });
         return () => { cancelled = true; };
-    }, []);
+    }, [statusFilter]);
 
     const getRarityColor = (rarity: string) => {
         const r = (rarity || '').toUpperCase();
@@ -137,9 +124,9 @@ export function MysteryBox() {
         return colors[r] || colors[rarity] || 'text-[#E0E0E0]/80 bg-[#E0E0E0]/20';
     };
 
-    const openBox = (box: BlindBox, mode: 'ONE' | 'TEN' | 'ALL' = 'ONE') => {
-        if (isSoldOut(box)) {
-            alert('Hộp đã SOLD OUT. Vui lòng chọn hộp khác.');
+    const openBox = (box: BlindBox, mode: 'ONE' | 'ALL' = 'ONE') => {
+        if (!isBuyable(box)) {
+            alert(`Hộp hiện ở trạng thái "${getStatusLabel(box)}", chưa thể mở.`);
             return;
         }
         setSelectedBox(box);
@@ -158,17 +145,15 @@ export function MysteryBox() {
 
     const handleBagClick = async () => {
         if (!showInteractiveBag || isTearing || !selectedBox || isBuying) return;
-        if (isSoldOut(selectedBox)) {
-            alert('Hộp đã SOLD OUT. Vui lòng chọn hộp khác.');
+        if (!isBuyable(selectedBox)) {
+            alert(`Hộp hiện ở trạng thái "${getStatusLabel(selectedBox)}", chưa thể mở.`);
             resetBox();
             return;
         }
 
         const pricePerDraw = getBoxPrice(selectedBox);
         let requiredBalance = pricePerDraw;
-        if (drawMode === 'TEN') {
-            requiredBalance = pricePerDraw * 10;
-        } else if (drawMode === 'ALL') {
+        if (drawMode === 'ALL') {
             const boxTotal =
                 typeof selectedBox.allBoxPrice === 'number'
                     ? Number(selectedBox.allBoxPrice)
@@ -216,15 +201,19 @@ export function MysteryBox() {
                 const cards: Card[] = [];
                 let totalPaid = 0;
 
-                const maxDraws =
-                    drawMode === 'ONE' ? 1 :
-                    drawMode === 'TEN' ? 10 :
-                    999;
+                const boxTotal = Number(selectedBox.allBoxPrice ?? 0);
+                const estimatedAllDraws =
+                    pricePerDraw > 0 && boxTotal > 0
+                        ? Math.max(1, Math.floor(boxTotal / pricePerDraw))
+                        : 999;
+
+                const maxDraws = drawMode === 'ONE' ? 1 : estimatedAllDraws;
+
+                await blindBoxApi.buyBlindBox(selectedBox.blindBoxId, drawMode === 'ALL');
 
                 for (let i = 0; i < maxDraws; i++) {
                     try {
-                        const order = await blindBoxApi.buyBlindBox(selectedBox.blindBoxId);
-                        const result = await blindBoxApi.drawCard(order.orderId);
+                        const result = await blindBoxApi.drawCard(selectedBox.blindBoxId);
                         const c = result.card;
                         const card: Card = {
                             name: c?.name ?? 'Thẻ bí ẩn',
@@ -477,6 +466,30 @@ export function MysteryBox() {
                         Lịch sử mở hộp
                     </button>
                 </div>
+                <div className="mt-3 flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setStatusFilter('ACTIVE')}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                            statusFilter === 'ACTIVE'
+                                ? 'bg-[#D4AF37] text-[#0B0112] border-[#D4AF37]'
+                                : 'bg-white/5 text-[#E0E0E0] border-[#D4AF37]/40'
+                        }`}
+                    >
+                        Đang mở bán
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setStatusFilter('OUT_OF_STOCK')}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                            statusFilter === 'OUT_OF_STOCK'
+                                ? 'bg-[#D4AF37] text-[#0B0112] border-[#D4AF37]'
+                                : 'bg-white/5 text-[#E0E0E0] border-[#D4AF37]/40'
+                        }`}
+                    >
+                        Đã bán hết
+                    </button>
+                </div>
             </div>
 
             {/* Box Selection */}
@@ -493,11 +506,14 @@ export function MysteryBox() {
                     {!isLoadingBoxes && !boxError && blindBoxes.length === 0 && (
                         <div className="text-center py-12 text-[#E0E0E0]/80">Chưa có hộp bí ẩn nào. Admin hãy tạo hộp trước.</div>
                     )}
-                    {!isLoadingBoxes && blindBoxes.map((box) => (
+                    {!isLoadingBoxes && blindBoxes.map((box) => {
+                        const buyable = isBuyable(box);
+                        const statusLabel = getStatusLabel(box);
+                        return (
                         <div
                             key={box.blindBoxId}
                             className={`bg-gradient-to-b from-[#1a0a2e] to-[#0B0112] rounded-2xl shadow-[0_0_20px_rgba(160,32,240,0.2)] overflow-hidden border-2 border-[#D4AF37]/30 group ${
-                                isSoldOut(box)
+                                !buyable
                                     ? 'opacity-80'
                                     : 'hover:border-[#A020F0] hover:shadow-[0_0_30px_rgba(212,175,55,0.4)]'
                             }`}
@@ -511,16 +527,16 @@ export function MysteryBox() {
                                                 src={box.imageUrl || defaultBoxImage}
                                                 alt={box.name}
                                                 className={`w-48 h-48 object-contain drop-shadow-[0_0_30px_rgba(212,175,55,0.5)] ${
-                                                    isSoldOut(box) ? '' : 'group-hover:scale-110'
+                                                    !buyable ? '' : 'group-hover:scale-110'
                                                 }`}
                                                 onError={(e) => {
                                                     (e.target as HTMLImageElement).src = defaultBoxImage;
                                                 }}
                                             />
-                                            {isSoldOut(box) && (
+                                            {!buyable && (
                                                 <div className="absolute inset-0 flex items-center justify-center">
                                                     <span className="px-3 py-1 rounded-full bg-black/60 border border-[#D4AF37]/40 text-[#FFD700] font-bold text-sm">
-                                                        SOLD OUT
+                                                        {statusLabel}
                                                     </span>
                                                 </div>
                                             )}
@@ -549,6 +565,12 @@ export function MysteryBox() {
                                             </span>
                                             <span className="text-[#E0E0E0]">/ 1 lần mở</span>
                                         </div>
+                                        <div className="mb-4 text-[#E0E0E0]">
+                                            Giá mua cả hộp:{' '}
+                                            <span className="text-[#D4AF37] font-semibold">
+                                                {Number(box.allBoxPrice ?? 0).toLocaleString('vi-VN')} VND
+                                            </span>
+                                        </div>
                                         {boxProbabilities[box.blindBoxId]?.length > 0 && (
                                             <div className="bg-black/40 backdrop-blur-sm rounded-lg p-3 mb-4 border border-[#D4AF37]/30">
                                                 <p className="text-[#D4AF37] font-semibold text-sm mb-2 flex items-center gap-1.5" style={{ fontFamily: "'Open Sans', sans-serif" }}>
@@ -568,9 +590,9 @@ export function MysteryBox() {
                                                 </div>
                                             </div>
                                         )}
-                                        {box.blindBoxStatus === 'OUT_OF_STOCK' ? (
+                                        {!buyable ? (
                                             <div className="w-full md:w-auto px-8 py-3 rounded-full font-bold text-lg bg-[#1a0a2e] text-[#E0E0E0]/70 border-2 border-[#D4AF37]/30 cursor-not-allowed inline-flex items-center gap-2 justify-center">
-                                                SOLD OUT
+                                                {statusLabel}
                                             </div>
                                         ) : (
                                             <div className="flex flex-wrap gap-3 items-center">
@@ -583,20 +605,12 @@ export function MysteryBox() {
                                                     Mở 1 thẻ
                                                 </button>
                                                 <button
-                                                    onClick={() => openBox(box, 'TEN')}
-                                                    className="w-full md:w-auto px-6 py-3 rounded-full font-semibold text-base border-2 border-[#D4AF37] text-[#E8E8E8] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 transition-colors flex items-center gap-2 justify-center"
-                                                    style={{ fontFamily: "'Open Sans', sans-serif" }}
-                                                >
-                                                    <Gift className="w-5 h-5 text-[#D4AF37]" />
-                                                    Mua 10 thẻ
-                                                </button>
-                                                <button
                                                     onClick={() => openBox(box, 'ALL')}
                                                     className="w-full md:w-auto px-6 py-3 rounded-full font-semibold text-base border-2 border-[#A020F0] text-[#E8E8E8] bg-[#A020F0]/10 hover:bg-[#A020F0]/20 transition-colors flex items-center gap-2 justify-center"
                                                     style={{ fontFamily: "'Open Sans', sans-serif" }}
                                                 >
                                                     <Package className="w-5 h-5 text-[#A020F0]" />
-                                                    Mua hết thẻ trong hộp
+                                                    Mua cả hộp
                                                 </button>
                                             </div>
                                         )}
@@ -604,7 +618,7 @@ export function MysteryBox() {
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    )})}
                 </div>
             )}
 

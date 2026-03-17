@@ -107,7 +107,7 @@ function App() {
                         {/* === Hộp bí ẩn (Blind Box) — API: blindBoxApi (GET/POST /api/blind-boxes/*) === */}
                         <Route path="mystery-box" element={<MysteryBoxPage />} />
                         <Route path="mystery-box/history" element={<MysteryBoxHistoryPage />} />
-                        <Route path="mystery-box/checkout" element={<MysteryBoxCheckoutPage />} />
+                        {/* <Route path="mystery-box/checkout" element={<MysteryBoxCheckoutPage />} /> */}
                         {/* === Sàn giao dịch (Marketplace) — API: listSellerApi, orderApi, cardApi, categoryApi, shipmentApi, transactionApi === */}
                         <Route path="marketplace" element={<MarketplacePage />} />
                         <Route path="marketplace/checkout" element={<MarketplaceCheckoutPage />} />
