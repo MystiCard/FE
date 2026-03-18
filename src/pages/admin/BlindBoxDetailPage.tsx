@@ -16,10 +16,12 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
     const [cards, setCards] = useState<BlindBoxCardInBox[]>([]);
     const [probabilities, setProbabilities] = useState<BlindBoxProbability[]>([]);
     const [availableCards, setAvailableCards] = useState<CardType[]>([]);
-    const [page, setPage] = useState(1);
+    const [page, setPage] = useState(0); // 0-based theo BE
+    const [cardsTotalPages, setCardsTotalPages] = useState(1);
+    const [cardsTotalElements, setCardsTotalElements] = useState(0);
     const [statusFilter, setStatusFilter] = useState<'all' | 'in' | 'opened'>('all');
     const [rarityFilter, setRarityFilter] = useState<string>('all');
-    const pageSize = 15;
+    const pageSize = 10;
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string>('');
 
@@ -30,14 +32,22 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
             try {
                 const [b, c, p, all] = await Promise.all([
                     blindBoxApi.getBlindBoxById(id),
-                    blindBoxApi.getBlindBoxCards(id).catch(() => []),
+                    blindBoxApi.getBlindBoxCards(id, page, pageSize).catch(() => ({
+                        content: [],
+                        totalPages: 1,
+                        totalElements: 0,
+                        size: pageSize,
+                        number: page,
+                        last: true,
+                    })),
                     blindBoxApi.getBlindBoxProbabilities(id).catch(() => []),
                     cardApi.getAllCards().catch(() => []),
                 ]);
                 setBox(b);
-                const list = Array.isArray(c) ? c : [];
+                const list = Array.isArray(c?.content) ? c.content : [];
                 setCards(list);
-                setPage(1);
+                setCardsTotalPages(Math.max(1, Number(c?.totalPages ?? 1)));
+                setCardsTotalElements(Number(c?.totalElements ?? list.length));
                 setProbabilities(Array.isArray(p) ? p : []);
                 setAvailableCards(Array.isArray(all) ? all : []);
             } catch (err) {
@@ -46,7 +56,7 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
                 setIsLoading(false);
             }
         })();
-    }, [id]);
+    }, [id, page]);
 
     if (isLoading) {
         return (
@@ -110,25 +120,24 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
         return (c.rarity || '').toUpperCase() === rarityFilter.toUpperCase();
     });
 
-    const totalCards = filteredCards.length;
-    const totalPages = totalCards > 0 ? Math.ceil(totalCards / pageSize) : 1;
-    const currentPage = Math.min(page, totalPages);
-    const startIndex = (currentPage - 1) * pageSize;
-    const pagedCards = filteredCards.slice(startIndex, startIndex + pageSize);
+    const totalCards = cardsTotalElements;
+    const totalPages = Math.max(1, cardsTotalPages);
+    const currentPage = Math.min(page, totalPages - 1);
+    const pagedCards = filteredCards;
 
     const buildPageNumbers = () => {
         const pages: (number | 'ellipsis')[] = [];
         if (totalPages <= 7) {
-            for (let i = 1; i <= totalPages; i++) pages.push(i);
+            for (let i = 0; i < totalPages; i++) pages.push(i);
             return pages;
         }
-        pages.push(1);
-        const left = Math.max(2, currentPage - 1);
-        const right = Math.min(totalPages - 1, currentPage + 1);
-        if (left > 2) pages.push('ellipsis');
+        pages.push(0);
+        const left = Math.max(1, currentPage - 1);
+        const right = Math.min(totalPages - 2, currentPage + 1);
+        if (left > 1) pages.push('ellipsis');
         for (let i = left; i <= right; i++) pages.push(i);
-        if (right < totalPages - 1) pages.push('ellipsis');
-        pages.push(totalPages);
+        if (right < totalPages - 2) pages.push('ellipsis');
+        pages.push(totalPages - 1);
         return pages;
     };
 
@@ -166,11 +175,11 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
                     <CardContent className="flex flex-col gap-4">
                         {box.imageUrl && (
                             <div className="w-full">
-                                <div className="aspect-video rounded-xl overflow-hidden bg-black/30 border border-white/10">
+                                <div className="rounded-xl overflow-hidden bg-black/30 border border-white/10 inline-block">
                                     <img
                                         src={box.imageUrl}
                                         alt={box.name}
-                                        className="w-full h-full object-cover"
+                                        className="block max-h-[280px] w-auto object-contain"
                                         onError={(e) => {
                                             (e.target as HTMLImageElement).style.display = 'none';
                                         }}
@@ -214,7 +223,7 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
                                         value={statusFilter}
                                         onChange={(e) => {
                                             setStatusFilter(e.target.value as 'all' | 'in' | 'opened');
-                                            setPage(1);
+                                            setPage(0);
                                         }}
                                         className="h-8 px-3 rounded-full bg-black/40 border border-white/10 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary-500/60"
                                     >
@@ -226,7 +235,7 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
                                         value={rarityFilter}
                                         onChange={(e) => {
                                             setRarityFilter(e.target.value);
-                                            setPage(1);
+                                            setPage(0);
                                         }}
                                         className="h-8 px-3 rounded-full bg-black/40 border border-white/10 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary-500/60"
                                     >
@@ -278,7 +287,7 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
                                 </span>
                                 {totalCards > 0 && (
                                     <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                                        Trang {currentPage}/{totalPages} · {totalCards} thẻ
+                                        Trang {currentPage + 1}/{totalPages} · {totalCards} thẻ
                                     </span>
                                 )}
                             </CardTitle>
@@ -296,9 +305,9 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
                             </p>
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                 {pagedCards.map((card, idx) => {
-                                    const matchedCard = availableCards.find(c => c.cardId === card.cardId);
+                                    const matchedCard = availableCards.find(c => c.cardId === (card.cardId || card.cardResponse?.cardId));
                                     const imageSrc =
-                                        getCardImageUrl(card) ||
+                                        getCardImageUrl(card.cardResponse || card) ||
                                         (matchedCard ? getCardImageUrl(matchedCard) : '') ||
                                         'https://via.placeholder.com/150?text=Card';
 
@@ -319,12 +328,15 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
                                                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                 />
                                             </div>
-                                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2">
+                                            <div className="p-2 bg-black/60 border-t border-white/10">
                                                 <p className="text-xs font-bold text-white truncate">
-                                                    {card.name || matchedCard?.name || '—'}
+                                                    {card.cardResponse?.name || card.name || matchedCard?.name || '—'}
                                                 </p>
                                                 <p className="text-[10px] text-gray-400">
-                                                    {card.rarity || matchedCard?.rarity || '—'}
+                                                    {card.cardResponse?.rarity || card.rarity || matchedCard?.rarity || '—'}
+                                                </p>
+                                                <p className="text-[10px] text-emerald-300">
+                                                    Giá: {formatCurrencyVND(Number(card.cardResponse?.basePrice ?? card.basePrice ?? matchedCard?.basePrice ?? 0))}
                                                 </p>
                                             </div>
                                         </div>
@@ -337,8 +349,8 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
                                         variant="outline"
                                         size="sm"
                                         className="rounded-full px-3 h-8 text-xs"
-                                        disabled={currentPage === 1}
-                                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                        disabled={currentPage <= 0}
+                                        onClick={() => setPage((p) => Math.max(0, p - 1))}
                                     >
                                         ‹
                                     </Button>
@@ -362,7 +374,7 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
                                                             : 'border-white/10 text-muted-foreground hover:bg-white/10'
                                                     }`}
                                                 >
-                                                    {item}
+                                                    {item + 1}
                                                 </button>
                                             )
                                         )}
@@ -371,8 +383,8 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
                                         variant="outline"
                                         size="sm"
                                         className="rounded-full px-3 h-8 text-xs"
-                                        disabled={currentPage === totalPages}
-                                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage >= totalPages - 1}
+                                        onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                                     >
                                         ›
                                     </Button>

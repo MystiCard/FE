@@ -46,9 +46,9 @@ export const AdminBlindBoxesPage: React.FC = () => {
     const [newBox, setNewBox] = useState({
         name: '',
         description: '',
-        imageUrl: '',
         cardIds: [] as string[],
     });
+    const [newBoxImageFile, setNewBoxImageFile] = useState<File | null>(null);
 
     // --- State: Card Selection ---
     const [availableCards, setAvailableCards] = useState<CardType[]>([]);
@@ -70,17 +70,22 @@ export const AdminBlindBoxesPage: React.FC = () => {
         loadData();
     }, [statusFilter]);
 
+    // Reset blind box page when search/filter changes
+    useEffect(() => {
+        setBoxPage(0);
+    }, [searchQuery, statusFilter]);
+
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [boxes, cards, cats, configs] = await Promise.all([
+            const [boxesPage, cards, cats, configs] = await Promise.all([
                 blindBoxApi.getAllBlindBoxes(1, 100, statusFilter === 'ALL' ? undefined : statusFilter),
                 cardApi.getAllCards(),
                 categoryApi.getAllCategories(),
                 rateConfigApi.getAllRateConfigs().catch(() => []),
             ]);
 
-            const mappedBoxes = boxes.map((item: any) => ({
+            const mappedBoxes = (boxesPage.content ?? boxesPage ?? []).map((item: any) => ({
                 ...item,
                 blindBoxId: item.blindBoxId || item.id
             }));
@@ -113,34 +118,33 @@ export const AdminBlindBoxesPage: React.FC = () => {
         const safeName = trimmedName.slice(0, 255);
         const safeDescription = (newBox.description || '').slice(0, 255);
 
-        // Nếu admin không nhập URL ảnh hộp, tự lấy ảnh từ thẻ đầu tiên để list có thumbnail.
+        // Nếu không upload file, dùng fallback URL từ thẻ đầu tiên để list có thumbnail.
         let fallbackImageUrl = '';
-        if (!newBox.imageUrl && newBox.cardIds.length > 0) {
+        if (!newBoxImageFile && newBox.cardIds.length > 0) {
             const firstCard = availableCards.find(c => c.cardId === newBox.cardIds[0]);
             if (firstCard) {
                 fallbackImageUrl = getCardImageUrl(firstCard);
             }
         }
-        const safeImageUrl = (newBox.imageUrl || fallbackImageUrl || '').slice(0, 255);
 
         setIsSubmitting(true);
         try {
             const payload = {
                 name: safeName,
                 description: safeDescription,
-                imageUrl: safeImageUrl || undefined,
+                imageUrl: fallbackImageUrl ? fallbackImageUrl.slice(0, 255) : undefined,
                 cardIds: newBox.cardIds,
             };
 
-            await blindBoxApi.createBlindBox(payload);
+            await blindBoxApi.createBlindBoxWithImage(payload, newBoxImageFile || undefined);
 
             // Reset và reload
             setNewBox({
                 name: '',
                 description: '',
-                imageUrl: '',
                 cardIds: [],
             });
+            setNewBoxImageFile(null);
             setIsCreating(false);
             await loadData(); // Reload all data to refresh list
             alert('Đã tạo hộp bí ẩn thành công!');
@@ -194,11 +198,35 @@ export const AdminBlindBoxesPage: React.FC = () => {
         navigate(`/admin/blind-boxes/${box.blindBoxId}`);
     };
 
+    // --- Pagination: Blind Box List ---
+    const boxPageSize = 12;
+    const [boxPage, setBoxPage] = useState(0);
+
     // --- Filtering ---
     const filteredBoxes = blindBoxes.filter(box =>
         box.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         box.description?.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    const totalBoxPages = Math.max(1, Math.ceil(filteredBoxes.length / boxPageSize));
+    const boxStartIndex = boxPage * boxPageSize;
+    const paginatedBoxes = filteredBoxes.slice(boxStartIndex, boxStartIndex + boxPageSize);
+
+    const buildBoxPageNumbers = () => {
+        const pages: (number | 'ellipsis')[] = [];
+        if (totalBoxPages <= 7) {
+            for (let i = 0; i < totalBoxPages; i++) pages.push(i);
+            return pages;
+        }
+        pages.push(0);
+        const left = Math.max(1, boxPage - 1);
+        const right = Math.min(totalBoxPages - 2, boxPage + 1);
+        if (left > 1) pages.push('ellipsis');
+        for (let i = left; i <= right; i++) pages.push(i);
+        if (right < totalBoxPages - 2) pages.push('ellipsis');
+        pages.push(totalBoxPages - 1);
+        return pages;
+    };
 
     const filteredCards = availableCards.filter(card => {
         const matchesSearch = card.name.toLowerCase().includes(cardSearchQuery.toLowerCase());
@@ -348,13 +376,18 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-200">URL ảnh (tùy chọn)</label>
+                                    <label className="text-sm font-medium text-gray-200">Ảnh hộp (tùy chọn)</label>
                                     <Input
-                                        placeholder="https://..."
-                                        value={newBox.imageUrl}
-                                        onChange={(e) => setNewBox({ ...newBox, imageUrl: e.target.value })}
-                                        className="glass-card bg-black/40"
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => setNewBoxImageFile(e.target.files?.[0] || null)}
+                                        className="glass-card bg-black/40 file:mr-3 file:rounded-md file:border-0 file:bg-primary-600/80 file:px-3 file:py-1.5 file:text-white hover:file:bg-primary-500"
                                     />
+                                    {newBoxImageFile && (
+                                        <div className="text-xs text-muted-foreground">
+                                            Đã chọn: <span className="text-gray-200">{newBoxImageFile.name}</span>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-200">Mô tả</label>
@@ -676,8 +709,17 @@ export const AdminBlindBoxesPage: React.FC = () => {
                             <Button variant="premium" onClick={() => setIsCreating(true)}>Tạo hộp</Button>
                         </div>
                     ) : (
+                        <>
+                        <div className="flex items-center justify-between mb-4 text-sm text-muted-foreground">
+                            <span>
+                                Trang {boxPage + 1}/{totalBoxPages} · {filteredBoxes.length} hộp
+                            </span>
+                            <span>
+                                Đang xem {paginatedBoxes.length} / {filteredBoxes.length} hộp
+                            </span>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {filteredBoxes.map((box) => (
+                            {paginatedBoxes.map((box) => (
                                 <Card
                                     key={box.blindBoxId}
                                     className="group glass-card hover:border-primary-500/30 transition-all duration-300 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] flex flex-col h-full"
@@ -732,6 +774,54 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                 </Card>
                             ))}
                         </div>
+                        {totalBoxPages > 1 && (
+                            <div className="flex items-center justify-center gap-3 mt-6">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-full px-3 h-8 text-xs"
+                                    disabled={boxPage <= 0}
+                                    onClick={() => setBoxPage((p) => Math.max(0, p - 1))}
+                                >
+                                    ‹
+                                </Button>
+                                <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                                    {buildBoxPageNumbers().map((item, idx) =>
+                                        item === 'ellipsis' ? (
+                                            <span
+                                                key={`e-${idx}`}
+                                                className="w-6 h-6 flex items-center justify-center text-xs text-muted-foreground"
+                                            >
+                                                ...
+                                            </span>
+                                        ) : (
+                                            <button
+                                                key={item}
+                                                type="button"
+                                                onClick={() => setBoxPage(item)}
+                                                className={`w-7 h-7 rounded-full text-[11px] font-medium border transition-colors ${
+                                                    item === boxPage
+                                                        ? 'bg-primary-500 text-white border-primary-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]'
+                                                        : 'border-white/10 text-muted-foreground hover:bg-white/10'
+                                                }`}
+                                            >
+                                                {item + 1}
+                                            </button>
+                                        )
+                                    )}
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-full px-3 h-8 text-xs"
+                                    disabled={boxPage >= totalBoxPages - 1}
+                                    onClick={() => setBoxPage((p) => Math.min(totalBoxPages - 1, p + 1))}
+                                >
+                                    ›
+                                </Button>
+                            </div>
+                        )}
+                        </>
                     )}
                 </div>
             )}
