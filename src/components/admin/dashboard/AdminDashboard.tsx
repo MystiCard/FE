@@ -9,7 +9,7 @@ import {
     AlertCircle,
     ArrowUp,
 } from 'lucide-react';
-import { AdminWithdrawPanel } from '@/components/admin/AdminWithdrawPanel';
+import { AdminWithdrawPanel } from '../withdraw';
 import {
     transactionApi,
     paymentApi,
@@ -18,7 +18,7 @@ import {
     TransactionReportResponse,
     userApi,
     cardApi,
-} from '@/utils/api';
+} from '@/api';
 
 export const AdminDashboard: React.FC = () => {
     const [report, setReport] = useState<TransactionReportResponse | null>(null);

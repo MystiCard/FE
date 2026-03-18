@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { paymentApi, PaymentResponse, PageResponse } from '@/utils/api';
+import { paymentApi, PaymentResponse, PageResponse } from '@/api';
 import { Search, Filter, ArrowUpCircle, ArrowDownCircle, CreditCard, RefreshCcw } from 'lucide-react';
 
 type StatusFilter = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | undefined;

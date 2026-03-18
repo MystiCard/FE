@@ -19,7 +19,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { blindBoxApi, cardApi, categoryApi, rateConfigApi, BlindBox, BlindBoxCardInBox, Card as CardType, BlindBoxProbability, Category, RateConfig, getCardImageUrl } from '@/utils/api';
+import { blindBoxApi, cardApi, categoryApi, rateConfigApi, BlindBox, BlindBoxCardInBox, Card as CardType, BlindBoxProbability, Category, RateConfig, getCardImageUrl } from '@/api';
 
 export const AdminBlindBoxesPage: React.FC = () => {
     const navigate = useNavigate();
@@ -36,6 +36,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
         name: '',
         description: '',
         imageUrl: '',
+        imageFile: null as File | null,
         cardIds: [] as string[],
     });
 
@@ -69,7 +70,13 @@ export const AdminBlindBoxesPage: React.FC = () => {
                 rateConfigApi.getAllRateConfigs().catch(() => []),
             ]);
 
-            const mappedBoxes = boxes.map((item: any) => ({
+            const rawBoxes: any[] = Array.isArray(boxes)
+                ? boxes
+                : Array.isArray((boxes as any)?.content)
+                ? (boxes as any).content
+                : [];
+
+            const mappedBoxes = rawBoxes.map((item: any) => ({
                 ...item,
                 blindBoxId: item.blindBoxId || item.id
             }));
@@ -102,32 +109,24 @@ export const AdminBlindBoxesPage: React.FC = () => {
         const safeName = trimmedName.slice(0, 255);
         const safeDescription = (newBox.description || '').slice(0, 255);
 
-        // Nếu admin không nhập URL ảnh hộp, tự lấy ảnh từ thẻ đầu tiên để list có thumbnail.
-        let fallbackImageUrl = '';
-        if (!newBox.imageUrl && newBox.cardIds.length > 0) {
-            const firstCard = availableCards.find(c => c.cardId === newBox.cardIds[0]);
-            if (firstCard) {
-                fallbackImageUrl = getCardImageUrl(firstCard);
-            }
-        }
-        const safeImageUrl = (newBox.imageUrl || fallbackImageUrl || '').slice(0, 255);
-
         setIsSubmitting(true);
         try {
             const payload = {
                 name: safeName,
                 description: safeDescription,
-                imageUrl: safeImageUrl || undefined,
+                imageUrl: newBox.imageUrl?.slice(0, 255) || '',
                 cardIds: newBox.cardIds,
             };
 
-            await blindBoxApi.createBlindBox(payload);
+            // Nếu có file ảnh → dùng multipart upload; nếu không có file vẫn gửi payload (imageUrl có thể rỗng)
+            await blindBoxApi.createBlindBoxWithImage(payload, newBox.imageFile || undefined);
 
             // Reset và reload
             setNewBox({
                 name: '',
                 description: '',
                 imageUrl: '',
+                imageFile: null,
                 cardIds: [],
             });
             setIsCreating(false);
@@ -337,9 +336,20 @@ export const AdminBlindBoxesPage: React.FC = () => {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-200">URL ảnh (tùy chọn)</label>
+                                    <label className="text-sm font-medium text-gray-200">Ảnh hộp (upload hoặc dùng URL)</label>
                                     <Input
-                                        placeholder="https://..."
+                                        type="file"
+                                        accept="image/*"
+                                        className="glass-card bg-black/40"
+                                        onChange={(e) =>
+                                            setNewBox((prev) => ({
+                                                ...prev,
+                                                imageFile: e.target.files?.[0] ?? null,
+                                            }))
+                                        }
+                                    />
+                                    <Input
+                                        placeholder="Hoặc dán URL ảnh (tùy chọn)"
                                         value={newBox.imageUrl}
                                         onChange={(e) => setNewBox({ ...newBox, imageUrl: e.target.value })}
                                         className="glass-card bg-black/40"

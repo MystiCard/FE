@@ -11,7 +11,7 @@ import {
     Upload,
     FileSpreadsheet
 } from 'lucide-react';
-import { rateConfigApi, RateConfig, RateConfigRequest } from '@/utils/api';
+import { rateConfigApi, RateConfig, RateConfigRequest } from '@/api';
 
 export const AdminRateConfigPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');

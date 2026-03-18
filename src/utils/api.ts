@@ -401,27 +401,53 @@ export const userApi = {
         return result.data;
     },
 
-    // Admin: Get all users
+    // Admin: Get all users (gắn status theo tham số active của BE)
     getAllUsers: async (page: number = 1, size: number = 100): Promise<UserProfile[]> => {
-        const params = new URLSearchParams({
-            page: page.toString(),
-            size: size.toString(),
-            active: 'true',
-        });
+        const buildParams = (active: boolean) =>
+            new URLSearchParams({
+                page: page.toString(),
+                size: size.toString(),
+                active: String(active),
+            }).toString();
 
-        const response = await apiRequest<ApiResponse<PageResponse<UserProfile>>>(`/users?${params.toString()}`, {
-            method: 'GET',
-        });
+        const [activeRes, inactiveRes] = await Promise.all([
+            apiRequest<ApiResponse<PageResponse<UserProfile>>>(`/users?${buildParams(true)}`, {
+                method: 'GET',
+            }),
+            apiRequest<ApiResponse<PageResponse<UserProfile>>>(`/users?${buildParams(false)}`, {
+                method: 'GET',
+            }),
+        ]);
 
-        // Extract content array from pagination response
-        return response.data.content || [];
+        const activeList = (activeRes.data.content || []).map((u) => ({
+            ...u,
+            status: 'ACTIVE' as const,
+        }));
+        const inactiveList = (inactiveRes.data.content || []).map((u) => ({
+            ...u,
+            status: 'BANNED' as const,
+        }));
+        return [...activeList, ...inactiveList];
     },
 
-    // Admin: Update user status (ban/unban)
+    // Admin: Update user status (ban = delete, active = activate)
     updateUserStatus: async (userId: string, status: 'ACTIVE' | 'BANNED'): Promise<UserProfile> => {
-        const response = await apiRequest<ApiResponse<UserProfile>>(`/users/${userId}/status`, {
+        if (status === 'BANNED') {
+            // BE không có trạng thái BANNED, dùng delete user để "ban"
+            await apiRequest<ApiResponse<string>>(`/users/${userId}`, {
+                method: 'DELETE',
+            });
+            // Sau khi xóa, FE sẽ reload list; tạm trả về profile rỗng để tránh undefined
+            return {
+                userId,
+                email: '',
+                name: '',
+            } as UserProfile;
+        }
+
+        // ACTIVE → dùng endpoint activateUser hiện có
+        const response = await apiRequest<ApiResponse<UserProfile>>(`/users/active/${userId}`, {
             method: 'PUT',
-            body: JSON.stringify({ status }),
         });
         return response.data;
     },
@@ -472,10 +498,14 @@ export interface Card {
 export function getCardImageUrl(card: { imageUrl?: CardImageUrl } | null | undefined): string {
     if (!card?.imageUrl) return '';
     const u = card.imageUrl;
-    if (typeof u === 'string') return u;
+    if (typeof u === 'string') return getFullImageUrl(u);
     if (Array.isArray(u) && u.length > 0) {
         const first = u[0];
-        return (typeof first === 'object' && first && 'imageUrl' in first && first.imageUrl) ? first.imageUrl : (typeof first === 'string' ? first : '');
+        const raw =
+            (typeof first === 'object' && first && 'imageUrl' in first && first.imageUrl)
+                ? first.imageUrl
+                : (typeof first === 'string' ? first : '');
+        return getFullImageUrl(raw);
     }
     return '';
 }
@@ -2316,6 +2346,37 @@ export const blindBoxApi = {
         return response.data;
     },
 
+    /** Admin: tạo blind box với upload ảnh (multipart/form-data: request + file) */
+    createBlindBoxWithImage: async (data: BlindBoxRequest, file?: File): Promise<BlindBox> => {
+        const formData = new FormData();
+        const payload: BlindBoxRequest = {
+            name: data.name,
+            description: data.description,
+            imageUrl: data.imageUrl ?? '',
+            cardIds: data.cardIds,
+            categoryId: data.categoryId,
+        };
+        formData.append('request', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+        if (file) {
+            formData.append('file', file);
+        }
+
+        const token = tokenManager.getAccessToken();
+        const response = await fetch(`${API_BASE_URL}/blind-boxes`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ message: 'Tạo blind box thất bại' }));
+            throw new Error(err.message || 'Tạo blind box thất bại');
+        }
+
+        const result: ApiResponse<BlindBox> = await response.json();
+        return result.data;
+    },
+
     deleteBlindBox: async (id: string): Promise<void> => {
         await apiRequest<ApiResponse<void>>(`/blind-boxes/${id}`, {
             method: 'DELETE',
@@ -2323,17 +2384,28 @@ export const blindBoxApi = {
     },
 
     /** Thẻ trong hộp bí ẩn (có thêm status: true = còn trong hộp, false = đã mở). */
-    getBlindBoxCards: async (id: string): Promise<BlindBoxCardInBox[]> => {
-        const response = await apiRequest<any>(`/blind-boxes/${id}/cards`, {
+    /** BE trả Spring Page { content, totalElements, ... } trong data — cần đọc content. */
+    getBlindBoxCards: async (
+        id: string,
+        opts?: { page?: number; size?: number }
+    ): Promise<BlindBoxCardInBox[]> => {
+        const page = opts?.page ?? 0;
+        const size = opts?.size ?? 500;
+        const qs = new URLSearchParams({ page: String(page), size: String(size) });
+        const response = await apiRequest<any>(`/blind-boxes/${id}/cards?${qs.toString()}`, {
             method: 'GET',
         });
         const raw = response?.data ?? response;
-        const list = Array.isArray(raw) ? raw : [];
+        const list: any[] = Array.isArray(raw)
+            ? raw
+            : raw && Array.isArray(raw.content)
+              ? raw.content
+              : [];
         return list.map((c: any) => ({
             cardId: c.cardId ?? c.blindBoxCardId,
             blindBoxCardId: c.blindBoxCardId,
             name: c.cardName ?? c.name ?? '—',
-            imageUrl: c.imageUrl,
+            imageUrl: getFullImageUrl(c.imageUrl),
             rarity: c.rarity ?? 'COMMON',
             basePrice: c.basePrice ?? 0,
             minPrice: c.minPrice ?? 0,

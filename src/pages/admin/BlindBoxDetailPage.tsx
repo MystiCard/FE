@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Grid, Percent, ShoppingBag } from 'lucide-react';
-import { blindBoxApi, BlindBox, BlindBoxCardInBox, BlindBoxProbability, getCardImageUrl, cardApi, Card as CardType } from '@/utils/api';
+import { blindBoxApi, BlindBox, BlindBoxCardInBox, BlindBoxProbability, getCardImageUrl, cardApi, Card as CardType } from '@/api';
 
 const formatCurrencyVND = (value: number) => {
     const safe = Number.isFinite(value) ? value : 0;

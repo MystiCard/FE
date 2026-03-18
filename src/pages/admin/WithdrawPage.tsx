@@ -1,5 +1,5 @@
 import React from 'react';
-import { AdminWithdrawPanel } from '@/components/admin/AdminWithdrawPanel';
+import { AdminWithdrawPanel } from '@/components/admin';
 import { Banknote } from 'lucide-react';
 
 export const AdminWithdrawPage: React.FC = () => {
