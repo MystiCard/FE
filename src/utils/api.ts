@@ -1,7 +1,7 @@
 // API Configuration and Service
 // Base URL: .env VITE_API_URL (mặc định http://localhost:8080/api)
 // Trang Sàn giao dịch: listSellerApi, orderApi, cardApi, categoryApi, shipmentApi, transactionApi
-// Trang Hộp bí ẩn: blindBoxApi (GET/POST /blind-boxes, /blind-boxes/me/results, /blind-boxes/me/ship)
+// Trang Hộp bí ẩn: blindBoxApi (GET/POST /blind-boxes, /blind-boxes/results, /blind-boxes/results/{blindBoxId})
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
 
@@ -498,14 +498,10 @@ export interface Card {
 export function getCardImageUrl(card: { imageUrl?: CardImageUrl } | null | undefined): string {
     if (!card?.imageUrl) return '';
     const u = card.imageUrl;
-    if (typeof u === 'string') return getFullImageUrl(u);
+    if (typeof u === 'string') return u;
     if (Array.isArray(u) && u.length > 0) {
         const first = u[0];
-        const raw =
-            (typeof first === 'object' && first && 'imageUrl' in first && first.imageUrl)
-                ? first.imageUrl
-                : (typeof first === 'string' ? first : '');
-        return getFullImageUrl(raw);
+        return (typeof first === 'object' && first && 'imageUrl' in first && first.imageUrl) ? first.imageUrl : (typeof first === 'string' ? first : '');
     }
     return '';
 }
@@ -1503,6 +1499,32 @@ export interface CreateOrderRequest {
     }[];
 }
 
+// Payload tạo đơn ship cho các thẻ đã mở từ blind box (BE: OrderBlinkBoxResultRequest)
+export interface CreateBlindBoxOrderRequest {
+    buyerAddress: string;
+    toDistrictId: number;
+    toWardId: number;
+    buyerPhone: string;
+    blindBoxResultIds: string[];
+    toName: string;
+}
+
+export interface OrderBlindBoxResultResponse {
+    orderId?: string;
+    totalAmount?: number;
+    status?: OrderStatus | string;
+    orderDate?: string;
+    blindBoxResults?: BlindBoxResultResponse[];
+    shipmentId?: string;
+}
+
+export interface ConfirmBlindBoxResponse {
+    shipmentResponse?: ShipmentResponse | null;
+    shipfee?: number;
+    orderStatus?: string;
+    blindBoxResults?: BlindBoxResultResponse[];
+}
+
 // Transaction report (admin dashboard)
 export interface TransactionReportRequest {
     from: string; // yyyy-MM-dd
@@ -1842,6 +1864,17 @@ export const orderApi = {
 
         return res.data;
     },
+
+    /** Buyer xác nhận đã nhận thẻ blind box (BE: POST /api/orders/confirm-receive-results/{shipmentId}) */
+    confirmReceiveBlindBoxResults: async (shipmentId: string): Promise<ConfirmBlindBoxResponse> => {
+        const res = await apiRequest<ApiResponse<ConfirmBlindBoxResponse>>(
+            `/orders/confirm-receive-results/${shipmentId}`,
+            {
+                method: 'POST',
+            }
+        );
+        return res.data;
+    },
     // /** Buyer gửi đánh giá cho order item (sau khi đã nhận hàng). */
     // createFeedback: async (orderItemId: string, rating: number, comment: string): Promise<{ feedbackId: string }> => {
     //     // Tạm thời vẫn giữ cho tương thích, nhưng khuyến khích dùng feedbackApi.create
@@ -1854,6 +1887,13 @@ export const orderApi = {
 
     createOrder: async (payload: CreateOrderRequest): Promise<OrderCardResponse> => {
         const res = await apiRequest<ApiResponse<OrderCardResponse>>('/orders/create', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return res.data;
+    },
+    createBlindBoxOrder: async (payload: CreateBlindBoxOrderRequest): Promise<OrderBlindBoxResultResponse> => {
+        const res = await apiRequest<ApiResponse<OrderBlindBoxResultResponse>>('/orders/create-blind-box', {
             method: 'POST',
             body: JSON.stringify(payload),
         });
@@ -1876,6 +1916,14 @@ export const orderApi = {
     /** Buyer: hủy đơn (BE: POST /api/orders/cancel-order/{orderId}) */
     cancelOrder: async (orderId: string): Promise<OrderCardResponse> => {
         const res = await apiRequest<ApiResponse<OrderCardResponse>>(`/orders/cancel-order/${orderId}`, {
+            method: 'POST',
+        });
+        return res.data;
+    },
+
+    /** Buyer: hủy đơn blind box result (BE: POST /api/orders/cancel-order-result/{orderId}) */
+    cancelOrderResult: async (orderId: string): Promise<ConfirmBlindBoxResponse> => {
+        const res = await apiRequest<ApiResponse<ConfirmBlindBoxResponse>>(`/orders/cancel-order-result/${orderId}`, {
             method: 'POST',
         });
         return res.data;
@@ -2247,6 +2295,14 @@ export const bankAccountApi = {
 
 // Blind Box API
 // BE BlindBoxResponse: blindBoxId, name, description, imageUrl, drawPrice, allBoxPrice, blindBoxStatus
+export type BlindBoxStatus =
+    | 'DRAFT'
+    | 'ACTIVE'
+    | 'OUT_OF_STOCK'
+    | 'DISABLED'
+    | 'UPCOMING'
+    | 'ENDED';
+
 export interface BlindBox {
     blindBoxId: string;
     name: string;
@@ -2257,7 +2313,7 @@ export interface BlindBox {
     /** Tổng giá trị toàn bộ hộp (DB price). */
     allBoxPrice?: number | null;
     /** ACTIVE = còn thẻ, OUT_OF_STOCK = hết hàng. */
-    blindBoxStatus?: 'ACTIVE' | 'OUT_OF_STOCK' | 'DRAFT' | 'DISABLED' | 'UPCOMING' | 'ENDED';
+    blindBoxStatus?: BlindBoxStatus;
 }
 
 // BE BlindBoxRequest: name, description, imageUrl, cardIds, categoryId
@@ -2274,18 +2330,56 @@ export interface BlindBoxProbability {
     probability: number;
 }
 
-/** BE OrderResponse: sau khi mua hộp bí ẩn */
-export interface BlindBoxOrderResponse {
-    orderId: string;
-    totalAmount: number;
-    status: string;
-    orderDate: string;
-    quantity: number;
-    buyerId: string;
+/** BE DTO: /blind-boxes/results */
+export interface BlindBoxOpenResponse {
     blindBoxId: string;
+    name: string;
+    imageUrl?: string;
 }
 
-/** BE DrawResultResponse: kết quả mở 1 lần (id = orderId) */
+/** BE DTO: /blind-boxes/results/{blindBoxId} */
+export interface BlindBoxResultResponse {
+    blindBoxResultId: string;
+    openedAt?: string;
+    cardPrice?: number;
+    cardName?: string;
+    cardImageUrl?: string;
+    rarity?: string;
+    blindBoxName?: string;
+    resultStatus?: BlindBoxResultStatus;
+    status?: BlindBoxResultStatus;
+}
+
+export type BlindBoxResultStatus = 'NOT_RECEIVED' | 'RECEIVED' | 'SHIPPING';
+
+/** BE DTO: /blind-boxes/shipments */
+export interface BlindBoxShipmentDetail {
+    blindBoxResultId?: string;
+    openedAt?: string;
+    status?: BlindBoxResultStatus;
+    cardResponse?: {
+        cardId?: string;
+        name?: string;
+        imageUrl?: CardImageUrl;
+        rarity?: string;
+        basePrice?: number;
+    };
+}
+
+/** BE DTO: BlindBoxShipmentResponse */
+export interface BlindBoxShipmentResponse {
+    shipmentResponse?: ShipmentResponse | null;
+    orderId?: string;
+    totalAmount?: number;
+    status?: OrderStatus | string;
+    orderDate?: string;
+    blindBoxResults?: BlindBoxShipmentDetail[];
+    blinboxShipDetail?: BlindBoxShipmentDetail[]; // BE field name
+    blinboxShipDetails?: BlindBoxShipmentDetail[]; // backend typo-safe fallback
+    blindBoxShipDetails?: BlindBoxShipmentDetail[]; // optional naming fallback
+}
+
+/** BE DrawResultResponse: kết quả mở 1 lần */
 export interface DrawResultResponse {
     card: Card;
     drawPrice: number;
@@ -2324,11 +2418,42 @@ export interface BlindBoxHistoryItem {
 }
 
 export const blindBoxApi = {
-    getAllBlindBoxes: async (): Promise<BlindBox[]> => {
-        const response = await apiRequest<ApiResponse<BlindBox[]>>('/blind-boxes', {
+    getAllBlindBoxes: async (
+        page: number = 1,
+        size: number = 100,
+        blindBoxStatus?: BlindBoxStatus,
+    ): Promise<BlindBox[]> => {
+        const params = new URLSearchParams({
+            page: String(Math.max(1, Math.floor(page))),
+            size: String(Math.max(1, Math.floor(size))),
+        });
+        if (blindBoxStatus) {
+            params.append('blindBoxStatus', blindBoxStatus);
+        }
+        const response = await apiRequest<any>(`/blind-boxes?${params.toString()}`, {
             method: 'GET',
         });
-        return response.data;
+        const raw = response?.data ?? response;
+        const rows = Array.isArray(raw)
+            ? raw
+            : Array.isArray(raw?.content)
+                ? raw.content
+                : [];
+        return rows.map((it: any) => {
+            const rawStatus = String(it?.blindBoxStatus || '').toUpperCase();
+            const status = ['DRAFT', 'ACTIVE', 'OUT_OF_STOCK', 'DISABLED', 'UPCOMING', 'ENDED'].includes(rawStatus)
+                ? (rawStatus as BlindBoxStatus)
+                : undefined;
+            return ({
+            blindBoxId: String(it?.blindBoxId ?? it?.id ?? ''),
+            name: String(it?.name ?? ''),
+            description: it?.description ?? undefined,
+            imageUrl: it?.imageUrl ?? undefined,
+            drawPrice: Number(it?.drawPrice ?? 0),
+            allBoxPrice: it?.allBoxPrice != null ? Number(it.allBoxPrice) : null,
+            blindBoxStatus: status,
+        });
+        });
     },
 
     getBlindBoxById: async (id: string): Promise<BlindBox> => {
@@ -2383,31 +2508,31 @@ export const blindBoxApi = {
         });
     },
 
-    /** Thẻ trong hộp bí ẩn (có thêm status: true = còn trong hộp, false = đã mở). */
-    /** BE trả Spring Page { content, totalElements, ... } trong data — cần đọc content. */
-    getBlindBoxCards: async (
-        id: string,
-        opts?: { page?: number; size?: number }
-    ): Promise<BlindBoxCardInBox[]> => {
-        const page = opts?.page ?? 0;
-        const size = opts?.size ?? 500;
-        const qs = new URLSearchParams({ page: String(page), size: String(size) });
-        const response = await apiRequest<any>(`/blind-boxes/${id}/cards?${qs.toString()}`, {
+    /** Thẻ trong hộp bí ẩn (BE hỗ trợ page/size). */
+    getBlindBoxCards: async (id: string, page: number = 0, size: number = 500): Promise<BlindBoxCardInBox[]> => {
+        const params = new URLSearchParams({
+            page: String(page),
+            size: String(size),
+        });
+        const response = await apiRequest<any>(`/blind-boxes/${id}/cards?${params.toString()}`, {
             method: 'GET',
         });
         const raw = response?.data ?? response;
-        const list: any[] = Array.isArray(raw)
-            ? raw
-            : raw && Array.isArray(raw.content)
-              ? raw.content
-              : [];
+        const list =
+            Array.isArray(raw)
+                ? raw
+                : Array.isArray(raw?.content)
+                    ? raw.content
+                    : Array.isArray(raw?.data?.content)
+                        ? raw.data.content
+                        : [];
         return list.map((c: any) => ({
-            cardId: c.cardId ?? c.blindBoxCardId,
+            cardId: c.cardId ?? '',
             blindBoxCardId: c.blindBoxCardId,
             name: c.cardName ?? c.name ?? '—',
-            imageUrl: getFullImageUrl(c.imageUrl),
+            imageUrl: c.imageUrl,
             rarity: c.rarity ?? 'COMMON',
-            basePrice: c.basePrice ?? 0,
+            basePrice: Number(c.basePrice ?? 0),
             minPrice: c.minPrice ?? 0,
             maxPrice: c.maxPrice ?? 0,
             status: c.status !== false, // true = còn trong hộp, false = đã mở
@@ -2424,90 +2549,173 @@ export const blindBoxApi = {
         return Array.isArray(list) ? list : [];
     },
 
-    /** BE: POST /blind-boxes/{blindBoxId}/buy — mua hộp, trả về order (dùng orderId để draw). */
-    buyBlindBox: async (blindBoxId: string): Promise<BlindBoxOrderResponse> => {
-        const response = await apiRequest<ApiResponse<BlindBoxOrderResponse>>(`/blind-boxes/${blindBoxId}/buy`, {
+    /** BE: POST /blind-boxes/{blindBoxId}/buy?buyAll=true|false */
+    buyBlindBox: async (blindBoxId: string, buyAll: boolean = false): Promise<DrawResultResponse[]> => {
+        const response = await apiRequest<ApiResponse<DrawResultResponse[]>>(`/blind-boxes/${blindBoxId}/buy?buyAll=${buyAll ? 'true' : 'false'}`, {
             method: 'POST',
         });
-        return response.data;
+        return Array.isArray(response.data) ? response.data : [];
     },
 
-    /** BE: GET /blind-boxes/{orderId}/draw-card — mở 1 thẻ (id là orderId từ buyBlindBox). */
-    drawCard: async (orderId: string): Promise<DrawResultResponse> => {
-        const response = await apiRequest<ApiResponse<DrawResultResponse>>(`/blind-boxes/${orderId}/draw-card`, {
+    /** BE: GET /blind-boxes/{id}/draw-card */
+    drawCard: async (id: string): Promise<DrawResultResponse> => {
+        const response = await apiRequest<ApiResponse<DrawResultResponse>>(`/blind-boxes/${id}/draw-card`, {
             method: 'GET',
         });
         return response.data;
     },
 
-    /** Lịch sử mở hộp bí ẩn của user hiện tại (mới nhất trước). */
-    getMyHistory: async (): Promise<BlindBoxHistoryItem[]> => {
-        // BE: GET /api/blind-boxes/results?page=&size= trả về Page<BlindBoxResultResponse>
+    /** Danh sách hộp đã mở của user (BE: GET /blind-boxes/results). */
+    getOpenedBlindBoxes: async (page: number = 0, size: number = 100): Promise<PageResponse<BlindBoxOpenResponse>> => {
         const params = new URLSearchParams({
-            // BE đang dùng Pageable.ofSize(size).withPage(page) (0-based),
-            // nên để lấy trang đầu tiên phải truyền page=0.
-            page: '0',
-            size: '100',
+            page: String(page),
+            size: String(size),
         });
-        const response = await apiRequest<ApiResponse<PageResponse<{
-            blindBoxResultId: string;
-            openedAt?: string;
-            cardName?: string;
-            cardImageUrl?: string;
-            rarity?: string;
-            shipped?: boolean;
-            shippedToHomeDelivered?: boolean;
-            listedForSale?: boolean;
-            soldAndDeliveredToBuyer?: boolean;
-        }>>>(`/blind-boxes/results?${params.toString()}`, {
-            method: 'GET',
+        const response = await apiRequest<ApiResponse<PageResponse<BlindBoxOpenResponse>>>(
+            `/blind-boxes/results?${params.toString()}`,
+            { method: 'GET' },
+        );
+        const raw = response?.data as any;
+        return {
+            content: Array.isArray(raw?.content) ? raw.content : [],
+            totalPages: Number(raw?.totalPages ?? 1),
+            totalElements: Number(raw?.totalElements ?? 0),
+            size: Number(raw?.size ?? size),
+            number: Number(raw?.number ?? page),
+            last: !!raw?.last,
+        };
+    },
+
+    /** Danh sách lượt mở theo từng hộp (BE: GET /blind-boxes/results/{blindBoxId}?resultStatus=...). */
+    getResultsByBlindBoxId: async (
+        blindBoxId: string,
+        page: number = 0,
+        size: number = 100,
+        resultStatus?: BlindBoxResultStatus,
+    ): Promise<PageResponse<BlindBoxResultResponse>> => {
+        const params = new URLSearchParams({
+            page: String(page),
+            size: String(size),
         });
+        if (resultStatus) {
+            params.append('resultStatus', resultStatus);
+        }
+        const response = await apiRequest<ApiResponse<PageResponse<BlindBoxResultResponse>>>(
+            `/blind-boxes/results/${blindBoxId}?${params.toString()}`,
+            { method: 'GET' },
+        );
+        const raw = response?.data as any;
+        return {
+            content: Array.isArray(raw?.content) ? raw.content : [],
+            totalPages: Number(raw?.totalPages ?? 1),
+            totalElements: Number(raw?.totalElements ?? 0),
+            size: Number(raw?.size ?? size),
+            number: Number(raw?.number ?? page),
+            last: !!raw?.last,
+        };
+    },
 
-        const page = response.data;
-        const rows = page?.content ?? [];
+    /** Tất cả kết quả mở thẻ của user (BE: GET /blind-boxes/all-result). */
+    getAllResultCardOpened: async (
+        page: number = 0,
+        size: number = 10,
+        resultStatus?: BlindBoxResultStatus,
+    ): Promise<PageResponse<BlindBoxResultResponse>> => {
+        const params = new URLSearchParams({
+            page: String(page),
+            size: String(size),
+        });
+        if (resultStatus) {
+            params.append('resultStatus', resultStatus);
+        }
+        const response = await apiRequest<ApiResponse<PageResponse<BlindBoxResultResponse>>>(
+            `/blind-boxes/all-result?${params.toString()}`,
+            { method: 'GET' },
+        );
+        const raw = response?.data as any;
+        return {
+            content: Array.isArray(raw?.content) ? raw.content : [],
+            totalPages: Number(raw?.totalPages ?? 1),
+            totalElements: Number(raw?.totalElements ?? 0),
+            size: Number(raw?.size ?? size),
+            number: Number(raw?.number ?? page),
+            last: !!raw?.last,
+        };
+    },
 
-        return rows.map((it) => {
-            const card: Card = {
-                cardId: '',
-                name: it.cardName ?? 'Thẻ bí ẩn',
-                description: undefined,
-                // backend rarity là enum string; fallback COMMON nếu thiếu
-                rarity: (it.rarity as Card['rarity']) ?? 'COMMON',
-                imageUrl: it.cardImageUrl ?? undefined,
-                categoryName: undefined,
-                basePrice: 0,
-                minPrice: 0,
-                maxPrice: 0,
-            };
+    /** Shipment từ thẻ blind box của user (BE: GET /blind-boxes/shipments). */
+    getBlindBoxShipments: async (
+        page: number = 1,
+        size: number = 10,
+        status?: ShippingStatus,
+    ): Promise<PageResponse<BlindBoxShipmentResponse>> => {
+        const params = new URLSearchParams({
+            page: String(Math.max(1, Math.floor(page))),
+            size: String(size),
+        });
+        if (status) {
+            params.append('status', status);
+        }
+        const response = await apiRequest<ApiResponse<PageResponse<BlindBoxShipmentResponse>>>(
+            `/blind-boxes/shipments?${params.toString()}`,
+            { method: 'GET' },
+        );
+        const raw = response?.data as any;
+        return {
+            content: Array.isArray(raw?.content) ? raw.content : [],
+            totalPages: Number(raw?.totalPages ?? 1),
+            totalElements: Number(raw?.totalElements ?? 0),
+            size: Number(raw?.size ?? size),
+            number: Number(raw?.number ?? page),
+            last: !!raw?.last,
+        };
+    },
 
-            const openedAt = it.openedAt ?? '';
+    /** Lịch sử mở hộp bí ẩn của user hiện tại (mới nhất trước).
+     * Không join nhiều endpoint: chỉ đọc trực tiếp từ GET /blind-boxes/results.
+     */
+    getMyHistory: async (): Promise<BlindBoxHistoryItem[]> => {
+        const page = await blindBoxApi.getOpenedBlindBoxes(0, 100);
+        const rows = page.content ?? [];
 
-            const item: BlindBoxHistoryItem = {
-                blindBoxResultId: String(it.blindBoxResultId),
+        return rows.map((it: any) => {
+            // /results có thể trả BlindBoxOpenResponse hoặc BlindBoxResultResponse tùy BE version
+            const blindBoxResultId = String(it?.blindBoxResultId ?? it?.blindBoxId ?? crypto.randomUUID());
+            const openedAt = String(it?.openedAt ?? '');
+            const cardName = String(it?.cardName ?? it?.name ?? 'Thẻ bí ẩn');
+            const cardImageUrl = it?.cardImageUrl ?? it?.imageUrl ?? undefined;
+            const rarity = (it?.rarity as Card['rarity']) ?? 'COMMON';
+
+            return {
+                blindBoxResultId,
                 openedAt,
-                card,
-                blindBoxId: undefined,
-                blindBoxName: undefined,
-                // BE history hiện chưa trả giá mở & lời/lỗ → để 0 và UI sẽ xử lý
+                card: {
+                    cardId: '',
+                    name: cardName,
+                    description: undefined,
+                    rarity,
+                    imageUrl: cardImageUrl,
+                    categoryName: undefined,
+                    basePrice: 0,
+                    minPrice: 0,
+                    maxPrice: 0,
+                },
+                blindBoxId: it?.blindBoxId ? String(it.blindBoxId) : undefined,
+                blindBoxName: it?.blindBoxName ?? it?.name ?? 'Hộp bí ẩn',
                 drawPrice: 0,
                 profitOrLoss: 0,
-                shipped: !!it.shipped,
-                listedForSale: !!it.listedForSale,
-                soldAndDeliveredToBuyer: !!it.soldAndDeliveredToBuyer,
-                shippedToHomeDelivered: !!it.shippedToHomeDelivered,
-            };
-
-            return item;
+                shipped: false,
+                listedForSale: false,
+                soldAndDeliveredToBuyer: false,
+                shippedToHomeDelivered: false,
+            } as BlindBoxHistoryItem;
         });
     },
 
-    /** Yêu cầu ship các thẻ đã mở (BlindBoxResult) về nhà. */
+    /** Endpoint này không có trong controller BlindBox hiện tại của BE. */
     requestShipResults: async (resultIds: string[]): Promise<ShipmentResponse> => {
-        const response = await apiRequest<ApiResponse<ShipmentResponse>>('/blind-boxes/me/ship', {
-            method: 'POST',
-            body: JSON.stringify(resultIds),
-        });
-        return response.data;
+        void resultIds;
+        throw new Error('Backend hiện chưa cung cấp endpoint ship results trong /api/blind-boxes.');
     },
 };
 // Cart response

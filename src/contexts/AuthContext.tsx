@@ -13,8 +13,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<UserInfo | null>(null);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [user, setUser] = useState<UserInfo | null>(() => tokenManager.getUserInfo());
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => tokenManager.isAuthenticated());
 
     const updateUser = () => {
         const userInfo = tokenManager.getUserInfo();
@@ -26,11 +26,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Load user info on mount
         updateUser();
 
-        // Check token immediately
-        checkAndRefreshToken();
+        // Check token immediately (and update auth state if token was refreshed)
+        checkAndRefreshToken().finally(() => updateUser());
 
         // Setup periodic token refresh check
-        const intervalId = setupTokenRefreshInterval();
+        const intervalId = setupTokenRefreshInterval(() => updateUser());
 
         // Cleanup on unmount
         return () => {
