@@ -401,27 +401,53 @@ export const userApi = {
         return result.data;
     },
 
-    // Admin: Get all users
+    // Admin: Get all users (gắn status theo tham số active của BE)
     getAllUsers: async (page: number = 1, size: number = 100): Promise<UserProfile[]> => {
-        const params = new URLSearchParams({
-            page: page.toString(),
-            size: size.toString(),
-            active: 'true',
-        });
+        const buildParams = (active: boolean) =>
+            new URLSearchParams({
+                page: page.toString(),
+                size: size.toString(),
+                active: String(active),
+            }).toString();
 
-        const response = await apiRequest<ApiResponse<PageResponse<UserProfile>>>(`/users?${params.toString()}`, {
-            method: 'GET',
-        });
+        const [activeRes, inactiveRes] = await Promise.all([
+            apiRequest<ApiResponse<PageResponse<UserProfile>>>(`/users?${buildParams(true)}`, {
+                method: 'GET',
+            }),
+            apiRequest<ApiResponse<PageResponse<UserProfile>>>(`/users?${buildParams(false)}`, {
+                method: 'GET',
+            }),
+        ]);
 
-        // Extract content array from pagination response
-        return response.data.content || [];
+        const activeList = (activeRes.data.content || []).map((u) => ({
+            ...u,
+            status: 'ACTIVE' as const,
+        }));
+        const inactiveList = (inactiveRes.data.content || []).map((u) => ({
+            ...u,
+            status: 'BANNED' as const,
+        }));
+        return [...activeList, ...inactiveList];
     },
 
-    // Admin: Update user status (ban/unban)
+    // Admin: Update user status (ban = delete, active = activate)
     updateUserStatus: async (userId: string, status: 'ACTIVE' | 'BANNED'): Promise<UserProfile> => {
-        const response = await apiRequest<ApiResponse<UserProfile>>(`/users/${userId}/status`, {
+        if (status === 'BANNED') {
+            // BE không có trạng thái BANNED, dùng delete user để "ban"
+            await apiRequest<ApiResponse<string>>(`/users/${userId}`, {
+                method: 'DELETE',
+            });
+            // Sau khi xóa, FE sẽ reload list; tạm trả về profile rỗng để tránh undefined
+            return {
+                userId,
+                email: '',
+                name: '',
+            } as UserProfile;
+        }
+
+        // ACTIVE → dùng endpoint activateUser hiện có
+        const response = await apiRequest<ApiResponse<UserProfile>>(`/users/active/${userId}`, {
             method: 'PUT',
-            body: JSON.stringify({ status }),
         });
         return response.data;
     },
@@ -2362,15 +2388,18 @@ export interface DrawResultResponse {
 
 /** Thẻ trong hộp bí ẩn (BE BlindBoxCardResponse): status true = còn trong hộp, false = đã mở */
 export interface BlindBoxCardInBox {
-    cardId: string;
+    cardId?: string;
     blindBoxCardId?: string;
-    name: string;
+    blindBoxId?: string;
+    cardResponse?: Card;
+    name?: string;
     imageUrl?: CardImageUrl;
-    rarity: string;
-    basePrice: number;
+    rarity?: string;
+    basePrice?: number;
     minPrice?: number;
     maxPrice?: number;
     status: boolean; // true = còn trong hộp, false = đã mở
+    rate?: number;
 }
 
 /** BE BlindBoxHistoryItemResponse: lịch sử mở hộp bí ẩn của user */
@@ -2396,8 +2425,9 @@ export const blindBoxApi = {
         page: number = 1,
         size: number = 100,
         blindBoxStatus?: BlindBoxStatus,
-    ): Promise<BlindBox[]> => {
+    ): Promise<PageResponse<BlindBox>> => {
         const params = new URLSearchParams({
+            // BE đang nhận page từ 1 → totalPages
             page: String(Math.max(1, Math.floor(page))),
             size: String(Math.max(1, Math.floor(size))),
         });
@@ -2408,26 +2438,32 @@ export const blindBoxApi = {
             method: 'GET',
         });
         const raw = response?.data ?? response;
-        const rows = Array.isArray(raw)
-            ? raw
-            : Array.isArray(raw?.content)
-                ? raw.content
-                : [];
-        return rows.map((it: any) => {
+        const rows = Array.isArray(raw?.content) ? raw.content : Array.isArray(raw) ? raw : [];
+
+        const mapped: BlindBox[] = rows.map((it: any) => {
             const rawStatus = String(it?.blindBoxStatus || '').toUpperCase();
             const status = ['DRAFT', 'ACTIVE', 'OUT_OF_STOCK', 'DISABLED', 'UPCOMING', 'ENDED'].includes(rawStatus)
                 ? (rawStatus as BlindBoxStatus)
                 : undefined;
-            return ({
-            blindBoxId: String(it?.blindBoxId ?? it?.id ?? ''),
-            name: String(it?.name ?? ''),
-            description: it?.description ?? undefined,
-            imageUrl: it?.imageUrl ?? undefined,
-            drawPrice: Number(it?.drawPrice ?? 0),
-            allBoxPrice: it?.allBoxPrice != null ? Number(it.allBoxPrice) : null,
-            blindBoxStatus: status,
+            return {
+                blindBoxId: String(it?.blindBoxId ?? it?.id ?? ''),
+                name: String(it?.name ?? ''),
+                description: it?.description ?? undefined,
+                imageUrl: it?.imageUrl ?? undefined,
+                drawPrice: Number(it?.drawPrice ?? 0),
+                allBoxPrice: it?.allBoxPrice != null ? Number(it.allBoxPrice) : null,
+                blindBoxStatus: status,
+            };
         });
-        });
+
+        return {
+            content: mapped,
+            totalPages: Number(raw?.totalPages ?? 1),
+            totalElements: Number(raw?.totalElements ?? mapped.length),
+            size: Number(raw?.size ?? size),
+            number: Number(raw?.number ?? 0),
+            last: !!raw?.last,
+        };
     },
 
     getBlindBoxById: async (id: string): Promise<BlindBox> => {
@@ -2437,12 +2473,43 @@ export const blindBoxApi = {
         return response.data;
     },
 
-    createBlindBox: async (data: BlindBoxRequest): Promise<BlindBox> => {
-        const response = await apiRequest<ApiResponse<BlindBox>>('/blind-boxes', {
+    // createBlindBox: async (data: BlindBoxRequest): Promise<BlindBox> => {
+    //     const response = await apiRequest<ApiResponse<BlindBox>>('/blind-boxes', {
+    //         method: 'POST',
+    //         body: JSON.stringify(data),
+    //     });
+    //     return response.data;
+    // },
+
+    /** Admin: tạo blind box với upload ảnh (multipart/form-data: request + file) */
+    createBlindBoxWithImage: async (data: BlindBoxRequest, file?: File): Promise<BlindBox> => {
+        const formData = new FormData();
+        const payload: BlindBoxRequest = {
+            name: data.name,
+            description: data.description,
+            imageUrl: data.imageUrl ?? '',
+            cardIds: data.cardIds,
+            categoryId: data.categoryId,
+        };
+        formData.append('request', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+        if (file) {
+            formData.append('file', file);
+        }
+
+        const token = tokenManager.getAccessToken();
+        const response = await fetch(`${API_BASE_URL}/blind-boxes`, {
             method: 'POST',
-            body: JSON.stringify(data),
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: formData,
         });
-        return response.data;
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ message: 'Tạo blind box thất bại' }));
+            throw new Error(err.message || 'Tạo blind box thất bại');
+        }
+
+        const result: ApiResponse<BlindBox> = await response.json();
+        return result.data;
     },
 
     deleteBlindBox: async (id: string): Promise<void> => {
@@ -2451,8 +2518,8 @@ export const blindBoxApi = {
         });
     },
 
-    /** Thẻ trong hộp bí ẩn (BE hỗ trợ page/size). */
-    getBlindBoxCards: async (id: string, page: number = 0, size: number = 500): Promise<BlindBoxCardInBox[]> => {
+    /** Thẻ trong hộp bí ẩn (BE: GET /blind-boxes/{id}/cards, trả Page<BlindBoxCardResponse>). */
+    getBlindBoxCards: async (id: string, page: number = 0, size: number = 10): Promise<PageResponse<BlindBoxCardInBox>> => {
         const params = new URLSearchParams({
             page: String(page),
             size: String(size),
@@ -2461,7 +2528,7 @@ export const blindBoxApi = {
             method: 'GET',
         });
         const raw = response?.data ?? response;
-        const list =
+        const list: any[] =
             Array.isArray(raw)
                 ? raw
                 : Array.isArray(raw?.content)
@@ -2469,17 +2536,31 @@ export const blindBoxApi = {
                     : Array.isArray(raw?.data?.content)
                         ? raw.data.content
                         : [];
-        return list.map((c: any) => ({
-            cardId: c.cardId ?? '',
-            blindBoxCardId: c.blindBoxCardId,
-            name: c.cardName ?? c.name ?? '—',
-            imageUrl: c.imageUrl,
-            rarity: c.rarity ?? 'COMMON',
-            basePrice: Number(c.basePrice ?? 0),
-            minPrice: c.minPrice ?? 0,
-            maxPrice: c.maxPrice ?? 0,
-            status: c.status !== false, // true = còn trong hộp, false = đã mở
-        }));
+        const mapped: BlindBoxCardInBox[] = list.map((c: any) => {
+            const cr = c?.cardResponse ?? {};
+            return {
+                cardId: c?.cardId ?? cr?.cardId ?? '',
+                blindBoxCardId: c?.blindBoxCardId,
+                blindBoxId: c?.blindBoxId,
+                cardResponse: cr,
+                name: c?.cardName ?? c?.name ?? cr?.name ?? '—',
+                imageUrl: c?.imageUrl ?? cr?.imageUrl,
+                rarity: c?.rarity ?? cr?.rarity ?? 'COMMON',
+                basePrice: Number(c?.basePrice ?? cr?.basePrice ?? 0),
+                minPrice: c?.minPrice ?? cr?.minPrice ?? 0,
+                maxPrice: c?.maxPrice ?? cr?.maxPrice ?? 0,
+                status: c?.status !== false, // true = còn trong hộp, false = đã mở
+                rate: Number(c?.rate ?? 0),
+            };
+        });
+        return {
+            content: mapped,
+            totalPages: Number(raw?.totalPages ?? 1),
+            totalElements: Number(raw?.totalElements ?? mapped.length),
+            size: Number(raw?.size ?? size),
+            number: Number(raw?.number ?? raw?.page ?? page),
+            last: !!raw?.last,
+        };
     },
 
     getBlindBoxProbabilities: async (id: string): Promise<BlindBoxProbability[]> => {

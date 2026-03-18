@@ -13,7 +13,7 @@ import {
     Upload,
     FileSpreadsheet
 } from 'lucide-react';
-import { categoryApi, Category } from '@/utils/api';
+import { categoryApi, Category } from '@/api';
 import { getCategoryImage } from '@/utils/categoryImages';
 
 export const AdminCategoriesPage: React.FC = () => {

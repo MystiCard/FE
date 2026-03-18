@@ -16,18 +16,21 @@ import { ProfilePage } from '@/pages/ProfilePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { GoogleCallbackPage } from '@/pages/GoogleCallbackPage';
-import { AdminPage } from '@/pages/AdminPage';
 import { ComparisonPage } from '@/pages/ComparisonPage';
 import { AboutPage } from '@/pages/AboutPage';
-import { AdminCardsPage } from '@/pages/AdminCardsPage';
-import { AdminCategoriesPage } from '@/pages/AdminCategoriesPage';
-import { AdminUsersPage } from '@/pages/AdminUsersPage';
-import { AdminTransactionsPage } from '@/pages/AdminTransactionsPage';
-import { AdminOrdersPage } from '@/pages/AdminOrdersPage';
-import { AdminBlindBoxesPage } from '@/pages/AdminBlindBoxesPage';
-import { AdminBlindBoxDetailPage } from '@/pages/AdminBlindBoxDetailPage';
-import { AdminRateConfigPage } from '@/pages/AdminRateConfigPage';
-import { AdminWithdrawPage } from '@/pages/AdminWithdrawPage';
+import AdminDashboardPage, {
+    AdminUsersPage,
+    AdminCardsPage,
+    AdminCategoriesPage,
+    AdminOrdersPage,
+    AdminBlindBoxesPage,
+    AdminBlindBoxDetailPage,
+    AdminRateConfigPage,
+    AdminWithdrawPage,
+    AdminTransactionsPage,
+    AdminReportPage,
+    AdminRolesPage,
+} from '@/pages/admin';
 import { CartPage } from '@/pages/CartPage';
 import { CheckoutPage } from '@/pages/CheckoutPage';
 import { PostListingPage } from '@/pages/PostListingPage';
@@ -141,9 +144,11 @@ function App() {
 
                     {/* Admin Routes */}
                     <Route path="/admin" element={<AdminLayout />}>
-                        <Route index element={<AdminPage />} />
+                        <Route index element={<AdminDashboardPage />} />
                         <Route path="categories" element={<AdminCategoriesPage />} />
                         <Route path="cards" element={<AdminCardsPage />} />
+                        <Route path="report" element={<AdminReportPage />} />
+                        <Route path="roles" element={<AdminRolesPage />} />
                         <Route path="blind-boxes" element={<AdminBlindBoxesPage />} />
                         <Route path="blind-boxes/:id" element={<AdminBlindBoxDetailPage />} />
                         <Route path="rate-configs" element={<AdminRateConfigPage />} />
@@ -152,6 +157,7 @@ function App() {
                         <Route path="transactions" element={<AdminTransactionsPage />} />
                         <Route path="withdraws" element={<AdminWithdrawPage />} />
                         <Route path="orders" element={<AdminOrdersPage />} />
+                        
                     </Route>
 
                     {/* Shipment Routes (standalone like Admin) */}

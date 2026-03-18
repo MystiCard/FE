@@ -20,7 +20,8 @@ export const HomeBlindBoxes: React.FC = () => {
             setLoading(true);
             setError(null);
             try {
-                const data = await blindBoxApi.getAllBlindBoxes();
+                const page = await blindBoxApi.getAllBlindBoxes();
+                const data = page?.content ?? [];
                 // Hiển thị cả hộp SOLD OUT (không cho mua), chỉ ẩn các trạng thái admin không muốn public
                 const visible = (data || []).filter(
                     (b) => b.blindBoxStatus !== 'DISABLED' && b.blindBoxStatus !== 'DRAFT'

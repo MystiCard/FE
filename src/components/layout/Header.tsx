@@ -21,6 +21,8 @@ export const Header: React.FC = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
     const [isAlertsOpen, setIsAlertsOpen] = React.useState(false);
     const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
+    const [notificationPage, setNotificationPage] = React.useState(0); // 0-based
+    const [notificationTotalPages, setNotificationTotalPages] = React.useState(0);
     const [selectedNotification, setSelectedNotification] = React.useState<NotificationItem | null>(null);
     const { itemCount: marketplaceCartCount } = useMarketplaceCart();
     const { itemCount: wishlistLocalCount } = useWishlist();
@@ -65,15 +67,17 @@ export const Header: React.FC = () => {
         });
     };
 
-    const fetchNotifications = async () => {
+    const fetchNotifications = async (page: number = 0) => {
         if (!isAuthenticated) {
             setNotifications([]);
             return;
         }
         try {
-            const res = await notificationApi.getMyNotifications(0, 50);
+            const res = await notificationApi.getMyNotifications(page, 10);
             const list = res.content ?? [];
             setNotifications(sortNotifications(list));
+            setNotificationPage(res.number ?? page);
+            setNotificationTotalPages(res.totalPages ?? 0);
         } catch {
             setNotifications([]);
         }
@@ -82,11 +86,13 @@ export const Header: React.FC = () => {
     useEffect(() => {
         if (!isAuthenticated) {
             setNotifications([]);
+            setNotificationPage(0);
+            setNotificationTotalPages(0);
             return;
         }
-        fetchNotifications();
-        const onWishlistUpdated = () => fetchNotifications();
-        const onWalletUpdated = () => fetchNotifications();
+        fetchNotifications(0);
+        const onWishlistUpdated = () => fetchNotifications(notificationPage);
+        const onWalletUpdated = () => fetchNotifications(notificationPage);
         window.addEventListener('wishlist-api-updated', onWishlistUpdated);
         window.addEventListener('wallet-updated', onWalletUpdated);
         return () => {
@@ -357,7 +363,8 @@ export const Header: React.FC = () => {
                                                 Chưa có thông báo nào.
                                             </p>
                                         ) : (
-                                            notifications.map((n) => {
+                                            <>
+                                            {notifications.map((n) => {
                                                 const typeLabel =
                                                     n.notiType === 'wishList'
                                                         ? 'Wishlist'
@@ -414,7 +421,31 @@ export const Header: React.FC = () => {
                                                         </p>
                                                     </button>
                                                 );
-                                            })
+                                            })}
+                                            {notificationTotalPages > 1 && (
+                                                <div className="flex items-center justify-center gap-2 pt-2 border-t border-white/10 mt-2 px-2 pb-1">
+                                                    <button
+                                                        type="button"
+                                                        disabled={notificationPage <= 0}
+                                                        onClick={() => fetchNotifications(Math.max(0, notificationPage - 1))}
+                                                        className="px-2 h-7 rounded-full text-[10px] border border-white/30 text-white/80 disabled:opacity-40 hover:bg-white/10"
+                                                    >
+                                                        ‹
+                                                    </button>
+                                                    <span className="text-[10px] text-muted-foreground">
+                                                        Trang {notificationPage + 1}/{notificationTotalPages}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        disabled={notificationPage >= notificationTotalPages - 1}
+                                                        onClick={() => fetchNotifications(Math.min(notificationTotalPages - 1, notificationPage + 1))}
+                                                        className="px-2 h-7 rounded-full text-[10px] border border-white/30 text-white/80 disabled:opacity-40 hover:bg-white/10"
+                                                    >
+                                                        ›
+                                                    </button>
+                                                </div>
+                                            )}
+                                            </>
                                         )}
                                     </div>
                                 </div>

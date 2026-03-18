@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, Folder, CreditCard, Gift, Percent, LogOut, Menu, X, ShoppingBag, Wallet, Banknote } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, Folder, CreditCard, Gift, Percent, LogOut, Menu, X, ShoppingBag, Wallet, Banknote, BarChart3, ShieldCheck } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -22,11 +22,13 @@ export const AdminLayout: React.FC = () => {
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Bảng điều khiển', path: '/admin' },
+        { icon: BarChart3, label: 'Report doanh thu', path: '/admin/report' },
         { icon: Folder, label: 'Danh mục', path: '/admin/categories' },
         { icon: CreditCard, label: 'Thẻ', path: '/admin/cards' },
         { icon: Gift, label: 'Hộp bí ẩn', path: '/admin/blind-boxes' },
         { icon: Percent, label: 'Tỷ lệ thẻ', path: '/admin/rate-configs' },
         { icon: Users, label: 'Người dùng', path: '/admin/users' },
+        { icon: ShieldCheck, label: 'Vai trò & quyền', path: '/admin/roles' },
         { icon: Wallet, label: 'Ví', path: '/admin/wallet' },
         { icon: Banknote, label: 'Duyệt rút tiền', path: '/admin/withdraws' },
         { icon: ShoppingBag, label: 'Đơn hàng', path: '/admin/orders' },

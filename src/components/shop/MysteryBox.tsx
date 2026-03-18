@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Gift, Package, Sparkles, Star, Zap } from 'lucide-react';
-import { blindBoxApi, userApi, BlindBox, BlindBoxStatus, getCardImageUrl } from '@/utils/api';
+import { Gift, Package, Sparkles, Star, Zap, Grid } from 'lucide-react';
+import { blindBoxApi, userApi, BlindBox, BlindBoxStatus, BlindBoxCardInBox, getCardImageUrl } from '@/utils/api';
 
 const defaultBoxImage = '/mystery.png';
 
@@ -77,6 +77,21 @@ export function MysteryBox() {
     const skipRequestedRef = useRef(false);
     const cardsFlyingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // --- Pagination cho danh sách hộp ---
+    const [boxPage, setBoxPage] = useState(1); // FE 1-based
+    const boxPageSize = 5;
+    const [boxTotalPages, setBoxTotalPages] = useState(1);
+    const [boxTotalElements, setBoxTotalElements] = useState(0);
+
+    // --- Xem tất cả thẻ trong hộp (preview, không status) ---
+    const [previewCards, setPreviewCards] = useState<BlindBoxCardInBox[]>([]);
+    const [previewPage, setPreviewPage] = useState(0); // 0-based
+    const [previewTotalPages, setPreviewTotalPages] = useState(1);
+    const [previewTotalElements, setPreviewTotalElements] = useState(0);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+    const previewPageSize = 20;
+
     const navigate = useNavigate();
 
     const completeOpenImmediately = (cardsInput?: Card[]) => {
@@ -100,6 +115,24 @@ export function MysteryBox() {
         setIsBuying(false);
         setBoxOpenPhase(null);
         skipRequestedRef.current = false;
+    };
+
+    const loadPreviewCards = async (box: BlindBox | null, page: number) => {
+        if (!box?.blindBoxId) return;
+        setIsPreviewLoading(true);
+        try {
+            const res = await blindBoxApi.getBlindBoxCards(box.blindBoxId, page, previewPageSize);
+            const list = Array.isArray(res?.content) ? res.content : [];
+            setPreviewCards(list);
+            setPreviewTotalPages(Math.max(1, Number(res?.totalPages ?? 1)));
+            setPreviewTotalElements(Number(res?.totalElements ?? list.length));
+        } catch {
+            setPreviewCards([]);
+            setPreviewTotalPages(1);
+            setPreviewTotalElements(0);
+        } finally {
+            setIsPreviewLoading(false);
+        }
     };
 
     const checkWalletBeforeOpen = async (box: BlindBox, mode: 'ONE' | 'ALL') => {
@@ -144,10 +177,14 @@ export function MysteryBox() {
 
     useEffect(() => {
         let cancelled = false;
-        blindBoxApi.getAllBlindBoxes(1, 20, statusFilter)
-            .then(async (list) => {
+        setIsLoadingBoxes(true);
+        blindBoxApi.getAllBlindBoxes(boxPage, boxPageSize, statusFilter)
+            .then(async (pageData) => {
                 if (cancelled) return;
+                const list = pageData.content ?? [];
                 setBlindBoxes(list);
+                setBoxTotalPages(pageData.totalPages ?? 1);
+                setBoxTotalElements(pageData.totalElements ?? list.length);
 
                 const probs: Record<string, { rarity: string; probability: number }[]> = {};
                 await Promise.all(
@@ -170,7 +207,19 @@ export function MysteryBox() {
             .catch((e) => { if (!cancelled) setBoxError(e?.message || 'Không tải được danh sách hộp bí ẩn'); })
             .finally(() => { if (!cancelled) setIsLoadingBoxes(false); });
         return () => { cancelled = true; };
-    }, [statusFilter, reloadBoxesKey]);
+    }, [statusFilter, reloadBoxesKey, boxPage]);
+
+    // Khi đổi filter, reset về trang 1
+    useEffect(() => {
+        setBoxPage(1);
+    }, [statusFilter]);
+
+    // Reload preview khi đổi trang
+    useEffect(() => {
+        if (!isPreviewOpen || !selectedBox) return;
+        loadPreviewCards(selectedBox, previewPage);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [previewPage, isPreviewOpen]);
 
     const getRarityColor = (rarity: string) => {
         const r = (rarity || '').toUpperCase();
@@ -603,6 +652,9 @@ export function MysteryBox() {
             {/* Box Selection */}
             {!selectedBox && !showInteractiveBag && !showResults && (
                 <div className="grid grid-cols-1 gap-6">
+                    <div className="flex items-center justify-between text-sm text-[#E0E0E0]/80">
+                        <span>Trang {boxPage}/{boxTotalPages}</span>
+                    </div>
                     {isLoadingBoxes && (
                         <div className="text-center py-12 text-[#D4AF37]">Đang tải danh sách hộp bí ẩn...</div>
                     )}
@@ -720,6 +772,19 @@ export function MysteryBox() {
                                                     <Package className="w-5 h-5 text-[#A020F0]" />
                                                     Mua cả hộp
                                                 </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedBox(box);
+                                                        setPreviewPage(0);
+                                                        setIsPreviewOpen(true);
+                                                        loadPreviewCards(box, 0);
+                                                    }}
+                                                    className="w-full md:w-auto px-5 py-2.5 rounded-full text-sm border border-white/20 text-[#E0E0E0] hover:bg-white/10 inline-flex items-center gap-2 justify-center"
+                                                    style={{ fontFamily: "'Open Sans', sans-serif" }}
+                                                >
+                                                    <Grid className="w-4 h-4" />
+                                                    Xem tất cả thẻ
+                                                </button>
                                             </div>
                                         )}
                                     </div>
@@ -727,6 +792,43 @@ export function MysteryBox() {
                             </div>
                         </div>
                     )})}
+
+                    {!isLoadingBoxes && blindBoxes.length > 0 && boxTotalPages > 1 && (
+                        <div className="flex items-center justify-center gap-4 pt-6">
+                            <button
+                                disabled={boxPage <= 1}
+                                onClick={() => setBoxPage((p) => Math.max(1, p - 1))}
+                                className="px-4 h-9 rounded-full text-sm border border-[#D4AF37]/60 text-[#E0E0E0] disabled:opacity-40 hover:bg-[#D4AF37]/15"
+                            >
+                                ‹
+                            </button>
+                            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+                                {Array.from({ length: boxTotalPages }).map((_, idx) => {
+                                    const pageNum = idx + 1;
+                                    return (
+                                        <button
+                                            key={pageNum}
+                                            onClick={() => setBoxPage(pageNum)}
+                                            className={`min-w-9 h-9 px-2 rounded-full text-xs md:text-sm font-semibold border transition-colors ${
+                                                pageNum === boxPage
+                                                    ? 'bg-[#D4AF37] text-[#0B0112] border-[#D4AF37] shadow-[0_0_14px_rgba(212,175,55,0.7)]'
+                                                    : 'border-white/25 text-[#E0E0E0]/85 hover:bg-white/10'
+                                            }`}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <button
+                                disabled={boxPage >= boxTotalPages}
+                                onClick={() => setBoxPage((p) => Math.min(boxTotalPages, p + 1))}
+                                className="px-4 h-9 rounded-full text-sm border border-[#D4AF37]/60 text-[#E0E0E0] disabled:opacity-40 hover:bg-[#D4AF37]/15"
+                            >
+                                ›
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1186,6 +1288,28 @@ export function MysteryBox() {
                             </div>
                         </div>
                     )}
+
+                    {!isLoadingBoxes && blindBoxes.length > 0 && (
+                        <div className="flex items-center justify-center gap-3 pt-2">
+                            <button
+                                disabled={boxPage <= 1}
+                                onClick={() => setBoxPage((p) => Math.max(1, p - 1))}
+                                className="px-3 h-8 rounded-full text-xs border border-[#D4AF37]/40 text-[#E0E0E0] disabled:opacity-40 hover:bg-[#D4AF37]/10"
+                            >
+                                ‹ Trước
+                            </button>
+                            <span className="text-xs text-[#E0E0E0]/70">
+                                Trang {boxPage}/{boxTotalPages}
+                            </span>
+                            <button
+                                disabled={boxPage >= boxTotalPages}
+                                onClick={() => setBoxPage((p) => Math.min(boxTotalPages, p + 1))}
+                                className="px-3 h-8 rounded-full text-xs border border-[#D4AF37]/40 text-[#E0E0E0] disabled:opacity-40 hover:bg-[#D4AF37]/10"
+                            >
+                                Sau ›
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1317,6 +1441,102 @@ export function MysteryBox() {
                         >
                             Mở hộp khác
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Preview tất cả thẻ trong hộp (không hiển thị status) */}
+            {isPreviewOpen && selectedBox && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="w-full max-w-5xl max-h-[90vh] bg-[#0B0112] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <Grid className="w-5 h-5 text-[#D4AF37]" />
+                                <span className="font-semibold">
+                                    Tất cả thẻ trong hộp: {selectedBox.name}
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setIsPreviewOpen(false);
+                                    setPreviewCards([]);
+                                    setPreviewPage(0);
+                                    setSelectedBox(null);
+                                }}
+                                className="px-3 py-1.5 rounded-full border border-white/20 text-xs text-[#E0E0E0] hover:bg-white/10"
+                            >
+                                Đóng
+                            </button>
+                        </div>
+
+                        <p className="text-xs text-[#E0E0E0]/80">
+                            Trang {previewPage + 1}/{previewTotalPages} · {previewTotalElements} thẻ
+                        </p>
+
+                        <div className="flex-1 overflow-auto pr-1">
+                            {isPreviewLoading ? (
+                                <div className="py-10 text-center text-[#D4AF37]">Đang tải danh sách thẻ...</div>
+                            ) : previewCards.length === 0 ? (
+                                <div className="py-10 text-center text-[#E0E0E0]/80">
+                                    Hộp này chưa có thẻ nào.
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                    {previewCards.map((card, idx) => {
+                                        const base: any = (card as any).cardResponse || card;
+                                        const imageSrc =
+                                            getCardImageUrl(base) ||
+                                            'https://via.placeholder.com/150?text=Card';
+                                        const priceRaw = Number(base?.basePrice ?? 0);
+
+                                        return (
+                                            <div
+                                                key={card.blindBoxCardId || (card as any).cardId || `preview-${idx}`}
+                                                className="group rounded-lg overflow-hidden border border-white/10 bg-black/40"
+                                            >
+                                                <div className="aspect-[2/3]">
+                                                    <img
+                                                        src={imageSrc}
+                                                        alt={base?.name || ''}
+                                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                    />
+                                                </div>
+                                                <div className="p-2 bg-black/60 border-t border-white/10">
+                                                    <p className="text-xs font-bold text-white truncate">
+                                                        {base?.name || '—'}
+                                                    </p>
+                                                    <p className="text-[10px] text-gray-400">
+                                                        {base?.rarity || '—'}
+                                                    </p>
+                                                    <p className="text-[10px] text-emerald-300">
+                                                        Giá: {priceRaw.toLocaleString('vi-VN')} VND
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {previewTotalPages > 1 && (
+                            <div className="flex items-center justify-center gap-3">
+                                <button
+                                    disabled={previewPage <= 0}
+                                    onClick={() => setPreviewPage((p) => Math.max(0, p - 1))}
+                                    className="px-3 h-8 rounded-full text-xs border border-white/20 text-[#E0E0E0] disabled:opacity-40 hover:bg-white/10"
+                                >
+                                    ‹
+                                </button>
+                                <button
+                                    disabled={previewPage >= previewTotalPages - 1}
+                                    onClick={() => setPreviewPage((p) => Math.min(previewTotalPages - 1, p + 1))}
+                                    className="px-3 h-8 rounded-full text-xs border border-white/20 text-[#E0E0E0] disabled:opacity-40 hover:bg:white/10"
+                                >
+                                    ›
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -15,7 +15,7 @@ import {
     FileSpreadsheet,
     Eye
 } from 'lucide-react';
-import { cardApi, categoryApi, Card as CardType, Category, getCardImageUrl, cardRequiredApi, CardRequired } from '@/utils/api';
+import { cardApi, categoryApi, Card as CardType, Category, getCardImageUrl, cardRequiredApi, CardRequired } from '@/api';
 
 export const AdminCardsPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = React.useState('');

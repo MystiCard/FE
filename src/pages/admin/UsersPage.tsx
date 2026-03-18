@@ -24,7 +24,7 @@ import {
     Upload,
     Truck,
 } from 'lucide-react';
-import { userApi, UserProfile, AdminCreateUserRequest } from '@/utils/api';
+import { userApi, UserProfile, AdminCreateUserRequest, roleApi, permissionApi, type Role } from '@/api';
 import { AddressSelect } from '@/components/shared/AddressSelect';
 
 const ROLE_OPTIONS: { value: string; label: string }[] = [
@@ -32,6 +32,35 @@ const ROLE_OPTIONS: { value: string; label: string }[] = [
     { value: 'ADMIN', label: 'Quản trị' },
     { value: 'SHIPPER', label: 'Shipper' },
 ];
+
+const PERMISSION_LABELS: Record<
+    string,
+    {
+        name: string;
+        description: string;
+    }
+> = {
+    PERM_001: {
+        name: 'Quyền quản trị',
+        description: 'Toàn quyền quản lý cấu hình và dữ liệu hệ thống.',
+    },
+    PERM_002: {
+        name: 'Quyền đăng bài',
+        description: 'Được tạo và quản lý bài đăng bán hàng.',
+    },
+    PERM_003: {
+        name: 'Quyền mua hàng',
+        description: 'Được phép đặt mua sản phẩm/thẻ trên hệ thống.',
+    },
+    PERM_004: {
+        name: 'Cập nhật giao hàng',
+        description: 'Cập nhật trạng thái giao hàng cho các đơn liên quan.',
+    },
+    PERM_005: {
+        name: 'Xem báo cáo',
+        description: 'Truy cập các màn hình báo cáo và thống kê.',
+    },
+};
 
 const initialCreateForm: AdminCreateUserRequest & { confirmPassword: string; role: string } = {
     name: '',
@@ -51,6 +80,7 @@ export const AdminUsersPage: React.FC = () => {
     const [users, setUsers] = React.useState<UserProfile[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
     const [error, setError] = React.useState('');
+    const [userRolesMap, setUserRolesMap] = React.useState<Record<string, 'ADMIN' | 'SHIPPER' | 'USER'>>({});
     const [roleFilter, setRoleFilter] = React.useState('');
     const [statusFilter, setStatusFilter] = React.useState<'ACTIVE' | 'BANNED' | ''>('');
     const [createModalOpen, setCreateModalOpen] = React.useState(false);
@@ -58,6 +88,10 @@ export const AdminUsersPage: React.FC = () => {
     const [createAvatar, setCreateAvatar] = React.useState<File | null>(null);
     const [createSubmitting, setCreateSubmitting] = React.useState(false);
     const [createError, setCreateError] = React.useState('');
+    const [roleModalUser, setRoleModalUser] = React.useState<UserProfile | null>(null);
+    const [roleModalRoles, setRoleModalRoles] = React.useState<Role[]>([]);
+    const [roleModalLoading, setRoleModalLoading] = React.useState(false);
+    const [roleModalSaving, setRoleModalSaving] = React.useState(false);
 
     // Load users on mount
     React.useEffect(() => {
@@ -75,6 +109,92 @@ export const AdminUsersPage: React.FC = () => {
             setUsers([]);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // Load primary role for each user (ADMIN > SHIPPER > USER) để hiển thị trong bảng
+    React.useEffect(() => {
+        const usersList = Array.isArray(users) ? users : [];
+        if (!usersList.length) {
+            setUserRolesMap({});
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const entries = await Promise.all(
+                    usersList.map(async (u) => {
+                        try {
+                            const page = await roleApi.getByUserId(u.userId, 1, 50, true);
+                            const codes = (page.content || []).map((r) => r.roleCode);
+                            let primary: 'ADMIN' | 'SHIPPER' | 'USER' = 'USER';
+                            if (codes.includes('ADMIN')) primary = 'ADMIN';
+                            else if (codes.includes('SHIPPER')) primary = 'SHIPPER';
+                            return [u.userId, primary] as const;
+                        } catch {
+                            return [u.userId, 'USER' as const];
+                        }
+                    })
+                );
+                if (!cancelled) {
+                    setUserRolesMap(Object.fromEntries(entries));
+                }
+            } catch {
+                // ignore, giữ map cũ
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [users]);
+
+    const openRoleModal = async (user: UserProfile) => {
+        setRoleModalUser(user);
+        setRoleModalLoading(true);
+        try {
+            const page = await roleApi.getByUserId(user.userId, 1, 50, true);
+            const basicRoles = page.content || [];
+
+            // Lấy quyền cho từng role của user qua /api/permisions/{roleCode}
+            const rolesWithPermissions: Role[] = await Promise.all(
+                basicRoles.map(async (r) => {
+                    try {
+                        const permsPage = await permissionApi.getByRoleCode(r.roleCode, 1, 200, true);
+                        return {
+                            ...r,
+                            permisionResponse: permsPage.content || [],
+                        };
+                    } catch {
+                        return r;
+                    }
+                })
+            );
+
+            setRoleModalRoles(rolesWithPermissions);
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Không tải được vai trò của user');
+            setRoleModalRoles([]);
+        } finally {
+            setRoleModalLoading(false);
+        }
+    };
+
+    const toggleRoleForUser = async (roleCode: string, hasRole: boolean) => {
+        if (!roleModalUser) return;
+        setRoleModalSaving(true);
+        try {
+            if (hasRole) {
+                await userApi.removeRole(roleModalUser.userId, [roleCode]);
+            } else {
+                await userApi.addRole(roleModalUser.userId, [roleCode]);
+            }
+            const page = await roleApi.getByUserId(roleModalUser.userId, 1, 50, true);
+            setRoleModalRoles(page.content || []);
+            await loadUsers();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'Cập nhật vai trò thất bại');
+        } finally {
+            setRoleModalSaving(false);
         }
     };
 
@@ -338,15 +458,28 @@ export const AdminUsersPage: React.FC = () => {
                                                 </div>
                                             </td>
                                             <td className="p-4">
-                                                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                                                    user.role === 'ADMIN' ? 'bg-red-500/20 text-red-400' :
-                                                    user.role === 'SHIPPER' ? 'bg-amber-500/20 text-amber-400' :
-                                                    'bg-primary-500/20 text-primary-400'
-                                                }`}>
-                                                    {user.role === 'ADMIN' && <Shield className="h-3 w-3" />}
-                                                    {user.role === 'SHIPPER' && <Truck className="h-3 w-3" />}
-                                                    {user.role === 'ADMIN' ? 'Quản trị' : user.role === 'SHIPPER' ? 'Shipper' : 'Khách hàng'}
-                                                </span>
+                                                {(() => {
+                                                    const primaryRole = userRolesMap[user.userId] || 'USER';
+                                                    const badgeClass =
+                                                        primaryRole === 'ADMIN'
+                                                            ? 'bg-red-500/20 text-red-400'
+                                                            : primaryRole === 'SHIPPER'
+                                                                ? 'bg-amber-500/20 text-amber-400'
+                                                                : 'bg-primary-500/20 text-primary-400';
+                                                    const label =
+                                                        primaryRole === 'ADMIN'
+                                                            ? 'Quản trị'
+                                                            : primaryRole === 'SHIPPER'
+                                                                ? 'Shipper'
+                                                                : 'Khách hàng';
+                                                    return (
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${badgeClass}`}>
+                                                            {primaryRole === 'ADMIN' && <Shield className="h-3 w-3" />}
+                                                            {primaryRole === 'SHIPPER' && <Truck className="h-3 w-3" />}
+                                                            {label}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </td>
                                             <td className="p-4 text-sm">{user.phone || '—'}</td>
                                             <td className="p-4 text-right font-semibold text-accent-400">
@@ -361,24 +494,40 @@ export const AdminUsersPage: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className="p-4">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {user.status === 'BANNED' ? (
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <div className="flex gap-2">
                                                         <button
-                                                            onClick={() => handleUnbanUser(user.userId)}
-                                                            className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 rounded-md text-green-400 text-xs font-medium transition-colors flex items-center gap-1"
+                                                            onClick={() => openRoleModal(user)}
+                                                            className="px-3 py-1 bg-primary-500/20 hover:bg-primary-500/30 rounded-md text-primary-300 text-xs font-medium transition-colors flex items-center gap-1"
                                                         >
-                                                            <CheckCircle className="h-3 w-3" />
-                                                            Bỏ khóa
+                                                            <Shield className="h-3 w-3" />
+                                                            Phân quyền
                                                         </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => handleBanUser(user.userId)}
-                                                            className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded-md text-red-400 text-xs font-medium transition-colors flex items-center gap-1"
-                                                        >
-                                                            <Ban className="h-3 w-3" />
-                                                            Khóa
-                                                        </button>
-                                                    )}
+                                                        {user.status === 'BANNED' ? (
+                                                            <button
+                                                                onClick={() => handleUnbanUser(user.userId)}
+                                                                className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 rounded-md text-green-400 text-xs font-medium transition-colors flex items-center gap-1"
+                                                            >
+                                                                <CheckCircle className="h-3 w-3" />
+                                                                Mở khóa
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => handleBanUser(user.userId)}
+                                                                className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded-md text-red-400 text-xs font-medium transition-colors flex items-center gap-1"
+                                                            >
+                                                                <Ban className="h-3 w-3" />
+                                                                Khóa (ban)
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[11px] text-muted-foreground">
+                                                        {user.status === 'BANNED'
+                                                            ? 'Đã khóa'
+                                                            : user.status === 'ACTIVE'
+                                                                ? 'Hoạt động'
+                                                                : 'Khác'}
+                                                    </span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -389,6 +538,122 @@ export const AdminUsersPage: React.FC = () => {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Manage Roles Modal */}
+            <Dialog open={!!roleModalUser} onOpenChange={(open) => !open && setRoleModalUser(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Quản lý quyền cho người dùng</DialogTitle>
+                    </DialogHeader>
+                    {roleModalUser && (
+                        <div className="space-y-4">
+                            <div>
+                                <div className="font-medium">{roleModalUser.name}</div>
+                                <div className="text-xs text-muted-foreground">{roleModalUser.email}</div>
+                            </div>
+                            {roleModalLoading ? (
+                                <div className="text-sm text-muted-foreground">Đang tải quyền...</div>
+                            ) : (
+                                <>
+                                    <div className="space-y-2">
+                                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                            Quyền hiện tại
+                                        </div>
+                                        {roleModalRoles.length === 0 ? (
+                                            <div className="text-xs text-muted-foreground">
+                                                User chưa được gán role nào.
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                                                {roleModalRoles.map((role) => (
+                                                    <div
+                                                        key={role.roleCode}
+                                                        className="rounded-lg border border-white/10 bg-white/5 p-3"
+                                                    >
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div>
+                                                                <div className="text-sm font-semibold">
+                                                                    {role.roleName || role.roleCode}
+                                                                </div>
+                                                                <div className="text-[11px] text-muted-foreground">
+                                                                    Mã: {role.roleCode}
+                                                                </div>
+                                                            </div>
+                                                            {role.permisionResponse &&
+                                                                role.permisionResponse.length > 0 && (
+                                                                    <span className="text-[11px] text-muted-foreground">
+                                                                        {role.permisionResponse.length} quyền
+                                                                    </span>
+                                                                )}
+                                                        </div>
+                                                        {role.permisionResponse &&
+                                                            role.permisionResponse.length > 0 && (
+                                                                <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                                                                    {role.permisionResponse.map((p) => {
+                                                                        const meta = PERMISSION_LABELS[p.permisionCode] || null;
+                                                                        const displayName =
+                                                                            meta?.name || p.permisionName || p.permisionCode;
+                                                                        const displayDesc =
+                                                                            meta?.description || p.description || '';
+                                                                        return (
+                                                                            <li key={p.permisionCode}>
+                                                                                <span className="font-semibold">
+                                                                                    {displayName}
+                                                                                </span>
+                                                                                {displayDesc && (
+                                                                                    <span className="ml-1 opacity-80">
+                                                                                        – {displayDesc}
+                                                                                    </span>
+                                                                                )}
+                                                                            </li>
+                                                                        );
+                                                                    })}
+                                                                </ul>
+                                                            )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2 pt-2 border-t border-white/10">
+                                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                            Thêm / gỡ role
+                                        </div>
+                                        {ROLE_OPTIONS.map((opt) => {
+                                            const hasRole = roleModalRoles.some((r) => r.roleCode === opt.value);
+                                            return (
+                                                <label
+                                                    key={opt.value}
+                                                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm"
+                                                >
+                                                    <span>{opt.label}</span>
+                                                    <button
+                                                        type="button"
+                                                        disabled={roleModalSaving}
+                                                        onClick={() => toggleRoleForUser(opt.value, hasRole)}
+                                                        className={`px-2 py-1 rounded-md text-xs font-medium ${
+                                                            hasRole
+                                                                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                                                                : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                                                        }`}
+                                                    >
+                                                        {hasRole ? 'Gỡ bỏ' : 'Thêm'}
+                                                    </button>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setRoleModalUser(null)}>
+                                    Đóng
+                                </Button>
+                            </DialogFooter>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {/* Create User Modal */}
             <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
