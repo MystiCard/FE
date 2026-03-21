@@ -3905,15 +3905,16 @@ export const OrdersPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {/* Thông tin người bán (ưu tiên dữ liệu BE trả về trực tiếp) */}
+                                    {/* Người bán nhận hàng trả: toName trên shipment là nguồn đúng với GHN (đích giao) */}
                                     {selectedReturn && (
                                         <div>
                                             <div className="text-xs text-muted-foreground mb-1">Người bán</div>
                                             <div className="glass-card p-3 rounded-lg border border-white/10">
-                                                {selectedReturn.sellerName ||
+                                                {selectedReturn.shipmentResponse?.toName ||
+                                                    selectedReturn.sellerName ||
                                                     selectedReturn.orderItems?.[0]?.cardResponse?.sellerName ||
                                                     selectedReturn.orderItems?.[0]?.cardResponse?.seller?.name ||
-                                                    'Người bán'}
+                                                    '—'}
                                             </div>
                                         </div>
                                     )}
@@ -4016,6 +4017,11 @@ export const OrdersPage: React.FC = () => {
                                     {(selectedReturn.shipmentResponse?.fromAddress ?? (selectedReturn as any).pickupAddress ?? (selectedReturn as any).fromAddress) && (
                                         <div className="border border-white/10 rounded-lg p-3">
                                             <div className="text-xs text-muted-foreground mb-1">Địa chỉ lấy hàng</div>
+                                            {selectedReturn.shipmentResponse?.fromName && (
+                                                <div className="text-sm font-medium mb-1">
+                                                    {selectedReturn.shipmentResponse.fromName}
+                                                </div>
+                                            )}
                                             <div className="text-sm">
                                                 {selectedReturn.shipmentResponse?.fromAddress ??
                                                     (selectedReturn as any).pickupAddress ??
