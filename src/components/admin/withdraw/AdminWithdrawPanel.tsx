@@ -1,8 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { transactionApi, TransactionResponse, PageResponse } from '@/api';
+import { transactionApi, paymentApi, TransactionResponse, PageResponse } from '@/api';
+import { ADMIN_API_PAGE_SIZE } from '@/pages/admin/adminApiPageSize';
+import { toast } from '@/components/ui/use-toast';
 import { AlertCircle, ArrowUpCircle, RefreshCcw } from 'lucide-react';
+
+const getStatusLabel = (s: string | undefined): string => {
+    if (!s) return '—';
+    const v = s.toUpperCase();
+    if (v === 'SUCCESS') return 'Thành công';
+    if (v === 'PENDING') return 'Đang xử lý';
+    if (v === 'FAILED') return 'Thất bại';
+    if (v === 'CANCELLED') return 'Đã hủy';
+    return s;
+};
 
 export const AdminWithdrawPanel: React.FC = () => {
     const [rows, setRows] = useState<TransactionResponse[]>([]);
@@ -10,13 +22,14 @@ export const AdminWithdrawPanel: React.FC = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [actionId, setActionId] = useState<string | null>(null);
 
     const load = async (p: number) => {
         try {
             setLoading(true);
             setError('');
             const res: PageResponse<TransactionResponse> =
-                await transactionApi.getWithdrawRequestsAdmin(p, 20);
+                await transactionApi.getWithdrawRequestsAdmin(p, ADMIN_API_PAGE_SIZE);
             setRows(res.content ?? []);
             setTotalPages(res.totalPages || 1);
         } catch (e) {
@@ -47,7 +60,7 @@ export const AdminWithdrawPanel: React.FC = () => {
     };
 
     return (
-        <Card className="mt-6 glass-card-strong">
+        <Card className="glass-card-strong mt-0 md:mt-6">
             <CardHeader className="flex flex-row items-center justify-between gap-4">
                 <CardTitle className="flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-amber-400" />
@@ -87,8 +100,11 @@ export const AdminWithdrawPanel: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {rows.map((tx) => (
-                                    <tr key={tx.walletTransactionId} className="border-b border-white/5">
+                                {rows.map((tx, idx) => (
+                                    <tr
+                                        key={String(tx.walletTransactionId ?? idx)}
+                                        className="border-b border-white/5"
+                                    >
                                         <td className="p-3">
                                             {tx.createAt
                                                 ? new Date(tx.createAt).toLocaleString('vi-VN')
@@ -117,49 +133,71 @@ export const AdminWithdrawPanel: React.FC = () => {
                                                     tx.statusTransaction
                                                 )}`}
                                             >
-                                                {tx.statusTransaction}
+                                                {getStatusLabel(tx.statusTransaction)}
                                             </span>
                                         </td>
                                         <td className="p-3 text-right font-semibold">
-                                            {tx.amount.toLocaleString('vi-VN')} đ
+                                            {Number(tx.amount ?? 0).toLocaleString('vi-VN')} đ
                                         </td>
                                         <td className="p-3 text-right">
                                             {tx.statusTransaction === 'PENDING' || tx.statusTransaction === 'FAILED' ? (
                                                 <Button
-                                                    size="xs"
+                                                    size="sm"
                                                     variant="outline"
-                                                    className={`flex items-center gap-1 ${
+                                                    disabled={actionId === tx.walletTransactionId}
+                                                    className={`flex items-center gap-1 ml-auto ${
                                                         tx.statusTransaction === 'FAILED'
                                                             ? 'border-red-500/60 text-red-300 hover:bg-red-500/10'
                                                             : 'border-green-500/50 text-green-300 hover:bg-green-500/10'
                                                     }`}
                                                     title={
                                                         tx.statusTransaction === 'FAILED'
-                                                            ? 'Retry MoMo payment for this withdraw request'
-                                                            : 'Approve withdraw via MoMo'
+                                                            ? 'Thử lại thanh toán rút (BE: POST /transactions/pay-againt/{paymentId})'
+                                                            : 'Duyệt rút tiền qua MoMo (BE: POST /transactions/approve)'
                                                     }
                                                     onClick={async () => {
+                                                        setActionId(tx.walletTransactionId);
                                                         try {
-                                                            const url =
-                                                                await transactionApi.approveWithdraw(
+                                                            let url: string;
+                                                            if (tx.statusTransaction === 'FAILED') {
+                                                                const payment = await paymentApi.getByWalletTransactionId(
+                                                                    tx.walletTransactionId
+                                                                );
+                                                                if (!payment?.paymentId) {
+                                                                    throw new Error(
+                                                                        'Không tìm thấy payment gắn với giao dịch này để thử lại.'
+                                                                    );
+                                                                }
+                                                                url = await transactionApi.retryFailedWithdrawPayment(
+                                                                    payment.paymentId
+                                                                );
+                                                            } else {
+                                                                url = await transactionApi.approveWithdraw(
                                                                     tx.walletTransactionId,
                                                                     'MOMO'
                                                                 );
+                                                            }
                                                             if (url) {
-                                                                // Mở trực tiếp trong tab hiện tại để tránh bị chặn popup
                                                                 window.location.href = url;
                                                             }
                                                         } catch (e) {
-                                                            alert(
-                                                                e instanceof Error
-                                                                    ? e.message
-                                                                    : 'Không thể approve yêu cầu rút tiền.'
-                                                            );
+                                                            toast({
+                                                                title: 'Không thể xử lý yêu cầu rút tiền',
+                                                                description:
+                                                                    e instanceof Error
+                                                                        ? e.message
+                                                                        : undefined,
+                                                                variant: 'error',
+                                                            });
+                                                        } finally {
+                                                            setActionId(null);
                                                         }
                                                     }}
                                                 >
                                                     <ArrowUpCircle className="w-3 h-3" />
-                                                    {tx.statusTransaction === 'FAILED' ? 'Retry' : 'Approve'}
+                                                    {tx.statusTransaction === 'FAILED'
+                                                        ? 'Thử lại thanh toán'
+                                                        : 'Duyệt (MoMo)'}
                                                 </Button>
                                             ) : (
                                                 <span className="text-xs text-muted-foreground">
@@ -180,7 +218,7 @@ export const AdminWithdrawPanel: React.FC = () => {
                     </span>
                     <div className="flex gap-2">
                         <Button
-                            size="xs"
+                            size="sm"
                             variant="outline"
                             disabled={page <= 1}
                             onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -188,7 +226,7 @@ export const AdminWithdrawPanel: React.FC = () => {
                             Trước
                         </Button>
                         <Button
-                            size="xs"
+                            size="sm"
                             variant="outline"
                             disabled={page >= totalPages}
                             onClick={() => setPage((p) => p + 1)}

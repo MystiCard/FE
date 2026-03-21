@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import {
     LineChart,
     Line,
+    BarChart,
+    Bar,
     XAxis,
     YAxis,
     CartesianGrid,
@@ -16,10 +18,18 @@ import type {
     TransactionReportResponse,
     TransactionReportSummary,
 } from '@/api';
-import { DollarSign, TrendingUp, AlertCircle, Clock, Calendar, Loader2 } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertCircle, Clock, Calendar, Loader2, Activity } from 'lucide-react';
 
 const formatVND = (value: number) =>
     Number.isFinite(value) ? `${value.toLocaleString('vi-VN')}đ` : '0đ';
+
+const tooltipContentStyle = {
+    background: 'rgba(15,15,25,0.95)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '8px',
+} as const;
+
+const xTickShort = (v: string) => (v ? v.slice(5) : '');
 
 type RangeKey = '7' | '30' | '90';
 
@@ -66,10 +76,17 @@ export const AdminReportPage: React.FC = () => {
         };
     }, [range]);
 
-    const chartData: { date: string; doanhThu: number; thanhCong: number; thatBai: number }[] =
+    const chartData: {
+        date: string;
+        doanhThu: number;
+        totalPayment: number;
+        thanhCong: number;
+        thatBai: number;
+    }[] =
         report?.data?.map((d: TransactionReportSummary) => ({
             date: d.localDate,
             doanhThu: d.totalAmount ?? 0,
+            totalPayment: d.totalPayment ?? 0,
             thanhCong: d.success ?? 0,
             thatBai: d.error ?? 0,
         })) ?? [];
@@ -184,7 +201,7 @@ export const AdminReportPage: React.FC = () => {
                                             <XAxis
                                                 dataKey="date"
                                                 tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 11 }}
-                                                tickFormatter={(v) => (v ? v.slice(5) : '')}
+                                                tickFormatter={xTickShort}
                                             />
                                             <YAxis
                                                 yAxisId="vnd"
@@ -197,14 +214,15 @@ export const AdminReportPage: React.FC = () => {
                                                 tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 10 }}
                                             />
                                             <Tooltip
-                                                contentStyle={{
-                                                    background: 'rgba(15,15,25,0.95)',
-                                                    border: '1px solid rgba(255,255,255,0.1)',
-                                                    borderRadius: '8px',
-                                                }}
-                                                formatter={(value: number, name: string) => [
-                                                    name === 'doanhThu' ? formatVND(value) : value,
-                                                    name === 'doanhThu' ? 'Doanh thu' : name === 'thanhCong' ? 'Thành công' : 'Thất bại',
+                                                contentStyle={tooltipContentStyle}
+                                                formatter={(
+                                                    value: number,
+                                                    name: string,
+                                                    item: { dataKey?: string }
+                                                ) => [
+                                                    item?.dataKey === 'doanhThu' ? formatVND(value) : value,
+                                                    // Recharts passes `name` from <Line name="..." />, not dataKey
+                                                    name,
                                                 ]}
                                                 labelFormatter={(label) => `Ngày ${label}`}
                                             />
@@ -246,6 +264,110 @@ export const AdminReportPage: React.FC = () => {
                             )}
                         </CardContent>
                     </Card>
+
+                    {chartData.length > 0 && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                            <Card className="glass-card-strong">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <Activity className="h-4 w-4 text-sky-400" />
+                                        Số lượt giao dịch theo ngày
+                                    </CardTitle>
+                                    <p className="text-sm text-muted-foreground">
+                                        Tổng số bản ghi giao dịch ví trong ngày (mọi trạng thái).
+                                    </p>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="h-72 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart
+                                                data={chartData}
+                                                margin={{ top: 8, right: 12, left: 4, bottom: 4 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" className="stroke-white/10" />
+                                                <XAxis
+                                                    dataKey="date"
+                                                    tick={{ fill: 'rgba(255,255,255,0.65)', fontSize: 10 }}
+                                                    tickFormatter={xTickShort}
+                                                />
+                                                <YAxis
+                                                    tick={{ fill: 'rgba(255,255,255,0.65)', fontSize: 10 }}
+                                                    allowDecimals={false}
+                                                />
+                                                <Tooltip
+                                                    contentStyle={tooltipContentStyle}
+                                                    formatter={(value: number, name: string) => [
+                                                        value.toLocaleString('vi-VN'),
+                                                        name,
+                                                    ]}
+                                                    labelFormatter={(label) => `Ngày ${label}`}
+                                                />
+                                                <Bar
+                                                    dataKey="totalPayment"
+                                                    name="Lượt giao dịch"
+                                                    fill="rgba(56,189,248,0.85)"
+                                                    radius={[6, 6, 0, 0]}
+                                                />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="glass-card-strong">
+                                <CardHeader>
+                                    <CardTitle className="text-base">Thành công vs thất bại</CardTitle>
+                                    <p className="text-sm text-muted-foreground">
+                                        Mỗi cột là tổng giao dịch trong ngày; màu xanh là thành công, đỏ là thất bại.
+                                    </p>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="h-72 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart
+                                                data={chartData}
+                                                margin={{ top: 8, right: 12, left: 4, bottom: 4 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" className="stroke-white/10" />
+                                                <XAxis
+                                                    dataKey="date"
+                                                    tick={{ fill: 'rgba(255,255,255,0.65)', fontSize: 10 }}
+                                                    tickFormatter={xTickShort}
+                                                />
+                                                <YAxis
+                                                    tick={{ fill: 'rgba(255,255,255,0.65)', fontSize: 10 }}
+                                                    allowDecimals={false}
+                                                />
+                                                <Tooltip
+                                                    contentStyle={tooltipContentStyle}
+                                                    formatter={(value: number, name: string) => [
+                                                        value.toLocaleString('vi-VN'),
+                                                        name,
+                                                    ]}
+                                                    labelFormatter={(label) => `Ngày ${label}`}
+                                                />
+                                                <Legend />
+                                                <Bar
+                                                    dataKey="thanhCong"
+                                                    stackId="outcome"
+                                                    name="Giao dịch thành công"
+                                                    fill="rgba(34,197,94,0.9)"
+                                                    radius={[0, 0, 0, 0]}
+                                                />
+                                                <Bar
+                                                    dataKey="thatBai"
+                                                    stackId="outcome"
+                                                    name="Giao dịch thất bại"
+                                                    fill="rgba(239,68,68,0.9)"
+                                                    radius={[6, 6, 0, 0]}
+                                                />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
                 </>
             )}
         </div>

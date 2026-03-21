@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { orderApi, OrderItemResponse, ShippingStatus, shipmentApi } from '@/utils/api';
+import { ADMIN_API_PAGE_SIZE } from '@/pages/admin/adminApiPageSize';
 import { Search, Package, Truck, AlertCircle, RefreshCcw, MapPin, Phone } from 'lucide-react';
 
 type AdminShippingFilter = ShippingStatus | 'ALL';
@@ -53,7 +54,7 @@ export const AdminOrdersPage: React.FC = () => {
         try {
             setIsLoading(true);
             setError('');
-            const pageSize = 10;
+            const pageSize = ADMIN_API_PAGE_SIZE;
 
             // Admin xem danh sách shipment chưa được gán shipper dựa trên ShipmentController (/api/shipments/not-asign)
             const res = await shipmentApi.getNotAssignedShipments(pageIndex + 1, pageSize);

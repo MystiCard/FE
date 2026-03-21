@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Grid, Percent, ShoppingBag } from 'lucide-react';
 import { blindBoxApi, BlindBox, BlindBoxCardInBox, BlindBoxProbability, getCardImageUrl, cardApi, Card as CardType } from '@/api';
+import { ADMIN_API_PAGE_SIZE } from './adminApiPageSize';
 
 const formatCurrencyVND = (value: number) => {
     const safe = Number.isFinite(value) ? value : 0;
@@ -21,7 +22,7 @@ export const AdminBlindBoxDetailPage: React.FC = () => {
     const [cardsTotalElements, setCardsTotalElements] = useState(0);
     const [statusFilter, setStatusFilter] = useState<'all' | 'in' | 'opened'>('all');
     const [rarityFilter, setRarityFilter] = useState<string>('all');
-    const pageSize = 10;
+    const pageSize = ADMIN_API_PAGE_SIZE;
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string>('');
 

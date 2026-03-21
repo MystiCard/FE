@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { AddressSelect } from '@/components/shared/AddressSelect';
 import { useWishlist } from '@/hooks/useWishlist';
+import { toast } from '@/components/ui/use-toast';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
 
@@ -57,16 +58,20 @@ export const Profile: React.FC = () => {
         const message = params.get('message');
 
         if (paymentStatus === 'success') {
-            alert(`Nạp tiền thành công! Số tiền: ${Number(amount).toLocaleString('vi-VN')} đ`);
+            toast({
+                title: 'Nạp tiền thành công',
+                description: `Số tiền: ${Number(amount).toLocaleString('vi-VN')} đ`,
+                variant: 'success',
+            });
             // Reload profile to get updated balance
             fetchProfile();
             // Clean URL
             window.history.replaceState({}, '', '/profile');
         } else if (paymentStatus === 'failed') {
-            alert(`Nạp tiền thất bại! ${message || 'Vui lòng thử lại'}`);
+            toast({ title: 'Nạp tiền thất bại', description: message || 'Vui lòng thử lại', variant: 'error' });
             window.history.replaceState({}, '', '/profile');
         } else if (paymentStatus === 'error') {
-            alert(`Lỗi xác thực! ${message || 'Vui lòng liên hệ hỗ trợ'}`);
+            toast({ title: 'Lỗi xác thực', description: message || 'Vui lòng liên hệ hỗ trợ', variant: 'error' });
             window.history.replaceState({}, '', '/profile');
         }
     }, []);
@@ -159,7 +164,7 @@ export const Profile: React.FC = () => {
             fetchStats();
             fetchWishlist();
         } catch {
-            alert('Không thể xóa khỏi wishlist');
+            toast({ title: 'Không thể xóa', description: 'Không xóa được khỏi wishlist.', variant: 'error' });
         }
     };
 
@@ -250,11 +255,11 @@ export const Profile: React.FC = () => {
     const handleSaveProfile = async () => {
         if (!profile?.userId) return;
         if (!editForm.name?.trim()) {
-            alert('Vui lòng nhập tên hiển thị');
+            toast({ title: 'Thiếu thông tin', description: 'Vui lòng nhập tên hiển thị.', variant: 'warning' });
             return;
         }
         if (!editForm.email?.trim()) {
-            alert('Vui lòng nhập email');
+            toast({ title: 'Thiếu thông tin', description: 'Vui lòng nhập email.', variant: 'warning' });
             return;
         }
         setIsSavingProfile(true);
@@ -273,7 +278,7 @@ export const Profile: React.FC = () => {
             setProfile(updated);
             setShowEditProfileModal(false);
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Cập nhật thất bại');
+            toast({ title: 'Cập nhật thất bại', description: err instanceof Error ? err.message : 'Vui lòng thử lại.', variant: 'error' });
         } finally {
             setIsSavingProfile(false);
         }
@@ -285,12 +290,12 @@ export const Profile: React.FC = () => {
 
     const handleDeposit = async () => {
         if (!depositAmount || Number(depositAmount) <= 0) {
-            alert('Vui lòng nhập số tiền hợp lệ');
+            toast({ title: 'Số tiền không hợp lệ', description: 'Vui lòng nhập số tiền lớn hơn 0.', variant: 'warning' });
             return;
         }
 
         if (!profile?.userId) {
-            alert('Không tìm thấy thông tin người dùng');
+            toast({ title: 'Lỗi', description: 'Không tìm thấy thông tin người dùng.', variant: 'error' });
             return;
         }
 
@@ -319,7 +324,7 @@ export const Profile: React.FC = () => {
             window.location.href = paymentUrl;
         } catch (err) {
             console.error('Deposit error:', err);
-            alert(err instanceof Error ? err.message : 'Nạp tiền thất bại');
+            toast({ title: 'Nạp tiền thất bại', description: err instanceof Error ? err.message : 'Vui lòng thử lại.', variant: 'error' });
             setIsProcessing(false);
         }
     };

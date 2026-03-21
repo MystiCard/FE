@@ -16,8 +16,12 @@ import {
     Eye
 } from 'lucide-react';
 import { cardApi, categoryApi, Card as CardType, Category, getCardImageUrl, cardRequiredApi, CardRequired } from '@/api';
+import { ADMIN_API_PAGE_SIZE } from './adminApiPageSize';
+import { toast } from '@/components/ui/use-toast';
+import { useAdminConfirm } from '@/components/admin';
 
 export const AdminCardsPage: React.FC = () => {
+    const { confirm, confirmDialog } = useAdminConfirm();
     const [searchQuery, setSearchQuery] = React.useState('');
     const [cards, setCards] = React.useState<CardType[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
@@ -116,8 +120,16 @@ export const AdminCardsPage: React.FC = () => {
     }, []);
     const loadRequests = async () => {
         try {
-            const res = await cardRequiredApi.getAllRequiredCardsAdmin(0, 50);
-            setRequests(res.content ?? []);
+            const all: CardRequired[] = [];
+            let page = 0;
+            let totalPages = 1;
+            do {
+                const res = await cardRequiredApi.getAllRequiredCardsAdmin(page, ADMIN_API_PAGE_SIZE);
+                all.push(...(res.content ?? []));
+                totalPages = Math.max(1, res.totalPages ?? 1);
+                page++;
+            } while (page < totalPages);
+            setRequests(all);
         } catch {
             setRequests([]);
         }
@@ -159,8 +171,13 @@ export const AdminCardsPage: React.FC = () => {
             setReqImageFile((prev) => ({ ...prev, [r.cardRequiredId]: null }));
             await loadRequests();
             await loadCards();
+            toast({ title: 'Đã duyệt yêu cầu', variant: 'success' });
         } catch (e) {
-            alert(e instanceof Error ? e.message : 'Duyệt yêu cầu thất bại');
+            toast({
+                title: 'Duyệt yêu cầu thất bại',
+                description: e instanceof Error ? e.message : undefined,
+                variant: 'error',
+            });
         } finally {
             setReqProcessing(null);
         }
@@ -171,8 +188,13 @@ export const AdminCardsPage: React.FC = () => {
         try {
             await cardRequiredApi.rejectRequiredCard(r.cardRequiredId, reqNote[r.cardRequiredId] ?? null);
             await loadRequests();
+            toast({ title: 'Đã từ chối yêu cầu', variant: 'success' });
         } catch (e) {
-            alert(e instanceof Error ? e.message : 'Từ chối yêu cầu thất bại');
+            toast({
+                title: 'Từ chối yêu cầu thất bại',
+                description: e instanceof Error ? e.message : undefined,
+                variant: 'error',
+            });
         } finally {
             setReqProcessing(null);
         }
@@ -227,7 +249,11 @@ export const AdminCardsPage: React.FC = () => {
         const price = parseFloat(normalizedPrice);
 
         if (!newCard.name || isNaN(price)) {
-            alert('Vui lòng nhập tên thẻ và giá hợp lệ');
+            toast({
+                title: 'Thiếu thông tin',
+                description: 'Vui lòng nhập tên thẻ và giá hợp lệ.',
+                variant: 'warning',
+            });
             return;
         }
 
@@ -254,8 +280,13 @@ export const AdminCardsPage: React.FC = () => {
                 categoryId: '',
                 rarity: 'COMMON',
             });
+            toast({ title: 'Đã thêm thẻ', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Thêm thẻ thất bại');
+            toast({
+                title: 'Thêm thẻ thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
@@ -266,7 +297,11 @@ export const AdminCardsPage: React.FC = () => {
         const price = parseFloat(normalizedPrice);
 
         if (!newCard.name || isNaN(price)) {
-            alert('Vui lòng nhập tên thẻ và giá hợp lệ');
+            toast({
+                title: 'Thiếu thông tin',
+                description: 'Vui lòng nhập tên thẻ và giá hợp lệ.',
+                variant: 'warning',
+            });
             return;
         }
 
@@ -293,7 +328,7 @@ export const AdminCardsPage: React.FC = () => {
             // Also reload from server to be sure
             await loadCards();
 
-            alert('Card updated successfully!');
+            toast({ title: 'Đã cập nhật thẻ', variant: 'success' });
 
             setEditingCard(null);
             setNewCard({
@@ -306,24 +341,34 @@ export const AdminCardsPage: React.FC = () => {
             });
         } catch (err) {
             console.error('Update failed:', err);
-            alert(err instanceof Error ? err.message : 'Cập nhật thẻ thất bại');
+            toast({
+                title: 'Cập nhật thẻ thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
     const handleDeleteCard = async (cardId: string) => {
-        if (!confirm('Are you sure you want to delete this card?')) return;
+        const ok = await confirm('Xóa thẻ này? Hành động không hoàn tác.');
+        if (!ok) return;
 
         try {
             await cardApi.deleteCard(cardId);
             await loadCards();
+            toast({ title: 'Đã xóa thẻ', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Xóa thẻ thất bại');
+            toast({
+                title: 'Xóa thẻ thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
     const handleImportCards = async () => {
         if (!importFile) {
-            alert('Vui lòng chọn file để nhập');
+            toast({ title: 'Chưa chọn file', description: 'Vui lòng chọn file để nhập.', variant: 'warning' });
             return;
         }
 
@@ -333,9 +378,13 @@ export const AdminCardsPage: React.FC = () => {
             await loadCards();
             setIsImportModalOpen(false);
             setImportFile(null);
-            alert('Cards imported successfully!');
+            toast({ title: 'Nhập thẻ thành công', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Nhập thẻ thất bại');
+            toast({
+                title: 'Nhập thẻ thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         } finally {
             setIsImporting(false);
         }
@@ -376,6 +425,7 @@ export const AdminCardsPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {confirmDialog}
             {/* Error Message */}
             {error && (
                 <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
@@ -473,12 +523,12 @@ export const AdminCardsPage: React.FC = () => {
                             className="glass-card px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 appearance-none cursor-pointer bg-black/60"
                         >
                             <option value="all">Tất cả độ hiếm</option>
-                            <option value="COMMON">Thường</option>
-                            <option value="UNCOMMON">Hiếm nhẹ</option>
-                            <option value="RARE">Hiếm</option>
-                            <option value="ULTRA_RARE">Cực hiếm</option>
-                            <option value="SUPER_RARE">Siêu hiếm</option>
-                            <option value="SECRET_RARE">Bí mật</option>
+                            <option value="COMMON">Common</option>
+                            <option value="UNCOMMON">Uncommon</option>
+                            <option value="RARE">Rare</option>
+                            <option value="ULTRA_RARE">Ultra Rare</option>
+                            <option value="SUPER_RARE">Super Rare</option>
+                            <option value="SECRET_RARE">Secret Rare</option>
                         </select>
                     </div>
                 </CardContent>

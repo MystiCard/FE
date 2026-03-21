@@ -3,6 +3,7 @@ import { Minus, Plus, Trash2, ChevronLeft, ChevronRight, ShoppingCart } from "lu
 import { Button } from "@/components/ui/button";
 import { cartApi, listSellerApi, getCardImageUrl, Card, SellResponse,CreateOrderRequest,userApi,orderApi } from "@/utils/api";
 import { useNavigate } from "react-router-dom";
+import { toast } from "@/components/ui/use-toast";
 
 interface CartItem {
     id: string;
@@ -36,7 +37,7 @@ export const CartPage: React.FC = () => {
             const profile = await userApi.getMyProfile();
 
             if (!profile.address || !profile.phone || !profile.districtId || !profile.wardId) {
-                alert("Vui lòng cập nhật đầy đủ địa chỉ và số điện thoại trong hồ sơ trước khi thanh toán.");
+                toast({ title: "Cập nhật hồ sơ", description: "Vui lòng điền đủ địa chỉ và số điện thoại trong hồ sơ trước khi thanh toán.", variant: "warning" });
                 navigate("/profile");
                 return;
             }
@@ -60,14 +61,14 @@ export const CartPage: React.FC = () => {
             const orderData = (orderResponse as any)?.data ?? orderResponse;
             const orderId = orderData?.orderId;
             if (!orderId) {
-                alert("Tạo đơn thất bại: không nhận được orderId.");
+                toast({ title: "Tạo đơn thất bại", description: "Không nhận được mã đơn từ máy chủ.", variant: "error" });
                 return;
             }
             navigate(`/marketplace/checkout?orderId=${encodeURIComponent(orderId)}`);
 
         } catch (error) {
             console.error("Lỗi quá trình thanh toán:", error);
-            alert("Đã có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại.");
+            toast({ title: "Không tạo được đơn", description: "Đã có lỗi xảy ra. Vui lòng thử lại.", variant: "error" });
         }
     };
     const loadCart = async () => {

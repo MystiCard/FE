@@ -20,6 +20,9 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { blindBoxApi, cardApi, categoryApi, rateConfigApi, BlindBox, BlindBoxStatus, BlindBoxCardInBox, Card as CardType, BlindBoxProbability, Category, RateConfig, getCardImageUrl } from '@/utils/api';
+import { ADMIN_API_PAGE_SIZE } from './adminApiPageSize';
+import { toast } from '@/components/ui/use-toast';
+import { useAdminConfirm } from '@/components/admin';
 
 const BLIND_BOX_STATUS_FILTERS: { value: 'ALL' | BlindBoxStatus; label: string }[] = [
     { value: 'ALL', label: 'Tất cả' },
@@ -32,6 +35,7 @@ const BLIND_BOX_STATUS_FILTERS: { value: 'ALL' | BlindBoxStatus; label: string }
 ];
 
 export const AdminBlindBoxesPage: React.FC = () => {
+    const { confirm, confirmDialog } = useAdminConfirm();
     const navigate = useNavigate();
     // --- State: List View ---
     const [searchQuery, setSearchQuery] = useState('');
@@ -58,7 +62,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
     const [selectedRarity, setSelectedRarity] = useState<string>('all');
     const [rateConfigs, setRateConfigs] = useState<RateConfig[]>([]);
     const [cardPage, setCardPage] = useState(1);
-    const cardPageSize = 20;
+    const cardPageSize = ADMIN_API_PAGE_SIZE;
 
     const formatCurrencyVND = (value: number) => {
         const safe = Number.isFinite(value) ? value : 0;
@@ -78,14 +82,26 @@ export const AdminBlindBoxesPage: React.FC = () => {
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [boxesPage, cards, cats, configs] = await Promise.all([
-                blindBoxApi.getAllBlindBoxes(1, 100, statusFilter === 'ALL' ? undefined : statusFilter),
+            const [boxesFlat, cards, cats, configs] = await Promise.all([
+                (async () => {
+                    const acc: BlindBox[] = [];
+                    let p = 1;
+                    let totalPages = 1;
+                    const status = statusFilter === 'ALL' ? undefined : statusFilter;
+                    do {
+                        const boxesPage = await blindBoxApi.getAllBlindBoxes(p, ADMIN_API_PAGE_SIZE, status);
+                        acc.push(...(boxesPage.content ?? []));
+                        totalPages = Math.max(1, boxesPage.totalPages ?? 1);
+                        p++;
+                    } while (p <= totalPages);
+                    return acc;
+                })(),
                 cardApi.getAllCards(),
                 categoryApi.getAllCategories(),
                 rateConfigApi.getAllRateConfigs().catch(() => []),
             ]);
 
-            const mappedBoxes = (boxesPage.content ?? boxesPage ?? []).map((item: any) => ({
+            const mappedBoxes = (boxesFlat ?? []).map((item: any) => ({
                 ...item,
                 blindBoxId: item.blindBoxId || item.id
             }));
@@ -106,11 +122,15 @@ export const AdminBlindBoxesPage: React.FC = () => {
         // Validation
         const trimmedName = newBox.name.trim();
         if (!trimmedName) {
-            alert('Vui lòng nhập tên hộp bí ẩn.');
+            toast({ title: 'Thiếu thông tin', description: 'Vui lòng nhập tên hộp bí ẩn.', variant: 'warning' });
             return;
         }
         if (newBox.cardIds.length === 0) {
-            alert('Vui lòng chọn ít nhất một thẻ cho hộp bí ẩn.');
+            toast({
+                title: 'Thiếu thông tin',
+                description: 'Vui lòng chọn ít nhất một thẻ cho hộp bí ẩn.',
+                variant: 'warning',
+            });
             return;
         }
 
@@ -147,9 +167,13 @@ export const AdminBlindBoxesPage: React.FC = () => {
             setNewBoxImageFile(null);
             setIsCreating(false);
             await loadData(); // Reload all data to refresh list
-            alert('Đã tạo hộp bí ẩn thành công!');
+            toast({ title: 'Đã tạo hộp bí ẩn', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Tạo hộp bí ẩn thất bại');
+            toast({
+                title: 'Tạo hộp bí ẩn thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -181,14 +205,20 @@ export const AdminBlindBoxesPage: React.FC = () => {
     // --- Handlers: Delete Box ---
     const handleDeleteBox = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm('Bạn có chắc muốn xóa hộp bí ẩn này?')) return;
+        const ok = await confirm('Bạn có chắc muốn xóa hộp bí ẩn này?');
+        if (!ok) return;
 
         try {
             await blindBoxApi.deleteBlindBox(id);
             // Optimistic update
             setBlindBoxes(prev => prev.filter(b => b.blindBoxId !== id));
+            toast({ title: 'Đã xóa hộp bí ẩn', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Xóa hộp bí ẩn thất bại');
+            toast({
+                title: 'Xóa hộp bí ẩn thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
             loadData(); // Revert on failure
         }
     };
@@ -323,6 +353,7 @@ export const AdminBlindBoxesPage: React.FC = () => {
 
     return (
         <div className="space-y-6 animate-fade-in">
+            {confirmDialog}
             {/* --- Header Section --- */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>

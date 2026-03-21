@@ -15,8 +15,11 @@ import {
 } from 'lucide-react';
 import { categoryApi, Category } from '@/api';
 import { getCategoryImage } from '@/utils/categoryImages';
+import { toast } from '@/components/ui/use-toast';
+import { useAdminConfirm } from '@/components/admin';
 
 export const AdminCategoriesPage: React.FC = () => {
+    const { confirm, confirmDialog } = useAdminConfirm();
     const [searchQuery, setSearchQuery] = React.useState('');
     const [categories, setCategories] = React.useState<Category[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
@@ -159,7 +162,7 @@ export const AdminCategoriesPage: React.FC = () => {
 
     const handleAddCategory = async () => {
         if (!newCategory.name.trim()) {
-            alert('Vui lòng nhập tên danh mục');
+            toast({ title: 'Thiếu tên', description: 'Vui lòng nhập tên danh mục.', variant: 'warning' });
             return;
         }
 
@@ -178,8 +181,13 @@ export const AdminCategoriesPage: React.FC = () => {
                 description: '',
                 imageUrl: '',
             });
+            toast({ title: 'Đã thêm danh mục', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Thêm danh mục thất bại');
+            toast({
+                title: 'Thêm danh mục thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
@@ -188,12 +196,12 @@ export const AdminCategoriesPage: React.FC = () => {
 
         const categoryId = editingCategory.categoryId;
         if (!categoryId) {
-            alert('Không có mã danh mục. Vui lòng thử lại.');
+            toast({ title: 'Lỗi', description: 'Không có mã danh mục. Vui lòng thử lại.', variant: 'error' });
             return;
         }
 
         if (!newCategory.name.trim()) {
-            alert('Vui lòng nhập tên danh mục');
+            toast({ title: 'Thiếu tên', description: 'Vui lòng nhập tên danh mục.', variant: 'warning' });
             return;
         }
 
@@ -212,25 +220,38 @@ export const AdminCategoriesPage: React.FC = () => {
                 description: '',
                 imageUrl: '',
             });
+            toast({ title: 'Đã cập nhật danh mục', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Cập nhật danh mục thất bại');
+            toast({
+                title: 'Cập nhật danh mục thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
     const handleDeleteCategory = async (categoryId: string) => {
-        if (!confirm('Are you sure you want to delete this category? This may affect cards in this category.')) return;
+        const ok = await confirm(
+            'Xóa danh mục này? Các thẻ thuộc danh mục có thể bị ảnh hưởng.'
+        );
+        if (!ok) return;
 
         try {
             await categoryApi.deleteCategory(categoryId);
             await loadCategories();
+            toast({ title: 'Đã xóa danh mục', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Xóa danh mục thất bại');
+            toast({
+                title: 'Xóa danh mục thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
     const handleImportCategories = async () => {
         if (!importFile) {
-            alert('Vui lòng chọn file để nhập');
+            toast({ title: 'Chưa chọn file', description: 'Vui lòng chọn file để nhập.', variant: 'warning' });
             return;
         }
 
@@ -240,9 +261,13 @@ export const AdminCategoriesPage: React.FC = () => {
             await loadCategories();
             setIsImportModalOpen(false);
             setImportFile(null);
-            alert('Categories imported successfully!');
+            toast({ title: 'Đã nhập danh mục', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Nhập danh mục thất bại');
+            toast({
+                title: 'Nhập danh mục thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         } finally {
             setIsImporting(false);
         }
@@ -259,6 +284,7 @@ export const AdminCategoriesPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {confirmDialog}
             {/* Error Message */}
             {error && (
                 <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
