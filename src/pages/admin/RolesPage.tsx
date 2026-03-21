@@ -11,8 +11,51 @@ import {
 } from '@/components/ui/dialog';
 import { roleApi, permissionApi, type Role, type Permission } from '@/api';
 import { Plus, Trash2, Shield, KeyRound, CheckCircle2, XCircle, Loader2, ChevronDown } from 'lucide-react';
+import { ADMIN_API_PAGE_SIZE } from './adminApiPageSize';
+import { toast } from '@/components/ui/use-toast';
+import { useAdminConfirm } from '@/components/admin';
+
+async function fetchAllRolesList(active: boolean): Promise<Role[]> {
+    const out: Role[] = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+        const res = await roleApi.list(page, ADMIN_API_PAGE_SIZE, active);
+        out.push(...(res.content || []));
+        totalPages = Math.max(1, res.totalPages ?? 1);
+        page++;
+    } while (page <= totalPages);
+    return out;
+}
+
+async function fetchAllPermissionsForRoleCode(roleCode: string): Promise<Permission[]> {
+    const out: Permission[] = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+        const res = await permissionApi.getByRoleCode(roleCode, page, ADMIN_API_PAGE_SIZE, true);
+        out.push(...(res.content || []));
+        totalPages = Math.max(1, res.totalPages ?? 1);
+        page++;
+    } while (page <= totalPages);
+    return out;
+}
+
+async function fetchAllPermissionsCatalog(): Promise<Permission[]> {
+    const out: Permission[] = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+        const res = await permissionApi.list(page, ADMIN_API_PAGE_SIZE, true);
+        out.push(...(res.content || []));
+        totalPages = Math.max(1, res.totalPages ?? 1);
+        page++;
+    } while (page <= totalPages);
+    return out;
+}
 
 export const AdminRolesPage: React.FC = () => {
+    const { confirm, confirmDialog } = useAdminConfirm();
     const [roles, setRoles] = React.useState<Role[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
@@ -32,17 +75,16 @@ export const AdminRolesPage: React.FC = () => {
     const loadRoles = async () => {
         try {
             setLoading(true);
-            const page = await roleApi.list(1, 100, activeFilter === 'true');
-            const basicRoles = page.content || [];
+            const basicRoles = await fetchAllRolesList(activeFilter === 'true');
 
             // Lấy quyền cho từng role qua /api/permisions/{roleCode}
             const withPermissions = await Promise.all(
                 basicRoles.map(async (r) => {
                     try {
-                        const permsPage = await permissionApi.getByRoleCode(r.roleCode, 1, 200, true);
+                        const perms = await fetchAllPermissionsForRoleCode(r.roleCode);
                         return {
                             ...r,
-                            permisionResponse: permsPage.content || [],
+                            permisionResponse: perms,
                         };
                     } catch {
                         return r;
@@ -87,20 +129,31 @@ export const AdminRolesPage: React.FC = () => {
             });
             setCreateOpen(false);
             await loadRoles();
+            toast({ title: 'Đã tạo vai trò', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Tạo role thất bại');
+            toast({
+                title: 'Tạo role thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         } finally {
             setCreateLoading(false);
         }
     };
 
     const handleDeleteRole = async (code: string) => {
-        if (!confirm(`Bạn có chắc muốn deactive/xóa role "${code}"?`)) return;
+        const ok = await confirm(`Bạn có chắc muốn deactive/xóa role "${code}"?`);
+        if (!ok) return;
         try {
             await roleApi.deleteByCode(code);
             await loadRoles();
+            toast({ title: 'Đã cập nhật role', description: 'Đã vô hiệu hóa role.', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Xóa role thất bại');
+            toast({
+                title: 'Xóa role thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
@@ -108,8 +161,13 @@ export const AdminRolesPage: React.FC = () => {
         try {
             await roleApi.active(code);
             await loadRoles();
+            toast({ title: 'Đã kích hoạt role', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Kích hoạt role thất bại');
+            toast({
+                title: 'Kích hoạt role thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
@@ -119,10 +177,9 @@ export const AdminRolesPage: React.FC = () => {
         setPermissionDropdownOpen(false);
         // lazy load permissions list when first open
         if (!allPermissions.length) {
-            permissionApi
-                .list(1, 200, true)
-                .then((page) => {
-                    setAllPermissions(page.content || []);
+            fetchAllPermissionsCatalog()
+                .then((list) => {
+                    setAllPermissions(list);
                 })
                 .catch(() => {
                     // ignore, vẫn cho nhập tay
@@ -140,15 +197,20 @@ export const AdminRolesPage: React.FC = () => {
         setPermLoading(true);
         try {
             await roleApi.addPermissions(permModalRole.roleCode, codes);
-            const permsPage = await permissionApi.getByRoleCode(permModalRole.roleCode, 1, 200, true);
+            const perms = await fetchAllPermissionsForRoleCode(permModalRole.roleCode);
             setPermModalRole({
                 ...permModalRole,
-                permisionResponse: permsPage.content || [],
+                permisionResponse: perms,
             });
             await loadRoles();
             setPermCodes('');
+            toast({ title: 'Đã thêm quyền', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Thêm quyền thất bại');
+            toast({
+                title: 'Thêm quyền thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         } finally {
             setPermLoading(false);
         }
@@ -159,14 +221,19 @@ export const AdminRolesPage: React.FC = () => {
         setPermRemoving(true);
         try {
             await roleApi.removePermissions(permModalRole.roleCode, codes);
-            const permsPage = await permissionApi.getByRoleCode(permModalRole.roleCode, 1, 200, true);
+            const perms = await fetchAllPermissionsForRoleCode(permModalRole.roleCode);
             setPermModalRole({
                 ...permModalRole,
-                permisionResponse: permsPage.content || [],
+                permisionResponse: perms,
             });
             await loadRoles();
+            toast({ title: 'Đã gỡ quyền', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Xóa quyền thất bại');
+            toast({
+                title: 'Xóa quyền thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         } finally {
             setPermRemoving(false);
         }
@@ -176,6 +243,7 @@ export const AdminRolesPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {confirmDialog}
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>

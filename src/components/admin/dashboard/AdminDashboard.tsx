@@ -19,6 +19,7 @@ import {
     userApi,
     cardApi,
 } from '@/api';
+import { ADMIN_API_PAGE_SIZE } from '@/pages/admin/adminApiPageSize';
 
 export const AdminDashboard: React.FC = () => {
     const [report, setReport] = useState<TransactionReportResponse | null>(null);
@@ -31,33 +32,40 @@ export const AdminDashboard: React.FC = () => {
     const [txError, setTxError] = useState<string | null>(null);
 
     useEffect(() => {
+        let cancelled = false;
+
         const loadStats = async () => {
             setStatsLoading(true);
+            const to = new Date();
+            const from = new Date();
+            from.setDate(to.getDate() - 30);
+            const toStr = to.toISOString().slice(0, 10);
+            const fromStr = from.toISOString().slice(0, 10);
+
+            // Tách từng API: nếu report lỗi vẫn hiển thị được tổng user / tổng thẻ
             try {
-                // 30 ngày gần nhất
-                const to = new Date();
-                const from = new Date();
-                from.setDate(to.getDate() - 30);
-                const toStr = to.toISOString().slice(0, 10);
-                const fromStr = from.toISOString().slice(0, 10);
-
-                const [reportRes, users, cards] = await Promise.all([
-                    transactionApi.report({ from: fromStr, to: toStr }),
-                    userApi.getAllUsers(),
-                    cardApi.getAllCards(),
-                ]);
-
-                setReport(reportRes);
-                setUserCount(users.length);
-                setProductCount(cards.length);
+                const reportRes = await transactionApi.report({ from: fromStr, to: toStr });
+                if (!cancelled) setReport(reportRes);
             } catch {
-                // giữ nguyên default nếu lỗi
-            } finally {
-                setStatsLoading(false);
+                if (!cancelled) setReport(null);
             }
-        };
 
-        loadStats();
+            try {
+                const n = await userApi.countAllUsersAdmin();
+                if (!cancelled) setUserCount(Number.isFinite(n) ? n : 0);
+            } catch {
+                if (!cancelled) setUserCount(0);
+            }
+
+            try {
+                const n = await cardApi.getCardsTotalCount();
+                if (!cancelled) setProductCount(Number.isFinite(n) ? n : 0);
+            } catch {
+                if (!cancelled) setProductCount(0);
+            }
+
+            if (!cancelled) setStatsLoading(false);
+        };
 
         const loadRecentTransactions = async () => {
             setTxLoading(true);
@@ -67,7 +75,7 @@ export const AdminDashboard: React.FC = () => {
                 const res: PageResponse<PaymentResponse> = await paymentApi.getAllPaymentsAdmin(
                     undefined,
                     0,
-                    10
+                    ADMIN_API_PAGE_SIZE
                 );
                 setRecentTransactions(res.content ?? []);
             } catch (e) {
@@ -77,7 +85,12 @@ export const AdminDashboard: React.FC = () => {
             }
         };
 
+        loadStats();
         loadRecentTransactions();
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     return (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, Folder, CreditCard, Gift, Percent, LogOut, Menu, X, ShoppingBag, Wallet, Banknote, BarChart3, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Folder, CreditCard, Gift, Percent, LogOut, Menu, X, ShoppingBag, Wallet, Banknote, BarChart3, ShieldCheck } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -33,7 +33,6 @@ export const AdminLayout: React.FC = () => {
         { icon: Banknote, label: 'Duyệt rút tiền', path: '/admin/withdraws' },
         { icon: ShoppingBag, label: 'Đơn hàng', path: '/admin/orders' },
         { icon: CreditCard, label: 'Giao dịch', path: '/admin/transactions' },
-        { icon: Settings, label: 'Cài đặt', path: '/admin/settings' },
     ];
 
     return (

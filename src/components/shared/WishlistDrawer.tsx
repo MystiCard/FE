@@ -7,6 +7,7 @@ import { cardApi, getCardImageUrl } from '@/utils/api';
 import type { WishlistItem, WishlistPriceAlert } from '@/utils/api';
 import type { Card as CardType } from '@/utils/api';
 import { useWishlist } from '@/hooks/useWishlist';
+import { toast } from '@/components/ui/use-toast';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
 
@@ -59,7 +60,7 @@ export const WishlistDrawer: React.FC<WishlistDrawerProps> = ({ isOpen, onClose 
             setRows((prev) => prev.filter((r) => r.item.wishListId !== wishListId));
             window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
         } catch {
-            alert('Không thể xóa khỏi wishlist');
+            toast({ title: 'Không thể xóa', description: 'Không xóa được khỏi wishlist.', variant: 'error' });
         }
     };
 

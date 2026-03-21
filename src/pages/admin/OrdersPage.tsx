@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { orderApi, OrderItemResponse, ShippingStatus, shipmentApi } from '@/api';
+import { ADMIN_API_PAGE_SIZE } from './adminApiPageSize';
 import { Search, Package, Truck, AlertCircle, RefreshCcw, MapPin, Phone } from 'lucide-react';
 
 type AdminShippingFilter = ShippingStatus | 'ALL';
@@ -18,28 +19,32 @@ const ALL_SHIPPING_STATUSES: ShippingStatus[] = [
     'CANCELLED',
 ];
 
+const getShippingStatusLabel = (v: string): string =>
+    v === 'PENDING'
+        ? 'Chờ xử lý'
+        : v === 'ASIGNED'
+        ? 'Đã gán shipper'
+        : v === 'PICKED_UP'
+        ? 'Đã lấy hàng'
+        : v === 'IN_TRANSIT'
+        ? 'Đang giao'
+        : v === 'DELIVERED'
+        ? 'Đã giao'
+        : v === 'RECEIVED'
+        ? 'Người nhận đã xác nhận'
+        : v === 'FAILED'
+        ? 'Giao thất bại'
+        : v === 'LOST'
+        ? 'Thất lạc'
+        : v === 'CANCELLED'
+        ? 'Đã hủy'
+        : v;
+
 const SHIPPING_FILTERS: { value: AdminShippingFilter; label: string }[] = [
     { value: 'ALL', label: 'Tất cả' },
     ...ALL_SHIPPING_STATUSES.map((v) => ({
         value: v,
-        label:
-            v === 'PENDING'
-                ? 'Chờ xử lý'
-                : v === 'ASIGNED'
-                ? 'Đã gán shipper'
-                : v === 'PICKED_UP'
-                ? 'Đã lấy hàng'
-                : v === 'IN_TRANSIT'
-                ? 'Đang giao'
-                : v === 'DELIVERED'
-                ? 'Đã giao'
-                : v === 'RECEIVED'
-                ? 'Người nhận đã xác nhận'
-                : v === 'FAILED'
-                ? 'Giao thất bại'
-                : v === 'LOST'
-                ? 'Thất lạc'
-                : 'Đã hủy',
+        label: getShippingStatusLabel(v),
     })),
 ];
 
@@ -56,7 +61,7 @@ export const AdminOrdersPage: React.FC = () => {
         try {
             setIsLoading(true);
             setError('');
-            const pageSize = 10;
+            const pageSize = ADMIN_API_PAGE_SIZE;
 
             // Admin xem danh sách shipment chưa được gán shipper dựa trên ShipmentController (/api/shipments/not-asign)
             const res = await shipmentApi.getNotAssignedShipments(pageIndex + 1, pageSize);
@@ -206,7 +211,7 @@ export const AdminOrdersPage: React.FC = () => {
                                                 <td className="p-3">
                                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-primary-500/10 text-primary-200">
                                                         <Package className="w-3 h-3" />
-                                                        {shipmentStatus}
+                                                        {getShippingStatusLabel(shipmentStatus)}
                                                     </span>
                                                 </td>
                                                 <td className="p-3 text-xs max-w-xs">

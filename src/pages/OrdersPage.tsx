@@ -1289,7 +1289,11 @@ export const OrdersPage: React.FC = () => {
                                                                         await returnRequestApi.confirmReceive(id);
                                                                         await loadReturnRequests();
                                                                     } catch (e) {
-                                                                        alert(e instanceof Error ? e.message : 'Không thể xác nhận đã nhận hàng trả.');
+                                                                        pushToast({
+                                                                            title: 'Không thể xác nhận',
+                                                                            description: e instanceof Error ? e.message : 'Không thể xác nhận đã nhận hàng trả.',
+                                                                            variant: 'error',
+                                                                        });
                                                                     } finally {
                                                                         setActionLoading(false);
                                                                     }
@@ -1310,7 +1314,11 @@ export const OrdersPage: React.FC = () => {
                                                                             await returnRequestApi.approve(id);
                                                                             await loadReturnRequests();
                                                                         } catch (e) {
-                                                                            alert(e instanceof Error ? e.message : 'Không thể duyệt.');
+                                                                            pushToast({
+                                                                                title: 'Không thể duyệt',
+                                                                                description: e instanceof Error ? e.message : 'Không thể duyệt.',
+                                                                                variant: 'error',
+                                                                            });
                                                                         } finally {
                                                                             setActionLoading(false);
                                                                         }
@@ -1328,7 +1336,11 @@ export const OrdersPage: React.FC = () => {
                                                                             await returnRequestApi.reject(id);
                                                                             await loadReturnRequests();
                                                                         } catch (e) {
-                                                                            alert(e instanceof Error ? e.message : 'Không thể từ chối.');
+                                                                            pushToast({
+                                                                                title: 'Không thể từ chối',
+                                                                                description: e instanceof Error ? e.message : 'Không thể từ chối.',
+                                                                                variant: 'error',
+                                                                            });
                                                                         } finally {
                                                                             setActionLoading(false);
                                                                         }
@@ -1583,28 +1595,38 @@ export const OrdersPage: React.FC = () => {
                                             size="sm"
                                             variant="outline"
                                             disabled={unpaidBulkLoading || filteredUnpaid.length === 0}
-                                            onClick={async () => {
-                                                if (!confirm('Hủy TẤT CẢ đơn chưa thanh toán?')) return;
-                                                setUnpaidBulkLoading(true);
-                                                try {
-                                                    const ids = filteredUnpaid.map((o) => String(o.orderId));
-                                                    // Best-effort: kiểm tra quyền trước rồi hủy lần lượt
-                                                    for (const id of ids) {
+                                            onClick={() => {
+                                                setConfirmDialog({
+                                                    open: true,
+                                                    title: 'Hủy tất cả đơn chưa thanh toán?',
+                                                    description: 'Hệ thống sẽ cố gắng hủy từng đơn theo quyền trên máy chủ (best-effort).',
+                                                    onConfirm: async () => {
+                                                        setConfirmDialog((p) => ({ ...p, open: false }));
+                                                        setUnpaidBulkLoading(true);
                                                         try {
-                                                            const can = await orderApi.canCancelOrder(id);
-                                                            if (!can) {
-                                                                // skip nếu BE không cho hủy
-                                                                continue;
+                                                            const ids = filteredUnpaid.map((o) => String(o.orderId));
+                                                            for (const id of ids) {
+                                                                try {
+                                                                    const can = await orderApi.canCancelOrder(id);
+                                                                    if (!can) {
+                                                                        continue;
+                                                                    }
+                                                                    await orderApi.cancelOrder(id);
+                                                                } catch {
+                                                                    // ignore
+                                                                }
                                                             }
-                                                            await orderApi.cancelOrder(id);
-                                                        } catch {
-                                                            // ignore
+                                                            await loadOrders(page, status, viewMode);
+                                                            pushToast({
+                                                                title: 'Đã xử lý',
+                                                                description: 'Đã cố gắng hủy các đơn chưa thanh toán.',
+                                                                variant: 'success',
+                                                            });
+                                                        } finally {
+                                                            setUnpaidBulkLoading(false);
                                                         }
-                                                    }
-                                                    await loadOrders(page, status, viewMode);
-                                                } finally {
-                                                    setUnpaidBulkLoading(false);
-                                                }
+                                                    },
+                                                });
                                             }}
                                         >
                                             {unpaidBulkLoading ? 'Đang hủy...' : 'Hủy tất cả'}
@@ -1794,27 +1816,34 @@ export const OrdersPage: React.FC = () => {
                                                                         variant="outline"
                                                                         className="border-red-500/50 text-red-400 hover:bg-red-500/10"
                                                                         disabled={isApproving || isRejecting || item.orderItemStatus !== 'PENDING_CONFIRM'}
-                                                                        onClick={async () => {
-                                                                            if (!confirm('Bạn có chắc muốn từ chối order item này? Đơn sẽ bị hủy phần tương ứng.')) return;
-                                                                            setRejectingOrderItemId(id);
-                                                                            try {
-                                                                                await orderApi.cancelOrderItem(id);
-                                                                                await loadOrders(page, status, viewMode);
-                                                                                pushToast({
-                                                                                    title: 'Đã từ chối',
-                                                                                    description: 'Order item đã được từ chối.',
-                                                                                    variant: 'success',
-                                                                                });
-                                                                            } catch (e) {
-                                                                                const msg = e instanceof Error ? e.message : String(e ?? '');
-                                                                                pushToast({
-                                                                                    title: 'Lỗi',
-                                                                                    description: msg || 'Không thể từ chối.',
-                                                                                    variant: 'error',
-                                                                                });
-                                                                            } finally {
-                                                                                setRejectingOrderItemId(null);
-                                                                            }
+                                                                        onClick={() => {
+                                                                            setConfirmDialog({
+                                                                                open: true,
+                                                                                title: 'Từ chối order item?',
+                                                                                description: 'Đơn sẽ bị hủy phần tương ứng.',
+                                                                                onConfirm: async () => {
+                                                                                    setConfirmDialog((p) => ({ ...p, open: false }));
+                                                                                    setRejectingOrderItemId(id);
+                                                                                    try {
+                                                                                        await orderApi.cancelOrderItem(id);
+                                                                                        await loadOrders(page, status, viewMode);
+                                                                                        pushToast({
+                                                                                            title: 'Đã từ chối',
+                                                                                            description: 'Order item đã được từ chối.',
+                                                                                            variant: 'success',
+                                                                                        });
+                                                                                    } catch (e) {
+                                                                                        const msg = e instanceof Error ? e.message : String(e ?? '');
+                                                                                        pushToast({
+                                                                                            title: 'Lỗi',
+                                                                                            description: msg || 'Không thể từ chối.',
+                                                                                            variant: 'error',
+                                                                                        });
+                                                                                    } finally {
+                                                                                        setRejectingOrderItemId(null);
+                                                                                    }
+                                                                                },
+                                                                            });
                                                                         }}
                                                                     >
                                                                         {isRejecting ? 'Đang xử lý...' : 'Từ chối'}
@@ -2168,7 +2197,11 @@ export const OrdersPage: React.FC = () => {
                                                                     String(selectedShipment.shipmentResponse.shipmentId),
                                                                 );
                                                                 if (!canConfirm) {
-                                                                    alert('Đơn này hiện không thể xác nhận nhận hàng.');
+                                                                    pushToast({
+                                                                        title: 'Chưa thể xác nhận',
+                                                                        description: 'Đơn này hiện không thể xác nhận nhận hàng.',
+                                                                        variant: 'warning',
+                                                                    });
                                                                     return;
                                                                 }
                                                             }
@@ -2182,14 +2215,21 @@ export const OrdersPage: React.FC = () => {
                                                                 // ignore
                                                             }
                                                             await loadOrders(page, status, viewMode);
-                                                            alert('Đã xác nhận nhận hàng, tiền sẽ được chuyển cho người bán.');
+                                                            pushToast({
+                                                                title: 'Đã xác nhận nhận hàng',
+                                                                description: 'Tiền sẽ được chuyển cho người bán.',
+                                                                variant: 'success',
+                                                            });
                                                             setSelectedShipment(null);
                                                         } catch (err) {
-                                                            alert(
-                                                                err instanceof Error
-                                                                    ? err.message
-                                                                    : 'Không thể xác nhận nhận hàng.'
-                                                            );
+                                                            pushToast({
+                                                                title: 'Không thể xác nhận',
+                                                                description:
+                                                                    err instanceof Error
+                                                                        ? err.message
+                                                                        : 'Không thể xác nhận nhận hàng.',
+                                                                variant: 'error',
+                                                            });
                                                         } finally {
                                                             setActionLoading(false);
                                                         }
@@ -2853,29 +2893,36 @@ export const OrdersPage: React.FC = () => {
                                                                                                 variant="outline"
                                                                                                 className="h-7 text-[11px] text-red-400 border-red-400/50 hover:bg-red-500/10"
                                                                                                 disabled={actionLoading}
-                                                                                                onClick={async () => {
-                                                                                                    if (!confirm(`Hủy sản phẩm #${oid.slice(0, 8)}?`)) return;
-                                                                                                    setActionLoading(true);
-                                                                                                    try {
-                                                                                                        await orderApi.cancelOrderItem(oid);
-                                                                                                        pushToast({ title: 'Đã hủy sản phẩm', variant: 'success' });
-                                                                                                        if (detailOrderId) {
-                                                                                                            loadDetailByShippingStatus(
-                                                                                                                detailOrderId,
-                                                                                                                detailShippingStatusFilter,
-                                                                                                                detailByStatusPage,
-                                                                                                            );
-                                                                                                        }
-                                                                                                    } catch (err) {
-                                                                                                        pushToast({
-                                                                                                            title: 'Không thể hủy',
-                                                                                                            description:
-                                                                                                                err instanceof Error ? err.message : '',
-                                                                                                            variant: 'error',
-                                                                                                        });
-                                                                                                    } finally {
-                                                                                                        setActionLoading(false);
-                                                                                                    }
+                                                                                                onClick={() => {
+                                                                                                    setConfirmDialog({
+                                                                                                        open: true,
+                                                                                                        title: `Hủy sản phẩm #${oid.slice(0, 8)}?`,
+                                                                                                        description: 'Thao tác này không thể hoàn tác tự động.',
+                                                                                                        onConfirm: async () => {
+                                                                                                            setConfirmDialog((p) => ({ ...p, open: false }));
+                                                                                                            setActionLoading(true);
+                                                                                                            try {
+                                                                                                                await orderApi.cancelOrderItem(oid);
+                                                                                                                pushToast({ title: 'Đã hủy sản phẩm', variant: 'success' });
+                                                                                                                if (detailOrderId) {
+                                                                                                                    loadDetailByShippingStatus(
+                                                                                                                        detailOrderId,
+                                                                                                                        detailShippingStatusFilter,
+                                                                                                                        detailByStatusPage,
+                                                                                                                    );
+                                                                                                                }
+                                                                                                            } catch (err) {
+                                                                                                                pushToast({
+                                                                                                                    title: 'Không thể hủy',
+                                                                                                                    description:
+                                                                                                                        err instanceof Error ? err.message : '',
+                                                                                                                    variant: 'error',
+                                                                                                                });
+                                                                                                            } finally {
+                                                                                                                setActionLoading(false);
+                                                                                                            }
+                                                                                                        },
+                                                                                                    });
                                                                                                 }}
                                                                                             >
                                                                                                 Hủy
@@ -2944,11 +2991,14 @@ export const OrdersPage: React.FC = () => {
                                                                                                                     setFeedbackFiles([]);
                                                                                                                     setDetailCanFeedbackByItemId((prev) => ({ ...prev, [oid]: false }));
                                                                                                                 } catch (err) {
-                                                                                                                    alert(
-                                                                                                                        err instanceof Error
-                                                                                                                            ? err.message
-                                                                                                                            : 'Gửi đánh giá thất bại.',
-                                                                                                                    );
+                                                                                                                    pushToast({
+                                                                                                                        title: 'Gửi đánh giá thất bại',
+                                                                                                                        description:
+                                                                                                                            err instanceof Error
+                                                                                                                                ? err.message
+                                                                                                                                : 'Vui lòng thử lại.',
+                                                                                                                        variant: 'error',
+                                                                                                                    });
                                                                                                                 } finally {
                                                                                                                     setFeedbackSubmitting(false);
                                                                                                                 }
@@ -3133,18 +3183,25 @@ export const OrdersPage: React.FC = () => {
                                                                     variant="outline"
                                                                     className="mt-1 h-6 text-[11px] text-red-400 border-red-400/50 hover:bg-red-500/10"
                                                                     disabled={actionLoading}
-                                                                    onClick={async () => {
-                                                                        if (!confirm(`Hủy sản phẩm #${id.slice(0, 8)}?`)) return;
-                                                                        setActionLoading(true);
-                                                                        try {
-                                                                            await orderApi.cancelOrderItem(id);
-                                                                            pushToast({ title: 'Đã hủy sản phẩm', variant: 'success' });
-                                                                            if (detailOrderId) await loadOrderDetail(detailOrderId);
-                                                                        } catch (err) {
-                                                                            pushToast({ title: 'Không thể hủy sản phẩm', description: err instanceof Error ? err.message : 'Có lỗi xảy ra.', variant: 'error' });
-                                                                        } finally {
-                                                                            setActionLoading(false);
-                                                                        }
+                                                                    onClick={() => {
+                                                                        setConfirmDialog({
+                                                                            open: true,
+                                                                            title: `Hủy sản phẩm #${id.slice(0, 8)}?`,
+                                                                            description: 'Thao tác này không thể hoàn tác tự động.',
+                                                                            onConfirm: async () => {
+                                                                                setConfirmDialog((p) => ({ ...p, open: false }));
+                                                                                setActionLoading(true);
+                                                                                try {
+                                                                                    await orderApi.cancelOrderItem(id);
+                                                                                    pushToast({ title: 'Đã hủy sản phẩm', variant: 'success' });
+                                                                                    if (detailOrderId) await loadOrderDetail(detailOrderId);
+                                                                                } catch (err) {
+                                                                                    pushToast({ title: 'Không thể hủy sản phẩm', description: err instanceof Error ? err.message : 'Có lỗi xảy ra.', variant: 'error' });
+                                                                                } finally {
+                                                                                    setActionLoading(false);
+                                                                                }
+                                                                            },
+                                                                        });
                                                                     }}
                                                                 >
                                                                     Hủy item
@@ -3281,18 +3338,25 @@ export const OrdersPage: React.FC = () => {
                                                                                         it.orderItemId,
                                                                                     );
                                                                                     if (!can) {
-                                                                                        alert('Đơn này hiện chưa thể đánh giá.');
+                                                                                        pushToast({
+                                                                                            title: 'Chưa thể đánh giá',
+                                                                                            description: 'Đơn này hiện chưa thể đánh giá.',
+                                                                                            variant: 'warning',
+                                                                                        });
                                                                                         return;
                                                                                     }
                                                                                     setFeedbackEditingId(it.orderItemId);
                                                                                     setFeedbackRating(5);
                                                                                     setFeedbackComment('');
                                                                                 } catch (err) {
-                                                                                    alert(
-                                                                                        err instanceof Error
-                                                                                            ? err.message
-                                                                                            : 'Không kiểm tra được quyền đánh giá.',
-                                                                                    );
+                                                                                    pushToast({
+                                                                                        title: 'Không kiểm tra được',
+                                                                                        description:
+                                                                                            err instanceof Error
+                                                                                                ? err.message
+                                                                                                : 'Không kiểm tra được quyền đánh giá.',
+                                                                                        variant: 'error',
+                                                                                    });
                                                                                 }
                                                                             }}
                                                                         >

@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { TopUpModal } from '@/components/wallet/TopUpModal';
 import { TransactionHistory } from '@/components/wallet/TransactionHistory';
 import { getVietQrBanks, VietQrBank } from '@/utils/vietqrBanks';
+import { toast } from '@/components/ui/use-toast';
 
 export const WalletPage: React.FC = () => {
     const { isAuthenticated } = useAuth();
@@ -457,11 +458,11 @@ export const WalletPage: React.FC = () => {
                                                 ? customBankName.trim()
                                                 : selectedBankCode;
                                         if (!bankCode || !accountNumber.trim() || !accountName.trim()) {
-                                            alert('Vui lòng chọn ngân hàng và nhập đầy đủ thông tin tài khoản.');
+                                            toast({ title: 'Thiếu thông tin', description: 'Vui lòng chọn ngân hàng và nhập đầy đủ thông tin tài khoản.', variant: 'warning' });
                                             return;
                                         }
                                         if (!/^[0-9]+$/.test(accountNumber.trim())) {
-                                            alert('Số tài khoản chỉ được chứa chữ số. Vui lòng kiểm tra lại.');
+                                            toast({ title: 'Số tài khoản không hợp lệ', description: 'Chỉ được chứa chữ số.', variant: 'warning' });
                                             return;
                                         }
                                         try {
@@ -471,7 +472,7 @@ export const WalletPage: React.FC = () => {
                                                 accountName: accountName.trim(),
                                             };
                                             await bankAccountApi.create(profile.userId, payload);
-                                            alert('Thêm tài khoản rút tiền thành công.');
+                                            toast({ title: 'Đã thêm tài khoản', description: 'Tài khoản rút tiền đã được lưu.', variant: 'success' });
                                             setShowAddBankModal(false);
                                             setSelectedBankCode('');
                                             setBankSearchQuery('');
@@ -482,9 +483,9 @@ export const WalletPage: React.FC = () => {
                                             const msg = e instanceof Error ? e.message : 'Không thể thêm tài khoản rút tiền.';
                                             const lower = msg.toLowerCase();
                                             if (lower.includes('digit') || lower.includes('number') || lower.includes('account')) {
-                                                alert('Số tài khoản chỉ được chứa chữ số. Vui lòng kiểm tra lại.');
+                                                toast({ title: 'Số tài khoản không hợp lệ', description: 'Chỉ được chứa chữ số.', variant: 'warning' });
                                             } else {
-                                                alert(msg);
+                                                toast({ title: 'Không thể thêm tài khoản', description: msg, variant: 'error' });
                                             }
                                         }
                                     }}

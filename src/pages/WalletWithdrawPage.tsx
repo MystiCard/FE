@@ -5,6 +5,7 @@ import { bankAccountApi, BankAccountResponse, transactionApi, WithdrawRequest, u
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CreditCard, ArrowLeft } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
 export const WalletWithdrawPage: React.FC = () => {
     const { isAuthenticated } = useAuth();
@@ -51,12 +52,12 @@ export const WalletWithdrawPage: React.FC = () => {
 
     const handleSubmit = async () => {
         if (!selectedBankId) {
-            alert('Vui lòng chọn tài khoản ngân hàng nhận tiền.');
+            toast({ title: 'Thiếu thông tin', description: 'Vui lòng chọn tài khoản ngân hàng nhận tiền.', variant: 'warning' });
             return;
         }
         const value = Number(amount);
         if (!value || value < 1000) {
-            alert('Số tiền rút phải lớn hơn hoặc bằng 1.000đ.');
+            toast({ title: 'Số tiền không hợp lệ', description: 'Số tiền rút phải từ 1.000đ trở lên.', variant: 'warning' });
             return;
         }
 
@@ -73,7 +74,7 @@ export const WalletWithdrawPage: React.FC = () => {
             };
             await transactionApi.requestWithdraw(payload);
             window.dispatchEvent(new CustomEvent('wallet-updated'));
-            alert('Gửi yêu cầu rút tiền thành công. Vui lòng chờ admin duyệt.');
+            toast({ title: 'Đã gửi yêu cầu', description: 'Yêu cầu rút tiền đã được gửi. Vui lòng chờ admin duyệt.', variant: 'success' });
             navigate('/wallet');
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Không thể gửi yêu cầu rút tiền');

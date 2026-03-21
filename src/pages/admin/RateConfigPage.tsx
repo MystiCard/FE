@@ -12,8 +12,11 @@ import {
     FileSpreadsheet
 } from 'lucide-react';
 import { rateConfigApi, RateConfig, RateConfigRequest } from '@/api';
+import { toast } from '@/components/ui/use-toast';
+import { useAdminConfirm } from '@/components/admin';
 
 export const AdminRateConfigPage: React.FC = () => {
+    const { confirm, confirmDialog } = useAdminConfirm();
     const [searchQuery, setSearchQuery] = useState('');
     const [rateConfigs, setRateConfigs] = useState<RateConfig[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -49,7 +52,11 @@ export const AdminRateConfigPage: React.FC = () => {
 
     const handleCreateConfig = async () => {
         if (!newConfig.rarity || newConfig.rate < 0) {
-            alert('Vui lòng chọn độ hiếm và nhập tỷ lệ hợp lệ');
+            toast({
+                title: 'Thiếu thông tin',
+                description: 'Vui lòng chọn độ hiếm và nhập tỷ lệ hợp lệ.',
+                variant: 'warning',
+            });
             return;
         }
 
@@ -58,9 +65,13 @@ export const AdminRateConfigPage: React.FC = () => {
             await loadRateConfigs();
             setIsAddModalOpen(false);
             resetForm();
-            alert('Đã tạo cấu hình tỷ lệ thành công!');
+            toast({ title: 'Đã tạo cấu hình tỷ lệ', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Tạo cấu hình tỷ lệ thất bại');
+            toast({
+                title: 'Tạo cấu hình tỷ lệ thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
@@ -68,40 +79,54 @@ export const AdminRateConfigPage: React.FC = () => {
         if (!editingConfig) return;
 
         if (!newConfig.rarity || newConfig.rate < 0) {
-            alert('Vui lòng chọn độ hiếm và nhập tỷ lệ hợp lệ');
+            toast({
+                title: 'Thiếu thông tin',
+                description: 'Vui lòng chọn độ hiếm và nhập tỷ lệ hợp lệ.',
+                variant: 'warning',
+            });
             return;
         }
 
         try {
             const id = editingConfig.id;
             if (!id) {
-                alert('Mã cấu hình không hợp lệ');
+                toast({ title: 'Lỗi', description: 'Mã cấu hình không hợp lệ.', variant: 'error' });
                 return;
             }
             await rateConfigApi.updateRateConfig(id, newConfig);
             await loadRateConfigs();
             setEditingConfig(null);
             resetForm();
-            alert('Đã cập nhật cấu hình tỷ lệ thành công!');
+            toast({ title: 'Đã cập nhật cấu hình tỷ lệ', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Cập nhật cấu hình tỷ lệ thất bại');
+            toast({
+                title: 'Cập nhật cấu hình tỷ lệ thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
     const handleDeleteConfig = async (id: string) => {
-        if (!confirm('Bạn có chắc muốn xóa cấu hình tỷ lệ này?')) return;
+        const ok = await confirm('Bạn có chắc muốn xóa cấu hình tỷ lệ này?');
+        if (!ok) return;
 
         try {
             await rateConfigApi.deleteRateConfig(id);
             await loadRateConfigs();
+            toast({ title: 'Đã xóa cấu hình tỷ lệ', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Xóa cấu hình tỷ lệ thất bại');
+            toast({
+                title: 'Xóa cấu hình tỷ lệ thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
     const handleImportConfigs = async () => {
         if (!importFile) {
-            alert('Vui lòng chọn file để nhập');
+            toast({ title: 'Chưa chọn file', description: 'Vui lòng chọn file để nhập.', variant: 'warning' });
             return;
         }
 
@@ -111,9 +136,13 @@ export const AdminRateConfigPage: React.FC = () => {
             await loadRateConfigs();
             setIsImportModalOpen(false);
             setImportFile(null);
-            alert('Đã nhập cấu hình tỷ lệ thành công!');
+            toast({ title: 'Đã nhập cấu hình tỷ lệ', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Nhập cấu hình tỷ lệ thất bại');
+            toast({
+                title: 'Nhập cấu hình tỷ lệ thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         } finally {
             setIsImporting(false);
         }
@@ -144,6 +173,7 @@ export const AdminRateConfigPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {confirmDialog}
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>

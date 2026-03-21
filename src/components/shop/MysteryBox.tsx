@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Gift, Package, Sparkles, Star, Zap, Grid } from 'lucide-react';
 import { blindBoxApi, userApi, BlindBox, BlindBoxStatus, BlindBoxCardInBox, getCardImageUrl } from '@/utils/api';
+import { toast } from '@/components/ui/use-toast';
 
 const defaultBoxImage = '/mystery.png';
 
@@ -150,13 +151,17 @@ export function MysteryBox() {
             const profile = await userApi.getMyProfile();
             const balance = profile?.walletResponse?.balance ?? 0;
             if (balance < requiredBalance) {
-                alert(`Số dư ví không đủ (cần ${requiredBalance.toLocaleString('vi-VN')} VND, hiện có ${balance.toLocaleString('vi-VN')} VND). Vui lòng nạp thêm vào ví.`);
+                toast({
+                    title: 'Số dư ví không đủ',
+                    description: `Cần ${requiredBalance.toLocaleString('vi-VN')} VND, hiện có ${balance.toLocaleString('vi-VN')} VND. Vui lòng nạp thêm vào ví.`,
+                    variant: 'warning',
+                });
                 navigate('/wallet');
                 return false;
             }
             return true;
         } catch {
-            alert('Vui lòng đăng nhập để mở hộp bí ẩn.');
+            toast({ title: 'Cần đăng nhập', description: 'Vui lòng đăng nhập để mở hộp bí ẩn.', variant: 'warning' });
             navigate('/login');
             return false;
         }
@@ -241,7 +246,11 @@ export function MysteryBox() {
 
     const openBox = (box: BlindBox, mode: 'ONE' | 'ALL' = 'ONE') => {
         if (!isBuyable(box)) {
-            alert(`Hộp hiện ở trạng thái "${getStatusLabel(box)}", chưa thể mở.`);
+            toast({
+                title: 'Chưa thể mở hộp',
+                description: `Hộp đang ở trạng thái "${getStatusLabel(box)}".`,
+                variant: 'warning',
+            });
             return;
         }
         setSelectedBox(box);
@@ -293,7 +302,7 @@ export function MysteryBox() {
                     const msg = isEmptyBox
                         ? 'Hộp đã SOLD OUT.'
                         : raw || 'Mua / mở hộp thất bại. Kiểm tra ví hoặc đăng nhập.';
-                    alert(msg);
+                    toast({ title: isEmptyBox ? 'Hết hàng' : 'Không mở được hộp', description: msg, variant: isEmptyBox ? 'warning' : 'error' });
                     if (isEmptyBox && box?.blindBoxId) {
                         setBlindBoxes((prev) =>
                             prev.map((b) =>
@@ -314,7 +323,11 @@ export function MysteryBox() {
     const handleBagClick = async () => {
         if (!showInteractiveBag || isTearing || !selectedBox || isBuying) return;
         if (!isBuyable(selectedBox)) {
-            alert(`Hộp hiện ở trạng thái "${getStatusLabel(selectedBox)}", chưa thể mở.`);
+            toast({
+                title: 'Chưa thể mở hộp',
+                description: `Hộp đang ở trạng thái "${getStatusLabel(selectedBox)}".`,
+                variant: 'warning',
+            });
             resetBox();
             return;
         }
@@ -384,7 +397,7 @@ export function MysteryBox() {
                 const msg = isEmptyBox
                     ? 'Hộp đã SOLD OUT.'
                     : raw || 'Mua / mở hộp thất bại. Kiểm tra ví hoặc đăng nhập.';
-                alert(msg);
+                toast({ title: isEmptyBox ? 'Hết hàng' : 'Không mở được hộp', description: msg, variant: isEmptyBox ? 'warning' : 'error' });
                 if (isEmptyBox && selectedBox?.blindBoxId) {
                     setBlindBoxes((prev) =>
                         prev.map((b) =>
@@ -513,6 +526,7 @@ export function MysteryBox() {
 
     const handleCardDragStart = (e: React.MouseEvent | React.TouchEvent) => {
         if (!cardsReady || isFlipping || currentCardIndex >= openedCards.length) return;
+        if ('touches' in e) e.preventDefault();
 
         // @ts-ignore
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -524,6 +538,7 @@ export function MysteryBox() {
 
     const handleCardDragMove = (e: React.MouseEvent | React.TouchEvent) => {
         if (!cardDragStart || !cardsReady || isFlipping) return;
+        if ('touches' in e) e.preventDefault();
 
         // @ts-ignore
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -1102,7 +1117,19 @@ export function MysteryBox() {
                                     }}
                                 >
                                     <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-lg"></div>
-                                    <span className="relative z-10">🎴</span>
+                                    <a
+                                        href="https://vi.wikipedia.org/wiki/Pok%C3%A9mon_Trading_Card_Game#/media/T%E1%BA%ADp_tin:Pokemon_Trading_Card_Game_cardback.jpg"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="relative z-10 block size-full overflow-hidden rounded-md"
+                                        title="Mặt sau thẻ Pokémon TCG (Wikipedia)"
+                                    >
+                                        <img
+                                            src="https://vi.wikipedia.org/wiki/Special:FilePath/Pokemon_Trading_Card_Game_cardback.jpg"
+                                            alt="Mặt sau thẻ Pokémon Trading Card Game"
+                                            className="h-full w-full object-cover"
+                                        />
+                                    </a>
 
                                     <style>{`
                     @keyframes cardFly {
@@ -1185,13 +1212,32 @@ export function MysteryBox() {
                                 <div className="w-64 h-80 bg-gradient-to-br from-[#A020F0] to-[#D4AF37] rounded-2xl shadow-[0_0_40px_rgba(160,32,240,0.5)] border-4 border-[#D4AF37] flex items-center justify-center relative overflow-hidden">
                                     <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjEiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-20"></div>
                                     <div className="relative z-10 text-center">
-                                        <div className="text-8xl mb-4">🎴</div>
+                                        <span
+                                            className="relative z-10 block size-full overflow-hidden rounded-md select-none touch-none"
+                                            style={{ touchAction: 'none' }}
+                                        >
+                                            <img
+                                                src="https://vi.wikipedia.org/wiki/Special:FilePath/Pokemon_Trading_Card_Game_cardback.jpg"
+                                                alt="Mặt sau thẻ Pokémon Trading Card Game"
+                                                className="h-full w-full object-cover pointer-events-none"
+                                                draggable={false}
+                                            />
+                                        </span>
                                         <p
                                             className="text-white font-bold text-xl"
                                             style={{ fontFamily: "'Open Sans', sans-serif" }}
                                         >
-                                            Kéo để lật
+                                            Kéo sang trái/phải để lật
                                         </p>
+                                        <a
+                                            href="https://vi.wikipedia.org/wiki/Pok%C3%A9mon_Trading_Card_Game"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[10px] text-white/50 hover:text-white/80 mt-1 block"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            Ảnh: Wikipedia
+                                        </a>
                                     </div>
                                     <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
                                     {[...Array(5)].map((_, i) => (

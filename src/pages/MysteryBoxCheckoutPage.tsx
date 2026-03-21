@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MapPin, Phone, User, Package, ArrowLeft } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
 const STORAGE_KEY = 'mysteryCheckoutResultIds';
 
@@ -160,14 +161,14 @@ export const MysteryBoxCheckoutPage: React.FC = () => {
                 'Thanh toán'
             );
             window.dispatchEvent(new CustomEvent('wallet-updated'));
-            alert(
-                [
-                    `Đã thanh toán đơn giao ${resultIds.length} thẻ về nhà.`,
-                    `Mã đơn: ${shipmentIdStr.slice(0, 8)}`,
-                    `Phí vận chuyển: ${(shipment.shipmentFee ?? 0).toLocaleString('vi-VN')} VND`,
-                    `Trạng thái giao dịch: ${String(tx?.statusTransaction ?? '—')}`,
-                ].join('\n'),
-            );
+            toast({
+                title: 'Thanh toán thành công',
+                description: [
+                    `Đơn giao ${resultIds.length} thẻ về nhà.`,
+                    `Mã: ${shipmentIdStr.slice(0, 8)} · Phí ship: ${(shipment.shipmentFee ?? 0).toLocaleString('vi-VN')} VND · GD: ${String(tx?.statusTransaction ?? '—')}`,
+                ].join(' '),
+                variant: 'success',
+            });
             sessionStorage.removeItem(STORAGE_KEY);
             navigate('/orders');
         } catch (e) {

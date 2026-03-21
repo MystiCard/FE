@@ -1,9 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { paymentApi, PaymentResponse, PageResponse } from '@/api';
+import { ADMIN_API_PAGE_SIZE } from './adminApiPageSize';
 import { Search, Filter, ArrowUpCircle, ArrowDownCircle, CreditCard, RefreshCcw } from 'lucide-react';
 
 type StatusFilter = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | undefined;
+
+const getStatusLabel = (s: string | undefined): string => {
+    if (!s) return '—';
+    const v = s.toUpperCase();
+    if (v === 'SUCCESS') return 'Thành công';
+    if (v === 'PENDING') return 'Đang xử lý';
+    if (v === 'FAILED') return 'Thất bại';
+    if (v === 'CANCELLED') return 'Đã hủy';
+    if (v === 'REFUNDED') return 'Đã hoàn tiền';
+    if (v === 'ESCROWED') return 'Tạm giữ';
+    if (v === 'RELEASED') return 'Đã giải phóng';
+    return s;
+};
 
 const getTypeLabel = (payment: PaymentResponse) => {
     const content = payment.content || '';
@@ -47,7 +61,7 @@ export const AdminTransactionsPage: React.FC = () => {
             const res: PageResponse<PaymentResponse> = await paymentApi.getAllPaymentsAdmin(
                 status,
                 pageIndex,
-                20
+                ADMIN_API_PAGE_SIZE
             );
             setTransactions(res.content ?? []);
             setTotalPages(res.totalPages || 1);
@@ -181,7 +195,7 @@ export const AdminTransactionsPage: React.FC = () => {
                                                             : 'bg-gray-500/20 text-gray-300'
                                                     }`}
                                                 >
-                                                    {tx.statusPayment}
+                                                    {getStatusLabel(tx.statusPayment)}
                                                 </span>
                                             </td>
                                             <td className="p-3 text-right font-semibold">

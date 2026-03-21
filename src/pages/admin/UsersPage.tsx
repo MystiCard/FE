@@ -25,7 +25,37 @@ import {
     Truck,
 } from 'lucide-react';
 import { userApi, UserProfile, AdminCreateUserRequest, roleApi, permissionApi, type Role } from '@/api';
+import type { Permission } from '@/api/roles';
 import { AddressSelect } from '@/components/shared/AddressSelect';
+import { ADMIN_API_PAGE_SIZE } from './adminApiPageSize';
+import { toast } from '@/components/ui/use-toast';
+import { useAdminConfirm } from '@/components/admin';
+
+async function fetchAllRolesForUser(userId: string): Promise<Role[]> {
+    const out: Role[] = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+        const res = await roleApi.getByUserId(userId, page, ADMIN_API_PAGE_SIZE, true);
+        out.push(...(res.content || []));
+        totalPages = Math.max(1, res.totalPages ?? 1);
+        page++;
+    } while (page <= totalPages);
+    return out;
+}
+
+async function fetchAllPermissionsForRole(roleCode: string): Promise<Permission[]> {
+    const out: Permission[] = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+        const res = await permissionApi.getByRoleCode(roleCode, page, ADMIN_API_PAGE_SIZE, true);
+        out.push(...(res.content || []));
+        totalPages = Math.max(1, res.totalPages ?? 1);
+        page++;
+    } while (page <= totalPages);
+    return out;
+}
 
 const ROLE_OPTIONS: { value: string; label: string }[] = [
     { value: 'USER', label: 'Khách hàng' },
@@ -76,6 +106,7 @@ const initialCreateForm: AdminCreateUserRequest & { confirmPassword: string; rol
 };
 
 export const AdminUsersPage: React.FC = () => {
+    const { confirm, confirmDialog } = useAdminConfirm();
     const [searchQuery, setSearchQuery] = React.useState('');
     const [users, setUsers] = React.useState<UserProfile[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
@@ -125,8 +156,8 @@ export const AdminUsersPage: React.FC = () => {
                 const entries = await Promise.all(
                     usersList.map(async (u) => {
                         try {
-                            const page = await roleApi.getByUserId(u.userId, 1, 50, true);
-                            const codes = (page.content || []).map((r) => r.roleCode);
+                            const roles = await fetchAllRolesForUser(u.userId);
+                            const codes = roles.map((r) => r.roleCode);
                             let primary: 'ADMIN' | 'SHIPPER' | 'USER' = 'USER';
                             if (codes.includes('ADMIN')) primary = 'ADMIN';
                             else if (codes.includes('SHIPPER')) primary = 'SHIPPER';
@@ -152,17 +183,16 @@ export const AdminUsersPage: React.FC = () => {
         setRoleModalUser(user);
         setRoleModalLoading(true);
         try {
-            const page = await roleApi.getByUserId(user.userId, 1, 50, true);
-            const basicRoles = page.content || [];
+            const basicRoles = await fetchAllRolesForUser(user.userId);
 
             // Lấy quyền cho từng role của user qua /api/permisions/{roleCode}
             const rolesWithPermissions: Role[] = await Promise.all(
                 basicRoles.map(async (r) => {
                     try {
-                        const permsPage = await permissionApi.getByRoleCode(r.roleCode, 1, 200, true);
+                        const perms = await fetchAllPermissionsForRole(r.roleCode);
                         return {
                             ...r,
-                            permisionResponse: permsPage.content || [],
+                            permisionResponse: perms,
                         };
                     } catch {
                         return r;
@@ -172,7 +202,11 @@ export const AdminUsersPage: React.FC = () => {
 
             setRoleModalRoles(rolesWithPermissions);
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Không tải được vai trò của user');
+            toast({
+                title: 'Không tải được vai trò',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
             setRoleModalRoles([]);
         } finally {
             setRoleModalLoading(false);
@@ -188,24 +222,35 @@ export const AdminUsersPage: React.FC = () => {
             } else {
                 await userApi.addRole(roleModalUser.userId, [roleCode]);
             }
-            const page = await roleApi.getByUserId(roleModalUser.userId, 1, 50, true);
-            setRoleModalRoles(page.content || []);
+            const roles = await fetchAllRolesForUser(roleModalUser.userId);
+            setRoleModalRoles(roles);
             await loadUsers();
+            toast({ title: 'Đã cập nhật vai trò', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Cập nhật vai trò thất bại');
+            toast({
+                title: 'Cập nhật vai trò thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         } finally {
             setRoleModalSaving(false);
         }
     };
 
     const handleBanUser = async (userId: string) => {
-        if (!confirm('Bạn có chắc muốn khóa tài khoản này?')) return;
+        const ok = await confirm('Bạn có chắc muốn khóa tài khoản này?');
+        if (!ok) return;
 
         try {
             await userApi.updateUserStatus(userId, 'BANNED');
             await loadUsers();
+            toast({ title: 'Đã khóa tài khoản', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Khóa tài khoản thất bại');
+            toast({
+                title: 'Khóa tài khoản thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
@@ -213,8 +258,13 @@ export const AdminUsersPage: React.FC = () => {
         try {
             await userApi.updateUserStatus(userId, 'ACTIVE');
             await loadUsers();
+            toast({ title: 'Đã mở khóa tài khoản', variant: 'success' });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Mở khóa tài khoản thất bại');
+            toast({
+                title: 'Mở khóa tài khoản thất bại',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'error',
+            });
         }
     };
 
@@ -330,6 +380,7 @@ export const AdminUsersPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {confirmDialog}
             {/* Error Message */}
             {error && (
                 <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">

@@ -6,6 +6,7 @@ import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, MapPin, Phone, User, Truck } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
 /** Kết quả tách chuỗi địa chỉ: tỉnh, quận/huyện, phường/xã (để gợi ý dropdown GHN). */
 function parseAddressParts(address: string): { provinceName: string; districtName: string; wardName: string } {
@@ -452,19 +453,23 @@ export const MarketplaceCheckoutPage: React.FC = () => {
                     0
                 ) ?? 0;
             const status = tx?.statusTransaction || 'PENDING';
-            alert(
-                [
-                    status === 'SUCCESS'
-                        ? 'Thanh toán bằng Ví MystiCard thành công.'
-                        : status === 'PENDING'
-                            ? 'Giao dịch đang xử lý. Nếu số dư đã trừ, hệ thống sẽ cập nhật trạng thái trong lịch sử giao dịch.'
-                            : 'Giao dịch chưa hoàn tất. Vui lòng kiểm tra lịch sử giao dịch trong Ví.',
-                    `Mã đơn: ${order.orderId.slice(0, 8)}`,
-                    `Tiền hàng: ${totalItemsVal.toLocaleString('vi-VN')}đ`,
-                    `Phí ship: ${totalShipFee.toLocaleString('vi-VN')}đ`,
-                    `Tổng: ${order.totalAmount.toLocaleString('vi-VN')}đ`,
-                ].join('\n')
-            );
+            const payTitle =
+                status === 'SUCCESS'
+                    ? 'Thanh toán thành công'
+                    : status === 'PENDING'
+                        ? 'Giao dịch đang xử lý'
+                        : 'Giao dịch chưa hoàn tất';
+            const payDesc =
+                status === 'SUCCESS'
+                    ? `Mã đơn ${order.orderId.slice(0, 8)} · Tiền hàng ${totalItemsVal.toLocaleString('vi-VN')}đ · Ship ${totalShipFee.toLocaleString('vi-VN')}đ · Tổng ${order.totalAmount.toLocaleString('vi-VN')}đ`
+                    : status === 'PENDING'
+                        ? 'Nếu số dư đã trừ, hệ thống sẽ cập nhật trong lịch sử giao dịch.'
+                        : 'Vui lòng kiểm tra lịch sử giao dịch trong Ví.';
+            toast({
+                title: payTitle,
+                description: payDesc,
+                variant: status === 'SUCCESS' ? 'success' : 'warning',
+            });
             if (state.fromCart) clearCart();
             // Thanh toán xong thì xoá mapping để tránh lưu rác
             try {
@@ -911,7 +916,7 @@ export const MarketplaceCheckoutPage: React.FC = () => {
         const profile = await userApi.getMyProfile();
 
         if (!profile.address || !profile.phone || !profile.districtId || !profile.wardId) {
-            alert("Vui lòng cập nhật đầy đủ địa chỉ và số điện thoại trong hồ sơ trước khi thanh toán.");
+            toast({ title: "Cập nhật hồ sơ", description: "Vui lòng điền đủ địa chỉ và số điện thoại trước khi thanh toán.", variant: "warning" });
             navigate("/profile");
             return;
         }
@@ -944,7 +949,7 @@ export const MarketplaceCheckoutPage: React.FC = () => {
 
     } catch (error) {
         console.error("Lỗi quá trình thanh toán:", error);
-        alert("Đã có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại.");
+        toast({ title: "Không tạo được đơn", description: "Đã có lỗi xảy ra. Vui lòng thử lại.", variant: "error" });
     }
 };
 

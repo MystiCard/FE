@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { shipmentApi, transactionApi, orderApi } from "@/utils/api";
+import { toast } from "@/components/ui/use-toast";
 
 export function MarketplaceCheckoutPage() {
     const navigate = useNavigate();
@@ -67,7 +68,7 @@ export function MarketplaceCheckoutPage() {
             }
         } catch (err) {
             console.error("Recalculate error:", err);
-            if (isManual) alert("Cập nhật thông tin thất bại.");
+            if (isManual) toast({ title: "Cập nhật thất bại", description: "Không thể cập nhật địa chỉ / phí ship.", variant: "error" });
         } finally {
             if (isManual) setRecalcLoading(false);
         }
@@ -158,13 +159,16 @@ export function MarketplaceCheckoutPage() {
     const hasValidAddress = !!(selectedProvince && selectedDistrict && selectedWard && recipientName && recipientPhone);
 
     const handlePayment = async () => {
-        if (!hasValidAddress) return alert("Vui lòng điền đủ địa chỉ.");
+        if (!hasValidAddress) {
+            toast({ title: "Thiếu thông tin", description: "Vui lòng điền đủ địa chỉ nhận hàng.", variant: "warning" });
+            return;
+        }
         try {
             await handleUpdateAndRecalculate(true); // Cập nhật lần cuối trước khi trả tiền
             await transactionApi.payOrderWithWallet(orderState.orderId);
             navigate("/orders");
         } catch (err) {
-            alert("Thanh toán thất bại");
+            toast({ title: "Thanh toán thất bại", description: err instanceof Error ? err.message : "Vui lòng thử lại.", variant: "error" });
         }
     };
 

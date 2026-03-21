@@ -430,6 +430,21 @@ export const userApi = {
         return [...activeList, ...inactiveList];
     },
 
+    /** Admin dashboard: tổng user = active + inactive theo totalElements (GET /users?page=1&size=1). */
+    countAllUsersAdmin: async (): Promise<number> => {
+        const fetchMeta = (active: boolean) =>
+            apiRequest<ApiResponse<PageResponse<UserProfile>>>(
+                `/users?page=1&size=1&active=${active}`,
+                { method: 'GET' },
+            );
+        const [activeRes, inactiveRes] = await Promise.all([fetchMeta(true), fetchMeta(false)]);
+        const pageA = activeRes?.data as PageResponse<UserProfile> | undefined;
+        const pageI = inactiveRes?.data as PageResponse<UserProfile> | undefined;
+        const a = Number(pageA?.totalElements ?? 0);
+        const b = Number(pageI?.totalElements ?? 0);
+        return a + b;
+    },
+
     // Admin: Update user status (ban = delete, active = activate)
     updateUserStatus: async (userId: string, status: 'ACTIVE' | 'BANNED'): Promise<UserProfile> => {
         if (status === 'BANNED') {
@@ -662,6 +677,19 @@ export const cardApi = {
         if (Array.isArray(data)) return data as Card[];
         if (data && Array.isArray(data.content)) return data.content as Card[];
         return [];
+    },
+
+    /** Admin dashboard: tổng số thẻ (GET /api/card?page=1&size=1 — dùng totalElements). */
+    getCardsTotalCount: async (): Promise<number> => {
+        const params = new URLSearchParams();
+        params.set('page', '1');
+        params.set('size', '1');
+        params.set('sort', 'asc');
+        const response = await apiRequest<ApiResponse<PageResponse<Card>>>(`/card?${params.toString()}`, {
+            method: 'GET',
+        });
+        const page = response?.data as PageResponse<Card> | undefined;
+        return Number(page?.totalElements ?? page?.content?.length ?? 0);
     },
 
     /**
@@ -1340,6 +1368,15 @@ export const paymentApi = {
         );
         return response.data;
     },
+
+    /** BE: GET /api/payments/transactions/{walletTransactionId} — lấy Payment (paymentId) gắn với giao dịch ví. */
+    getByWalletTransactionId: async (walletTransactionId: string): Promise<PaymentResponse> => {
+        const res = await apiRequest<ApiResponse<PaymentResponse>>(
+            `/payments/transactions/${walletTransactionId}`,
+            { method: 'GET' }
+        );
+        return res.data;
+    },
 };
 
 // Transaction API
@@ -1548,6 +1585,97 @@ export interface TransactionReportResponse {
     data: TransactionReportSummary[];
 }
 
+/** Chuẩn hóa một dòng giao dịch ví từ BE (camelCase hoặc snake_case). */
+const normalizeTransactionResponseRow = (row: any): TransactionResponse => {
+    if (!row || typeof row !== 'object') {
+        return {
+            walletTransactionId: '',
+            amount: 0,
+            transactionType: 'REQUEST_WITHDRAW',
+            statusTransaction: 'PENDING',
+            createAt: '',
+        };
+    }
+    const bank = row.bankAccountResponse ?? row.bank_account_response;
+    return {
+        walletTransactionId: String(row.walletTransactionId ?? row.wallet_transaction_id ?? ''),
+        amount: Number(row.amount ?? 0),
+        transactionType: (row.transactionType ??
+            row.transaction_type ??
+            'REQUEST_WITHDRAW') as TransactionResponse['transactionType'],
+        statusTransaction: (row.statusTransaction ??
+            row.status_transaction ??
+            'PENDING') as TransactionResponse['statusTransaction'],
+        createAt: row.createAt ?? row.create_at ?? '',
+        message: row.message,
+        bankAccountResponse: bank
+            ? {
+                  bankAccountId: String(bank.bankAccountId ?? bank.bank_account_id ?? ''),
+                  bankCode: String(bank.bankCode ?? bank.bank_code ?? ''),
+                  accountNumber: String(bank.accountNumber ?? bank.account_number ?? ''),
+                  accountName: String(bank.accountName ?? bank.account_name ?? ''),
+                  defaultAccount: Boolean(bank.defaultAccount ?? bank.default_account ?? false),
+              }
+            : undefined,
+        incoming: row.incoming,
+    };
+};
+
+/** Gỡ Spring Page + ApiResponse (nhiều kiểu bọc) thành PageResponse<TransactionResponse>. */
+const parseAdminWithdrawPage = (full: any, fallbackSize: number): PageResponse<TransactionResponse> => {
+    if (full && typeof full.success === 'boolean' && !full.success) {
+        throw new Error(full.message || 'Không tải được danh sách yêu cầu rút tiền');
+    }
+    let raw = full?.data ?? full;
+    if (typeof raw === 'string') {
+        try {
+            raw = JSON.parse(raw);
+        } catch {
+            raw = {};
+        }
+    }
+    if (Array.isArray(raw)) {
+        const content = raw.map(normalizeTransactionResponseRow);
+        return {
+            content,
+            totalPages: 1,
+            totalElements: content.length,
+            size: fallbackSize,
+            number: 0,
+            last: true,
+        };
+    }
+    if (!raw || typeof raw !== 'object') {
+        return {
+            content: [],
+            totalPages: 1,
+            totalElements: 0,
+            size: fallbackSize,
+            number: 0,
+            last: true,
+        };
+    }
+    let rows = raw.content ?? raw.records ?? raw.items ?? raw.results;
+    if (!Array.isArray(rows) && Array.isArray(raw.data)) {
+        rows = raw.data;
+    }
+    const content = Array.isArray(rows) ? rows.map(normalizeTransactionResponseRow) : [];
+    const totalElements = Number(raw.totalElements ?? raw.total_elements ?? content.length) || content.length;
+    const size = Number(raw.size ?? raw.pageSize ?? fallbackSize) || fallbackSize;
+    let totalPages = Number(raw.totalPages ?? raw.total_pages);
+    if (!Number.isFinite(totalPages) || totalPages < 1) {
+        totalPages = Math.max(1, Math.ceil(totalElements / Math.max(1, size)));
+    }
+    return {
+        content,
+        totalPages,
+        totalElements,
+        size,
+        number: raw.number ?? raw.page ?? 0,
+        last: raw.last,
+    };
+};
+
 export const transactionApi = {
     // Deposit money to wallet
     deposit: async (data: DepositeRequest): Promise<string> => {
@@ -1691,6 +1819,25 @@ export const transactionApi = {
         throw new Error('Không nhận được URL thanh toán hợp lệ từ server khi approve rút tiền.');
     },
 
+    /**
+     * BE: POST /api/transactions/pay-againt/{paymentId}
+     * Khi thanh toán rút (MoMo/…) đã FAILED — tạo bản ghi PENDING mới và trả URL cổng thanh toán.
+     */
+    retryFailedWithdrawPayment: async (paymentId: string): Promise<string> => {
+        const raw = await apiRequest<any>(`/transactions/pay-againt/${paymentId}`, {
+            method: 'POST',
+        });
+        if (typeof raw === 'string' && raw.startsWith('http')) {
+            return raw;
+        }
+        const maybeApi = raw as ApiResponse<string>;
+        const url = (maybeApi && (maybeApi.data || (maybeApi as any).message)) as string | undefined;
+        if (url && typeof url === 'string' && url.startsWith('http')) {
+            return url;
+        }
+        throw new Error('Không nhận được URL thanh toán hợp lệ khi thử lại rút tiền.');
+    },
+
     // Admin: báo cáo giao dịch (dùng cho dashboard)
     report: async (payload: TransactionReportRequest): Promise<TransactionReportResponse> => {
         const res = await apiRequest<ApiResponse<TransactionReportResponse>>('/transactions/report', {
@@ -1699,7 +1846,7 @@ export const transactionApi = {
         });
         return res.data;
     },
-    // Admin: danh sách yêu cầu rút tiền (REQUEST_WITHDRAW, PENDING/ các trạng thái khác)
+    // Admin: danh sách yêu cầu rút tiền (GET /transactions/request-withdraw — Spring Page trong ApiResponse.data)
     getWithdrawRequestsAdmin: async (
         page: number = 1,
         size: number = 20
@@ -1708,11 +1855,27 @@ export const transactionApi = {
             page: String(page),
             size: String(size),
         });
-        const res = await apiRequest<ApiResponse<PageResponse<TransactionResponse>>>(
-            `/transactions/request-withdraw?${params.toString()}`,
-            { method: 'GET' }
-        );
-        return res.data;
+        const query = params.toString();
+        const pathOverride = (import.meta.env.VITE_ADMIN_WITHDRAW_LIST_PATH as string | undefined)?.trim();
+        const candidates = pathOverride
+            ? [`${pathOverride.startsWith('/') ? pathOverride : `/${pathOverride}`}?${query}`]
+            : [
+                  `/transactions/request-withdraw?${query}`,
+                  `/transactions/request-withdraw/?${query}`,
+              ];
+
+        let lastError: unknown;
+        for (const path of candidates) {
+            try {
+                const full = await apiRequest<any>(path, { method: 'GET' });
+                return parseAdminWithdrawPage(full, size);
+            } catch (e) {
+                lastError = e;
+            }
+        }
+        throw lastError instanceof Error
+            ? lastError
+            : new Error('Không tải được danh sách yêu cầu rút tiền');
     },
 };
 
