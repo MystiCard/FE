@@ -3,7 +3,7 @@
 // Trang Sàn giao dịch: listSellerApi, orderApi, cardApi, categoryApi, shipmentApi, transactionApi
 // Trang Hộp bí ẩn: blindBoxApi (GET/POST /blind-boxes, /blind-boxes/results, /blind-boxes/results/{blindBoxId})
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+
 
 // API Response wrapper
 interface ApiResponse<T> {
@@ -32,11 +32,16 @@ export interface UserInfo {
     avatarUrl?: string;
     roles?: string[];
     scope?: string; // Spring Security sometimes uses 'scope' for roles
+    /** Một số BE (Google login) nhét role vào claim này */
+    roleCode?: string;
 }
 
 // Helper function to check if user is admin
 export const isAdmin = (user: UserInfo | null): boolean => {
     if (!user) return false;
+
+    const rc = user.roleCode && String(user.roleCode).toUpperCase();
+    if (rc === 'ADMIN') return true;
 
     // Check in roles array
     if (user.roles && Array.isArray(user.roles)) {
@@ -56,6 +61,9 @@ export const isAdmin = (user: UserInfo | null): boolean => {
 // Helper function to check if user is shipper
 export const isShipper = (user: UserInfo | null): boolean => {
     if (!user) return false;
+
+    const rc = user.roleCode && String(user.roleCode).toUpperCase();
+    if (rc === 'SHIPPER') return true;
 
     if (user.roles && Array.isArray(user.roles)) {
         return user.roles.some(role =>
@@ -140,7 +148,7 @@ export const authApi = {
     // Google OAuth2 Login - redirects to Google
     loginWithGoogle: () => {
         // Redirect to Spring Security OAuth2 login endpoint
-        window.location.href = `${BACKEND_URL}/oauth2/authorization/google`;
+        window.location.href = `/oauth2/authorization/google`;
     },
 };
 

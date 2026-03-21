@@ -16,6 +16,7 @@ import { ProfilePage } from '@/pages/ProfilePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { GoogleCallbackPage } from '@/pages/GoogleCallbackPage';
+import { OAuthRedirectTokenHandler } from '@/components/auth/OAuthRedirectTokenHandler';
 import { ComparisonPage } from '@/pages/ComparisonPage';
 import { AboutPage } from '@/pages/AboutPage';
 import AdminDashboardPage, {
@@ -100,6 +101,7 @@ function App() {
     return (
         <AuthProvider>
             <BrowserRouter>
+                <OAuthRedirectTokenHandler />
                 <Routes>
                     {/* Customer Routes */}
                     <Route path="/" element={<MainLayout />}>
