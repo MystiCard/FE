@@ -16,7 +16,6 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { listSellerApi, ListingItem, categoryApi, Category, cardApi, CardSellResponse, getCardImageUrl, cartApi, CartRequest } from '@/utils/api';
-import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
 import { Heart, Loader2, Trash2, Star, ShoppingCart } from 'lucide-react';
@@ -75,9 +74,11 @@ export const Marketplace: React.FC = () => {
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
     const [wishlistCardIds, setWishlistCardIds] = useState<Set<string>>(new Set());
     const [wishlistLoadingCardId, setWishlistLoadingCardId] = useState<string | null>(null);
+    const [wishlistPriceModalOpen, setWishlistPriceModalOpen] = useState(false);
+    const [wishlistTargetCard, setWishlistTargetCard] = useState<CardSellResponse | null>(null);
+    const [expectPriceInput, setExpectPriceInput] = useState<string>('');
     const [sellCards, setSellCards] = useState([])
     const [listSeller, setListSeller] = useState<ListingItem[]>([])
     const [addCartOpen, setAddCartOpen] = useState(false);
@@ -121,7 +122,7 @@ export const Marketplace: React.FC = () => {
         const loadWishlist = async () => {
             try {
                 const res = await cardApi.getUserWishlist(0, 500);
-                const ids = new Set((res.content ?? []).map((w) => w.cardId));
+                const ids = new Set((res.content ?? []).map((w) => w.cardId ?? w.cardResponse?.cardId).filter(Boolean) as string[]);
                 setWishlistCardIds(ids);
             } catch {
                 setWishlistCardIds(new Set());
@@ -168,6 +169,7 @@ export const Marketplace: React.FC = () => {
             });
 
             if (res.code === 1000) {
+                window.dispatchEvent(new CustomEvent('cart-updated'));
                 toast({
                     title: "Thêm vào giỏ hàng",
                     description: "Thẻ đã được thêm vào giỏ hàng thành công",
@@ -191,47 +193,70 @@ export const Marketplace: React.FC = () => {
         }
     };
 
+    const handleConfirmAddWishlist = async () => {
+        if (!wishlistTargetCard) return;
+        const target = wishlistTargetCard;
+        const cardId = target.cardResponse.cardId;
+        const raw = expectPriceInput.replace(/\s/g, '').replace(/\./g, '').replace(/,/g, '');
+        const parsed = raw ? Number(raw) : undefined;
+        if (parsed !== undefined && (Number.isNaN(parsed) || parsed < 0)) {
+            toast({
+                title: 'Giá mong muốn không hợp lệ',
+                description: 'Vui lòng nhập số không âm.',
+                variant: 'warning',
+            });
+            return;
+        }
+        const finalExpectPrice = parsed != null ? parsed : Number(target.cardResponse.basePrice ?? 0);
+
+        setWishlistLoadingCardId(cardId);
+        try {
+            await cardApi.addToWishlist(cardId, finalExpectPrice);
+            setWishlistCardIds((prev) => new Set(prev).add(cardId));
+            window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+
+            setWishlistPriceModalOpen(false);
+            setWishlistTargetCard(null);
+            setExpectPriceInput('');
+        } catch {
+            toast({
+                title: 'Thêm wishlist thất bại',
+                description: 'Không thể thêm thẻ vào wishlist, vui lòng thử lại.',
+                variant: 'error',
+            });
+        } finally {
+            setWishlistLoadingCardId(null);
+        }
+    };
+
     const toggleWishlistForCard = async (product: CardSellResponse, e?: React.MouseEvent) => {
         if (e) {
             e.stopPropagation();
         }
         const cardId = product.cardResponse.cardId;
-        const inList = wishlistCardIds.has(cardId) || isInWishlist(cardId);
+        const inList = wishlistCardIds.has(cardId);
+        if (!inList) {
+            setWishlistTargetCard(product);
+            setExpectPriceInput(String(Number(product.cardResponse.basePrice ?? 0)));
+            setWishlistPriceModalOpen(true);
+            return;
+        }
+
         setWishlistLoadingCardId(cardId);
         try {
-            if (inList) {
-                removeFromWishlistLocal(cardId);
-                setWishlistCardIds((prev) => {
-                    const next = new Set(prev);
-                    next.delete(cardId);
-                    return next;
-                });
-                if (isAuthenticated) {
-                    try {
-                        await cardApi.removeFromWishlistByCardId(cardId);
-                        window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
-                    } catch {
-                        // ignore, đã cập nhật local
-                    }
-                }
-            } else {
-                addToWishlistLocal({
-                    id: cardId,
-                    name: product.cardResponse.name,
-                    price: product.cardResponse.basePrice,
-                    image: product.cardResponse.imageUrl?.[0].imageUrl || PLACEHOLDER_IMG,
-                    rarity: product.cardResponse.rarity,
-                });
-                setWishlistCardIds((prev) => new Set(prev).add(cardId));
-                if (isAuthenticated) {
-                    try {
-                        await cardApi.addToWishlist(cardId);
-                        window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
-                    } catch {
-                        // ignore, đã cập nhật local
-                    }
-                }
-            }
+            await cardApi.removeFromWishlistByCardId(cardId);
+            setWishlistCardIds((prev) => {
+                const next = new Set(prev);
+                next.delete(cardId);
+                return next;
+            });
+            window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+        } catch {
+            toast({
+                title: 'Xóa wishlist thất bại',
+                description: 'Không thể xóa thẻ khỏi wishlist, vui lòng thử lại.',
+                variant: 'error',
+            });
         } finally {
             setWishlistLoadingCardId(null);
         }
@@ -520,7 +545,7 @@ export const Marketplace: React.FC = () => {
                     <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
                         {sellCards.map((s) => {
                             const inWishlist =
-                                wishlistCardIds.has(s.cardResponse.cardId) || isInWishlist(s.cardResponse.cardId);
+                                wishlistCardIds.has(s.cardResponse.cardId);
 
                             return (
                                 <div
@@ -673,6 +698,69 @@ export const Marketplace: React.FC = () => {
                 rarityClass={rarityClass}
                 placeholderImg={PLACEHOLDER_IMG}
             />
+
+            <Dialog open={wishlistPriceModalOpen} onOpenChange={setWishlistPriceModalOpen}>
+                <DialogContent className="max-w-md glass-card-strong border-white/10">
+                    <DialogHeader>
+                        <DialogTitle>Thêm vào danh sách yêu thích</DialogTitle>
+                        <DialogDescription>
+                            Nhập giá mong muốn cho thẻ này để nhận thông báo khi có giá phù hợp.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                        <div className="text-sm text-muted-foreground">
+                            {wishlistTargetCard?.cardResponse.name}
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                                Giá mong muốn (VNĐ)
+                            </label>
+                            <input
+                                type="number"
+                                min={0}
+                                step={1000}
+                                placeholder="Ví dụ: 50000"
+                                value={expectPriceInput}
+                                onChange={(e) => setExpectPriceInput(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => {
+                                    setWishlistPriceModalOpen(false);
+                                    setWishlistTargetCard(null);
+                                    setExpectPriceInput('');
+                                }}
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="premium"
+                                onClick={handleConfirmAddWishlist}
+                                disabled={
+                                    !wishlistTargetCard ||
+                                    wishlistLoadingCardId === wishlistTargetCard.cardResponse.cardId
+                                }
+                            >
+                                {wishlistTargetCard &&
+                                wishlistLoadingCardId === wishlistTargetCard.cardResponse.cardId ? (
+                                    <span className="inline-flex items-center gap-2">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Đang thêm...
+                                    </span>
+                                ) : (
+                                    'Thêm vào wishlist'
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Modal chi tiết 1 offer */}
             <Dialog open={!!selectedListing} onOpenChange={(o) => !o && setSelectedListing(null)}>

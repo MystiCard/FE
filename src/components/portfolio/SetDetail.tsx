@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Heart } from 'lucide-react';
 import { categoryApi, Category, Card as CardType, cardApi, getCardImageUrl } from '@/utils/api';
 import { getCategoryImage } from '@/utils/categoryImages';
-import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
@@ -20,7 +19,6 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
     const [cards, setCards] = useState<CardType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [wishlistCardIds, setWishlistCardIds] = useState<Set<string>>(new Set());
-    const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -30,7 +28,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
         const load = async () => {
             try {
                 const res = await cardApi.getUserWishlist(0, 500);
-                const ids = new Set((res.content ?? []).map((w) => w.cardId));
+                const ids = new Set((res.content ?? []).map((w) => w.cardId ?? w.cardResponse?.cardId).filter(Boolean) as string[]);
                 setWishlistCardIds(ids);
             } catch {
                 setWishlistCardIds(new Set());
@@ -60,7 +58,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
     const logo = category.imageUrl || getCategoryImage(category.categoryName);
 
     const inWishlistCount = cards.filter(
-        (c) => wishlistCardIds.has(c.cardId) || isInWishlist(c.cardId)
+        (c) => wishlistCardIds.has(c.cardId)
     ).length;
     const totalCards = cards.length;
     const wishlistPercent = totalCards > 0 ? Math.round((inWishlistCount / totalCards) * 100) : 0;
@@ -142,9 +140,8 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
                                     type="button"
                                     onClick={async (e) => {
                                         e.stopPropagation();
-                                        const inList = wishlistCardIds.has(card.cardId) || isInWishlist(card.cardId);
+                                        const inList = wishlistCardIds.has(card.cardId);
                                         if (inList) {
-                                            removeFromWishlistLocal(card.cardId);
                                             setWishlistCardIds((prev) => {
                                                 const next = new Set(prev);
                                                 next.delete(card.cardId);
@@ -159,13 +156,6 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
                                                 }
                                             }
                                         } else {
-                                            addToWishlistLocal({
-                                                id: card.cardId,
-                                                name: card.name,
-                                                price: card.basePrice,
-                                                image: getCardImageUrl(card) || PLACEHOLDER_IMG,
-                                                rarity: card.rarity,
-                                            });
                                             setWishlistCardIds((prev) => new Set(prev).add(card.cardId));
                                             if (isAuthenticated) {
                                                 try {
@@ -179,7 +169,7 @@ export const SetDetail: React.FC<SetDetailProps> = ({ category, onBack, onCardCl
                                     }}
                                     className="absolute top-2 right-2 p-2 rounded-full glass-card-strong hover:bg-white/20 z-10"
                                 >
-                                    <Heart className={`h-4 w-4 ${(wishlistCardIds.has(card.cardId) || isInWishlist(card.cardId)) ? 'fill-red-500 text-red-500' : ''}`} />
+                                    <Heart className={`h-4 w-4 ${wishlistCardIds.has(card.cardId) ? 'fill-red-500 text-red-500' : ''}`} />
                                 </button>
                             </div>
                             <div className="p-3 text-center">

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tag, ArrowLeft, Package, Star, Trash2, Loader2 } from 'lucide-react';
+import { Tag, ArrowLeft, Package, Star, Trash2, Loader2, Eye } from 'lucide-react';
 import { listSellerApi, ListingItem, ListSellerResponse, userApi } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -48,7 +48,7 @@ export const MyListingsPage: React.FC = () => {
                 listSellerId: item.listSellerId,
                 price: item.price,
                 quantity: item.quantity,
-                status: 'ON',
+                status: typeof item.status === 'string' ? item.status : 'ON',
                 sellerId: item.sellerResponse?.userId ?? '',
                 sellerName: item.sellerResponse?.name,
                 cardId: item.cardResponse?.cardId ?? '',
@@ -124,18 +124,40 @@ export const MyListingsPage: React.FC = () => {
         setEditSaving(true);
         setEditError('');
         try {
-            // Không có API xoá cứng → set quantity = 0 để ẩn khỏi Sàn giao dịch
-            await listSellerApi.updateMyListing(selectedListing.listSellerId, {
-                price: selectedListing.price,
-                quantity: 0,
-            });
+            await listSellerApi.deleteMyListing(selectedListing.listSellerId);
             await loadMyListings(listingsPage);
             setSelectedListing(null);
         } catch (err) {
             setEditError(
                 err instanceof Error
                     ? err.message
-                    : 'Không ẩn được bài đăng. Thử lại sau.',
+                    : 'Không xóa được bài đăng. Thử lại sau.',
+            );
+        } finally {
+            setEditSaving(false);
+        }
+    };
+
+    const handleToggleListingStatus = async () => {
+        if (!selectedListing) return;
+        const isHidden = String(selectedListing.status ?? '').toUpperCase() === 'UNAVAILABLE';
+        setEditSaving(true);
+        setEditError('');
+        try {
+            if (isHidden) {
+                await listSellerApi.activeMyListing(selectedListing.listSellerId);
+            } else {
+                await listSellerApi.deleteMyListing(selectedListing.listSellerId);
+            }
+            await loadMyListings(listingsPage);
+            setSelectedListing(null);
+        } catch (err) {
+            setEditError(
+                err instanceof Error
+                    ? err.message
+                    : isHidden
+                        ? 'Không active được bài đăng. Thử lại sau.'
+                        : 'Không ẩn được bài đăng. Thử lại sau.',
             );
         } finally {
             setEditSaving(false);
@@ -206,7 +228,8 @@ export const MyListingsPage: React.FC = () => {
                             <>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                     {myListings.map((item) => {
-                                        const soldOut = item.quantity <= 0;
+                                        const isHidden = String(item.status ?? '').toUpperCase() === 'UNAVAILABLE';
+                                        const soldOut = !isHidden && item.quantity <= 0;
                                         return (
                                             <button
                                                 key={item.listSellerId}
@@ -230,7 +253,14 @@ export const MyListingsPage: React.FC = () => {
                                                             </span>
                                                         </div>
                                                     )}
-                                                    {!soldOut && (
+                                                    {isHidden && (
+                                                        <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                                                            <span className="px-2 py-1 rounded text-xs font-bold bg-amber-500/90 text-white uppercase">
+                                                                Đã ẩn
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {!soldOut && !isHidden && (
                                                         <span className="absolute bottom-1 left-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary-500/80 text-center">
                                                             SL: {item.quantity}
                                                         </span>
@@ -346,7 +376,12 @@ export const MyListingsPage: React.FC = () => {
                                                     {selectedListing.categoryName || '—'} ·{' '}
                                                     {formatRarity(selectedListing.rarity)}
                                                 </p>
-                                                {selectedListing.quantity <= 0 && (
+                                                {String(selectedListing.status ?? '').toUpperCase() === 'UNAVAILABLE' && (
+                                                    <span className="inline-block mt-2 px-2 py-0.5 rounded text-xs font-bold bg-amber-500/90 text-white">
+                                                        Đã ẩn
+                                                    </span>
+                                                )}
+                                                {String(selectedListing.status ?? '').toUpperCase() !== 'UNAVAILABLE' && selectedListing.quantity <= 0 && (
                                                     <span className="inline-block mt-2 px-2 py-0.5 rounded text-xs font-bold bg-red-500/90 text-white">
                                                         Hết hàng
                                                     </span>
@@ -437,21 +472,28 @@ export const MyListingsPage: React.FC = () => {
                                                 {editError}
                                             </div>
                                         )}
+                                        {(() => {
+                                            const isHidden =
+                                                String(selectedListing.status ?? '').toUpperCase() ===
+                                                'UNAVAILABLE';
+                                            return (
                                         <div className="flex justify-between items-center pt-1">
                                             <Button
                                                 type="button"
-                                                variant="destructive"
+                                                variant={isHidden ? 'premium' : 'destructive'}
                                                 size="sm"
                                                 className="gap-1.5"
-                                                onClick={handleDeleteListing}
+                                                onClick={handleToggleListingStatus}
                                                 disabled={editSaving}
                                             >
                                                 {editSaving ? (
                                                     <Loader2 className="h-3 w-3 animate-spin" />
+                                                ) : isHidden ? (
+                                                    <Eye className="h-3 w-3" />
                                                 ) : (
                                                     <Trash2 className="h-3 w-3" />
                                                 )}
-                                                Ẩn bài đăng
+                                                {isHidden ? 'Mở bài đăng' : 'Ẩn bài đăng'}
                                             </Button>
                                             <div className="flex gap-2">
                                                 <Button
@@ -478,6 +520,8 @@ export const MyListingsPage: React.FC = () => {
                                                 </Button>
                                             </div>
                                         </div>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </>

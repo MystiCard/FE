@@ -581,8 +581,9 @@ export interface AddCardRequiredRequest {
 export interface WishlistItem {
     wishListId: string;
     userId: string;
-    cardId: string;
+    cardId?: string;
     cardName?: string;
+    cardResponse?: Card;
     expectPrice?: number;
 }
 
@@ -805,7 +806,7 @@ export const cardApi = {
             `/card/wishlist?page=0&size=100`,
             { method: 'GET' }
         );
-        const item = (res.data?.content ?? []).find((w) => w.cardId === cardId);
+        const item = (res.data?.content ?? []).find((w) => (w.cardId ?? w.cardResponse?.cardId) === cardId);
         if (item) await apiRequest<ApiResponse<void>>(`/card/wishlist/${item.wishListId}`, { method: 'DELETE' });
     },
 
@@ -828,7 +829,8 @@ export const cardApi = {
 
         const wishlistByCardId = new Map<string, WishlistItem>();
         for (const w of wishlistItems) {
-            wishlistByCardId.set(w.cardId, w);
+            const id = w.cardId ?? w.cardResponse?.cardId;
+            if (id) wishlistByCardId.set(id, w);
         }
 
         const alerts: WishlistPriceAlert[] = [];
@@ -862,8 +864,8 @@ export const cardApi = {
 
                 alerts.push({
                     wishListId: w.wishListId,
-                    cardId: w.cardId,
-                    cardName: w.cardName ?? '',
+                    cardId: w.cardId ?? w.cardResponse?.cardId ?? cardId,
+                    cardName: w.cardName ?? w.cardResponse?.name ?? '',
                     expectPrice: expect,
                     matchingListings,
                 });
@@ -1128,6 +1130,7 @@ export interface ListSellerResponse {
     listSellerId: string;
     price: number;
     quantity: number;
+    status?: string;
     cardResponse: Card;
     sellerResponse: UserProfile;
 }
@@ -1287,13 +1290,29 @@ export const listSellerApi = {
         return { ...item, status: typeof item.status === 'string' ? item.status : String(item.status ?? '') };
     },
 
-    /** Chỉnh sửa bài đăng (giá, số lượng). */
+    /** Chỉnh sửa bài đăng (giá, số lượng) - BE: PUT /api/listseller/{id}. */
     updateMyListing: async (listSellerId: string, data: { price: number; quantity: number }): Promise<ListingItem> => {
         const response = await apiRequest<ApiResponse<ListingItem>>(
-            `/listseller/my-listings/${listSellerId}`,
+            `/listseller/${listSellerId}`,
             { method: 'PUT', body: JSON.stringify(data) }
         );
         return response.data;
+    },
+
+    /** Xóa bài đăng - BE: DELETE /api/listseller/{id}. */
+    deleteMyListing: async (listSellerId: string): Promise<void> => {
+        await apiRequest<ApiResponse<unknown>>(
+            `/listseller/${listSellerId}`,
+            { method: 'DELETE' }
+        );
+    },
+
+    /** Active lại bài đăng - BE: PUT /api/listseller/active/{id}. */
+    activeMyListing: async (listSellerId: string): Promise<void> => {
+        await apiRequest<ApiResponse<unknown>>(
+            `/listseller/active/${listSellerId}`,
+            { method: 'PUT' }
+        );
     },
 };
 
@@ -1438,6 +1457,11 @@ export interface BankAccountRequest {
     bankCode: string;
     accountNumber: string;
     accountName: string;
+}
+
+export interface ChangeDefaultRequest {
+    bankId: string;
+    userId: string;
 }
 
 export interface PageResponse<T> {
@@ -2457,6 +2481,40 @@ export const bankAccountApi = {
             `/bank-account/create/${userId}`,
             {
                 method: 'POST',
+                body: JSON.stringify(data),
+            }
+        );
+        return response.data;
+    },
+    getById: async (bankId: string): Promise<BankAccountResponse> => {
+        const response = await apiRequest<ApiResponse<BankAccountResponse>>(
+            `/bank-account/${bankId}`,
+            { method: 'GET' }
+        );
+        return response.data;
+    },
+    update: async (bankId: string, data: BankAccountRequest): Promise<BankAccountResponse> => {
+        const response = await apiRequest<ApiResponse<BankAccountResponse>>(
+            `/bank-account/update/${bankId}`,
+            {
+                method: 'PUT',
+                body: JSON.stringify(data),
+            }
+        );
+        return response.data;
+    },
+    remove: async (bankId: string): Promise<string> => {
+        const response = await apiRequest<ApiResponse<string>>(
+            `/bank-account/${bankId}`,
+            { method: 'DELETE' }
+        );
+        return response.data;
+    },
+    setDefault: async (data: ChangeDefaultRequest): Promise<BankAccountResponse> => {
+        const response = await apiRequest<ApiResponse<BankAccountResponse>>(
+            `/bank-account/default`,
+            {
+                method: 'PUT',
                 body: JSON.stringify(data),
             }
         );

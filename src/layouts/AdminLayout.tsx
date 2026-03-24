@@ -88,7 +88,7 @@ export const AdminLayout: React.FC = () => {
                 {/* Sidebar */}
                 <aside className={`
                     fixed lg:sticky top-[73px] left-0 h-[calc(100vh-73px)] w-64 
-                    glass-card-strong border-r border-white/10 z-40
+                    glass-card-strong border-r border-white/10 z-40 overflow-y-auto
                     lg:translate-x-0
                     ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
                 `}>

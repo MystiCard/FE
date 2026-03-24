@@ -10,14 +10,12 @@ import {
     type WishlistPriceAlert,
     type Card as CardType,
 } from '@/utils/api';
-import { useWishlist } from '@/hooks/useWishlist';
 import { toast } from '@/components/ui/use-toast';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
 
 export const WishlistPage: React.FC = () => {
     const navigate = useNavigate();
-    const { removeItem: removeFromWishlistLocal } = useWishlist();
     const [rows, setRows] = useState<{ item: WishlistItem; card: CardType | null }[]>([]);
     const [alerts, setAlerts] = useState<WishlistPriceAlert[]>([]);
     const [loading, setLoading] = useState(false);
@@ -34,8 +32,10 @@ export const WishlistPage: React.FC = () => {
                 setAlerts(Array.isArray(alertsRes) ? alertsRes : []);
                 const withCards = await Promise.all(
                     list.map(async (item) => {
+                        const resolvedCardId = item.cardId ?? item.cardResponse?.cardId;
                         try {
-                            const card = await cardApi.getCardById(item.cardId);
+                            if (!resolvedCardId) return { item, card: null as CardType | null };
+                            const card = await cardApi.getCardById(resolvedCardId);
                             return { item, card };
                         } catch {
                             return { item, card: null as CardType | null };
@@ -55,7 +55,6 @@ export const WishlistPage: React.FC = () => {
     const handleRemove = async (wishListId: string, cardId: string) => {
         try {
             await cardApi.removeFromWishlist(wishListId);
-            removeFromWishlistLocal(cardId);
             setRows((prev) => prev.filter((r) => r.item.wishListId !== wishListId));
             window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
         } catch {
@@ -130,14 +129,16 @@ export const WishlistPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {rows.map(({ item, card }) => (
+                                {rows.map(({ item, card }) => {
+                                    const cardId = item.cardId ?? item.cardResponse?.cardId;
+                                    return (
                                     <Card
                                         key={item.wishListId}
                                         className="overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
                                     >
                                         <div className="flex flex-col sm:flex-row gap-4 p-3 items-start sm:items-center">
                                             <Link
-                                                to={`/wishlist/${item.cardId}`}
+                                                to={cardId ? `/wishlist/${cardId}` : '/wishlist'}
                                                 className="flex gap-4 items-start sm:items-center flex-1 min-w-0"
                                             >
                                                 <div className="relative w-20 h-[112px] shrink-0 rounded-lg overflow-hidden bg-white/5 aspect-[2.5/3.5]">
@@ -173,7 +174,7 @@ export const WishlistPage: React.FC = () => {
                                                         const count = alert?.matchingListings?.length ?? 0;
                                                         return count > 0 ? (
                                                             <Link
-                                                                to={`/marketplace?card=${item.cardId}`}
+                                                                to={cardId ? `/marketplace?card=${cardId}` : '/marketplace'}
                                                                 className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-md bg-green-500/20 text-green-400 text-xs font-medium"
                                                                 onClick={(e) => e.stopPropagation()}
                                                             >
@@ -208,7 +209,7 @@ export const WishlistPage: React.FC = () => {
                                                 type="button"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleRemove(item.wishListId, item.cardId);
+                                                    if (cardId) handleRemove(item.wishListId, cardId);
                                                 }}
                                                 className="ml-auto p-1.5 hover:bg-red-500/20 rounded-md text-red-400 transition-colors"
                                                 aria-label="Xóa khỏi wishlist"
@@ -217,7 +218,7 @@ export const WishlistPage: React.FC = () => {
                                             </button>
                                         </div>
                                     </Card>
-                                ))}
+                                )})}
                             </div>
                         )}
                     </div>

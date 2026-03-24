@@ -11,7 +11,6 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { AddressSelect } from '@/components/shared/AddressSelect';
-import { useWishlist } from '@/hooks/useWishlist';
 import { toast } from '@/components/ui/use-toast';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=200&q=80';
@@ -19,7 +18,6 @@ const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b
 export const Profile: React.FC = () => {
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
-    const { removeItem: removeFromWishlistLocal } = useWishlist();
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
@@ -135,8 +133,10 @@ export const Profile: React.FC = () => {
             setWishlistTotal(res.totalElements ?? 0);
             const rows = await Promise.all(
                 (res.content ?? []).map(async (item) => {
+                    const resolvedCardId = item.cardId ?? item.cardResponse?.cardId;
                     try {
-                        const card = await cardApi.getCardById(item.cardId);
+                        if (!resolvedCardId) return { item, card: null as CardType | null };
+                        const card = await cardApi.getCardById(resolvedCardId);
                         return { item, card };
                     } catch {
                         return { item, card: null as CardType | null };
@@ -159,7 +159,6 @@ export const Profile: React.FC = () => {
     const handleRemoveFromWishlist = async (wishListId: string, cardId: string) => {
         try {
             await cardApi.removeFromWishlist(wishListId);
-            removeFromWishlistLocal(cardId);
             window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
             fetchStats();
             fetchWishlist();
@@ -398,13 +397,13 @@ export const Profile: React.FC = () => {
                             )}
                         </div>
                         <button
-                                type="button"
-                                onClick={openEditProfile}
-                                className="absolute bottom-2 right-2 w-6 h-6 bg-blue-500 rounded-full border-2 border-[#0B0112] flex items-center justify-center hover:bg-blue-600 transition-colors"
-                                aria-label="Chỉnh sửa ảnh đại diện"
-                            >
-                                <Edit className="w-3 h-3 text-white" />
-                            </button>
+                            type="button"
+                            onClick={openEditProfile}
+                            className="absolute bottom-2 right-2 w-6 h-6 bg-blue-500 rounded-full border-2 border-[#0B0112] flex items-center justify-center hover:bg-blue-600 transition-colors"
+                            aria-label="Chỉnh sửa ảnh đại diện"
+                        >
+                            <Edit className="w-3 h-3 text-white" />
+                        </button>
                     </div>
 
                     <div className="flex-1 mb-2">
@@ -511,314 +510,315 @@ export const Profile: React.FC = () => {
 
                 {/* ===== Tab: Stats ===== */}
                 {activeTab === 'stats' && (
-                <>
+                    <>
 
-                {/* 5. Wallet Section */}
-                <div>
-                    <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-green-400">
-                        <CreditCard className="w-5 h-5" />
-                        Ví của tôi
-                    </h3>
-                    <Card className="glass-card p-6 relative overflow-hidden">
-                        {/* Background decoration */}
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl"></div>
-                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
+                        {/* 5. Wallet Section */}
+                        <div>
+                            <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-green-400">
+                                <CreditCard className="w-5 h-5" />
+                                Ví của tôi
+                            </h3>
+                            <Card className="glass-card p-6 relative overflow-hidden">
+                                {/* Background decoration */}
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl"></div>
+                                <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
 
-                        <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-6">
-                                <div>
-                                    <p className="text-sm text-muted-foreground mb-1">Số dư khả dụng</p>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-3xl md:text-4xl font-bold text-green-400">
-                                            {(profile?.walletResponse?.balance || 0).toLocaleString('vi-VN')}
-                                        </span>
-                                        <span className="text-xl text-muted-foreground">đ</span>
+                                <div className="relative z-10">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div>
+                                            <p className="text-sm text-muted-foreground mb-1">Số dư khả dụng</p>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-3xl md:text-4xl font-bold text-green-400">
+                                                    {(profile?.walletResponse?.balance || 0).toLocaleString('vi-VN')}
+                                                </span>
+                                                <span className="text-xl text-muted-foreground">đ</span>
+                                            </div>
+                                        </div>
+                                        <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
+                                            <CreditCard className="w-8 h-8 text-green-400" />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <Button
+                                            className="bg-green-600 hover:bg-green-700 text-white"
+                                            onClick={handleTopUp}
+                                        >
+                                            <CreditCard className="w-4 h-4 mr-2" />
+                                            Nạp tiền
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            className="border-green-500/30 hover:bg-green-500/10"
+                                            onClick={handleViewTransactions}
+                                        >
+                                            <Activity className="w-4 h-4 mr-2" />
+                                            Lịch sử
+                                        </Button>
+                                    </div>
+
+                                    <div className="mt-4 pt-4 border-t border-white/10">
+                                        <p className="text-xs text-muted-foreground text-center">
+                                            Sử dụng ví để mua thẻ, mở hộp bí ẩn và giao dịch trên marketplace
+                                        </p>
                                     </div>
                                 </div>
-                                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
-                                    <CreditCard className="w-8 h-8 text-green-400" />
+                            </Card>
+                        </div>
+
+                        {/* 6. Tổng quan (API) */}
+                        <div>
+                            <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-yellow-400">
+                                <Briefcase className="w-5 h-5" />
+                                Tổng quan
+                            </h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                                <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/post-listing')}>
+                                    <CardContent className="p-4 text-center">
+                                        <div className="text-2xl font-bold text-blue-400">{stats.listingsCount}</div>
+                                        <div className="text-xs text-muted-foreground">Đang bán</div>
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/portfolio')}>
+                                    <CardContent className="p-4 text-center">
+                                        <div className="text-2xl font-bold text-blue-400">{stats.wishlistCount}</div>
+                                        <div className="text-xs text-muted-foreground">Wishlist</div>
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/wallet')}>
+                                    <CardContent className="p-4 text-center">
+                                        <div className="text-2xl font-bold text-green-400">{stats.transactionsCount}</div>
+                                        <div className="text-xs text-muted-foreground">Giao dịch</div>
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/wallet')}>
+                                    <CardContent className="p-4 text-center">
+                                        <div className="text-2xl font-bold text-red-400">{totalValue.toLocaleString('vi-VN')} đ</div>
+                                        <div className="text-xs text-muted-foreground">Số dư ví</div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        </div>
+
+                        {/* Đang bán - tin đăng của tôi */}
+                        <div>
+                            <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-[#FFF9C4]">
+                                <Package className="w-5 h-5" />
+                                Đang bán
+                                {listingsTotalElements > 0 && (
+                                    <span className="text-sm font-normal text-muted-foreground">({listingsTotalElements} tin)</span>
+                                )}
+                            </h3>
+                            {listingsLoading ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <div className="rounded-full h-10 w-10 border-2 border-yellow-500/30 border-t-yellow-500 animate-spin" />
                                 </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <Button
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                    onClick={handleTopUp}
-                                >
-                                    <CreditCard className="w-4 h-4 mr-2" />
-                                    Nạp tiền
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    className="border-green-500/30 hover:bg-green-500/10"
-                                    onClick={handleViewTransactions}
-                                >
-                                    <Activity className="w-4 h-4 mr-2" />
-                                    Lịch sử
-                                </Button>
-                            </div>
-
-                            <div className="mt-4 pt-4 border-t border-white/10">
-                                <p className="text-xs text-muted-foreground text-center">
-                                    Sử dụng ví để mua thẻ, mở hộp bí ẩn và giao dịch trên marketplace
-                                </p>
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-
-                {/* 6. Tổng quan (API) */}
-                <div>
-                    <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-yellow-400">
-                        <Briefcase className="w-5 h-5" />
-                        Tổng quan
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/post-listing')}>
-                            <CardContent className="p-4 text-center">
-                                <div className="text-2xl font-bold text-blue-400">{stats.listingsCount}</div>
-                                <div className="text-xs text-muted-foreground">Đang bán</div>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/portfolio')}>
-                            <CardContent className="p-4 text-center">
-                                <div className="text-2xl font-bold text-blue-400">{stats.wishlistCount}</div>
-                                <div className="text-xs text-muted-foreground">Wishlist</div>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/wallet')}>
-                            <CardContent className="p-4 text-center">
-                                <div className="text-2xl font-bold text-green-400">{stats.transactionsCount}</div>
-                                <div className="text-xs text-muted-foreground">Giao dịch</div>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-transparent border-none shadow-none cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/wallet')}>
-                            <CardContent className="p-4 text-center">
-                                <div className="text-2xl font-bold text-red-400">{totalValue.toLocaleString('vi-VN')} đ</div>
-                                <div className="text-xs text-muted-foreground">Số dư ví</div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
-
-                {/* Đang bán - tin đăng của tôi */}
-                <div>
-                    <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-[#FFF9C4]">
-                        <Package className="w-5 h-5" />
-                        Đang bán
-                        {listingsTotalElements > 0 && (
-                            <span className="text-sm font-normal text-muted-foreground">({listingsTotalElements} tin)</span>
-                        )}
-                    </h3>
-                    {listingsLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <div className="rounded-full h-10 w-10 border-2 border-yellow-500/30 border-t-yellow-500 animate-spin" />
-                        </div>
-                    ) : listings.length === 0 ? (
-                        <Card className="glass-card p-8 text-center">
-                            <div className="w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center mx-auto mb-4">
-                                <Package className="w-8 h-8 text-yellow-400" />
-                            </div>
-                            <p className="text-muted-foreground">Chưa có tin đăng bán</p>
-                            <p className="text-sm text-muted-foreground mt-1">Đăng thẻ lên Marketplace để bán</p>
-                            <Button variant="outline" className="mt-4" onClick={() => navigate('/post-listing')}>
-                                Đăng bán
-                            </Button>
-                        </Card>
-                    ) : (
-                        <>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                                {listings.map((item) => (
-                                    <Card
-                                        key={item.listSellerId}
-                                        className="overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
-                                    >
-                                        <Link to="/marketplace" className="block">
-                                            <div className="relative aspect-[2.5/3.5] rounded-t-lg overflow-hidden bg-white/5">
-                                                <img
-                                                    src={item.imageUrl || PLACEHOLDER_IMG}
-                                                    alt={item.cardName}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                        e.currentTarget.src = PLACEHOLDER_IMG;
-                                                    }}
-                                                />
-                                            </div>
-                                            <CardContent className="p-3">
-                                                <h4 className="font-semibold text-sm line-clamp-2">{item.cardName}</h4>
-                                                <p className="text-sm font-bold text-yellow-400 mt-1">
-                                                    {Number(item.price).toLocaleString('vi-VN')} đ
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">SL: {item.quantity}</p>
-                                                {(item.sellerFeedbackCount != null && item.sellerFeedbackCount > 0) && (
-                                                    <p className="text-xs text-amber-400/90 mt-0.5 flex items-center gap-0.5">
-                                                        <Star className="h-3 w-3 fill-amber-400 shrink-0" />
-                                                        {Number(item.sellerAverageRating ?? 0).toFixed(1)}
-                                                        <span className="text-muted-foreground">({item.sellerFeedbackCount} đánh giá)</span>
-                                                    </p>
-                                                )}
-                                            </CardContent>
-                                        </Link>
-                                    </Card>
-                                ))}
-                            </div>
-                            {listingsTotalPages > 1 && (
-                                <div className="flex items-center justify-center gap-2 mt-6">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={listingsPage <= 1}
-                                        onClick={() => {
-                                            const p = listingsPage - 1;
-                                            setListingsPage(p);
-                                            fetchListings(p);
-                                        }}
-                                    >
-                                        ‹
+                            ) : listings.length === 0 ? (
+                                <Card className="glass-card p-8 text-center">
+                                    <div className="w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center mx-auto mb-4">
+                                        <Package className="w-8 h-8 text-yellow-400" />
+                                    </div>
+                                    <p className="text-muted-foreground">Chưa có tin đăng bán</p>
+                                    <p className="text-sm text-muted-foreground mt-1">Đăng thẻ lên Marketplace để bán</p>
+                                    <Button variant="outline" className="mt-4" onClick={() => navigate('/post-listing')}>
+                                        Đăng bán
                                     </Button>
-                                    {Array.from({ length: listingsTotalPages }, (_, i) => i + 1).map((p) => (
-                                        <Button
-                                            key={p}
-                                            size="sm"
-                                            variant={p === listingsPage ? 'default' : 'outline'}
-                                            className={p === listingsPage ? 'bg-primary-500' : ''}
-                                            onClick={() => {
-                                                setListingsPage(p);
-                                                fetchListings(p);
-                                            }}
-                                        >
-                                            {p}
-                                        </Button>
-                                    ))}
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={listingsPage >= listingsTotalPages}
-                                        onClick={() => {
-                                            const p = listingsPage + 1;
-                                            setListingsPage(p);
-                                            fetchListings(p);
-                                        }}
-                                    >
-                                        ›
-                                    </Button>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-
-                {/* Wishlist Section - từ API backend */}
-                <div>
-                    <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-pink-400">
-                        <Heart className="w-5 h-5" />
-                        Wishlist của tôi
-                        {wishlistTotal > 0 && (
-                            <span className="text-sm font-normal text-muted-foreground">({wishlistTotal} thẻ)</span>
-                        )}
-                    </h3>
-                    {wishlistLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <div className="rounded-full h-10 w-10 border-2 border-pink-500/30 border-t-pink-500 animate-spin" />
-                        </div>
-                    ) : wishlistRows.length === 0 ? (
-                        <Card className="glass-card p-8 text-center">
-                            <div className="w-16 h-16 rounded-full bg-pink-500/10 flex items-center justify-center mx-auto mb-4">
-                                <Heart className="w-8 h-8 text-pink-400" />
-                            </div>
-                            <p className="text-muted-foreground">Chưa có thẻ nào trong wishlist</p>
-                            <p className="text-sm text-muted-foreground mt-1">Thêm thẻ yêu thích từ Hộp bí ẩn hoặc Bộ sưu tập</p>
-                            <Button variant="outline" className="mt-4" onClick={() => navigate('/mystery-box')}>
-                                Đến Hộp bí ẩn
-                            </Button>
-                        </Card>
-                    ) : (
-                        <>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                                {wishlistRows.map(({ item, card }) => (
-                                    <Card
-                                        key={item.wishListId}
-                                        className="relative overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors group"
-                                    >
-                                        <Link to={card ? `/portfolio?card=${card.cardId}` : '/portfolio'} className="block">
-                                            <div className="relative aspect-[2.5/3.5] rounded-t-lg overflow-hidden bg-white/5">
-                                                <img
-                                                    src={(card?.imageUrl as any)?.[0]?.imageUrl || PLACEHOLDER_IMG}
-                                                    alt={card?.name || 'Thẻ'}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                        e.currentTarget.src = PLACEHOLDER_IMG;
-                                                    }}
-                                                />
-                                            </div>
-                                            <CardContent className="p-3">
-                                                <h4 className="font-semibold text-sm line-clamp-2">{card?.name || 'Thẻ'}</h4>
-                                                {item.expectPrice != null && (
-                                                    <p className="text-xs text-pink-400 mt-1">
-                                                        Mong muốn: {Number(item.expectPrice).toLocaleString('vi-VN')} đ
-                                                    </p>
-                                                )}
-                                            </CardContent>
-                                        </Link>
-                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="h-8 w-8 rounded-full bg-black/50 hover:bg-red-500/20 text-red-400"
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    handleRemoveFromWishlist(item.wishListId, item.cardId);
-                                                }}
-                                                aria-label="Xóa khỏi wishlist"
+                                </Card>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                        {listings.map((item) => (
+                                            <Card
+                                                key={item.listSellerId}
+                                                className="overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
                                             >
-                                                <Trash2 className="h-4 w-4" />
+                                                <Link to="/marketplace" className="block">
+                                                    <div className="relative aspect-[2.5/3.5] rounded-t-lg overflow-hidden bg-white/5">
+                                                        <img
+                                                            src={item.imageUrl || PLACEHOLDER_IMG}
+                                                            alt={item.cardName}
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => {
+                                                                e.currentTarget.src = PLACEHOLDER_IMG;
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <CardContent className="p-3">
+                                                        <h4 className="font-semibold text-sm line-clamp-2">{item.cardName}</h4>
+                                                        <p className="text-sm font-bold text-yellow-400 mt-1">
+                                                            {Number(item.price).toLocaleString('vi-VN')} đ
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">SL: {item.quantity}</p>
+                                                        {(item.sellerFeedbackCount != null && item.sellerFeedbackCount > 0) && (
+                                                            <p className="text-xs text-amber-400/90 mt-0.5 flex items-center gap-0.5">
+                                                                <Star className="h-3 w-3 fill-amber-400 shrink-0" />
+                                                                {Number(item.sellerAverageRating ?? 0).toFixed(1)}
+                                                                <span className="text-muted-foreground">({item.sellerFeedbackCount} đánh giá)</span>
+                                                            </p>
+                                                        )}
+                                                    </CardContent>
+                                                </Link>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                    {listingsTotalPages > 1 && (
+                                        <div className="flex items-center justify-center gap-2 mt-6">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={listingsPage <= 1}
+                                                onClick={() => {
+                                                    const p = listingsPage - 1;
+                                                    setListingsPage(p);
+                                                    fetchListings(p);
+                                                }}
+                                            >
+                                                ‹
+                                            </Button>
+                                            {Array.from({ length: listingsTotalPages }, (_, i) => i + 1).map((p) => (
+                                                <Button
+                                                    key={p}
+                                                    size="sm"
+                                                    variant={p === listingsPage ? 'default' : 'outline'}
+                                                    className={p === listingsPage ? 'bg-primary-500' : ''}
+                                                    onClick={() => {
+                                                        setListingsPage(p);
+                                                        fetchListings(p);
+                                                    }}
+                                                >
+                                                    {p}
+                                                </Button>
+                                            ))}
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={listingsPage >= listingsTotalPages}
+                                                onClick={() => {
+                                                    const p = listingsPage + 1;
+                                                    setListingsPage(p);
+                                                    fetchListings(p);
+                                                }}
+                                            >
+                                                ›
                                             </Button>
                                         </div>
-                                    </Card>
-                                ))}
-                            </div>
-                            {wishlistTotal > 8 && (
-                                <div className="mt-4 text-center">
-                                    <Button variant="outline" size="sm" onClick={() => navigate('/portfolio')}>
-                                        Xem tất cả wishlist
-                                    </Button>
-                                </div>
+                                    )}
+                                </>
                             )}
-                        </>
-                    )}
-                </div>
-
-                {/* 7. Performance Chart Placeholder */}
-                <div>
-                    <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-blue-400">
-                        <Activity className="w-5 h-5" />
-                        Your Performance
-                    </h3>
-                    <Card className="glass-card p-6 min-h-[200px] flex items-center justify-center relative overflow-hidden">
-                        <div className="absolute inset-0 opacity-20">
-                            <svg className="w-full h-full" viewBox="0 0 1000 200" preserveAspectRatio="none">
-                                <path d="M0,150 Q250,50 500,100 T1000,20" fill="none" stroke="#3D7DCA" strokeWidth="4" />
-                                <path d="M0,150 Q250,50 500,100 T1000,20 V200 H0 Z" fill="url(#gradient)" opacity="0.3" />
-                                <defs>
-                                    <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#3D7DCA" />
-                                        <stop offset="100%" stopColor="transparent" />
-                                    </linearGradient>
-                                </defs>
-                            </svg>
                         </div>
-                        <div className="relative z-10 flex flex-col items-center gap-4">
-                            <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                <TrendingUp className="w-8 h-8 text-blue-400" />
-                            </div>
-                            <p className="text-muted-foreground text-sm max-w-md text-center">
-                                Theo dõi hiệu suất danh mục đầu tư, biến động giá thị trường và xếp hạng bộ sưu tập của bạn theo thời gian thực.
-                            </p>
-                        </div>
-                    </Card>
-                </div>
 
-                </>
+                        {/* Wishlist Section - từ API backend */}
+                        <div>
+                            <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-pink-400">
+                                <Heart className="w-5 h-5" />
+                                Wishlist của tôi
+                                {wishlistTotal > 0 && (
+                                    <span className="text-sm font-normal text-muted-foreground">({wishlistTotal} thẻ)</span>
+                                )}
+                            </h3>
+                            {wishlistLoading ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <div className="rounded-full h-10 w-10 border-2 border-pink-500/30 border-t-pink-500 animate-spin" />
+                                </div>
+                            ) : wishlistRows.length === 0 ? (
+                                <Card className="glass-card p-8 text-center">
+                                    <div className="w-16 h-16 rounded-full bg-pink-500/10 flex items-center justify-center mx-auto mb-4">
+                                        <Heart className="w-8 h-8 text-pink-400" />
+                                    </div>
+                                    <p className="text-muted-foreground">Chưa có thẻ nào trong wishlist</p>
+                                    <p className="text-sm text-muted-foreground mt-1">Thêm thẻ yêu thích từ Hộp bí ẩn hoặc Bộ sưu tập</p>
+                                    <Button variant="outline" className="mt-4" onClick={() => navigate('/mystery-box')}>
+                                        Đến Hộp bí ẩn
+                                    </Button>
+                                </Card>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                        {wishlistRows.map(({ item, card }) => (
+                                            <Card
+                                                key={item.wishListId}
+                                                className="relative overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors group"
+                                            >
+                                                <Link to={card ? `/portfolio?card=${card.cardId}` : '/portfolio'} className="block">
+                                                    <div className="relative aspect-[2.5/3.5] rounded-t-lg overflow-hidden bg-white/5">
+                                                        <img
+                                                            src={(card?.imageUrl as any)?.[0]?.imageUrl || PLACEHOLDER_IMG}
+                                                            alt={card?.name || 'Thẻ'}
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => {
+                                                                e.currentTarget.src = PLACEHOLDER_IMG;
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <CardContent className="p-3">
+                                                        <h4 className="font-semibold text-sm line-clamp-2">{card?.name || 'Thẻ'}</h4>
+                                                        {item.expectPrice != null && (
+                                                            <p className="text-xs text-pink-400 mt-1">
+                                                                Mong muốn: {Number(item.expectPrice).toLocaleString('vi-VN')} đ
+                                                            </p>
+                                                        )}
+                                                    </CardContent>
+                                                </Link>
+                                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 rounded-full bg-black/50 hover:bg-red-500/20 text-red-400"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            const cardId = item.cardId ?? item.cardResponse?.cardId;
+                                                            if (cardId) handleRemoveFromWishlist(item.wishListId, cardId);
+                                                        }}
+                                                        aria-label="Xóa khỏi wishlist"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                    {wishlistTotal > 8 && (
+                                        <div className="mt-4 text-center">
+                                            <Button variant="outline" size="sm" onClick={() => navigate('/portfolio')}>
+                                                Xem tất cả wishlist
+                                            </Button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        {/* 7. Performance Chart Placeholder */}
+                        <div>
+                            <h3 className="text-lg font-bold font-serif mb-4 flex items-center gap-2 text-blue-400">
+                                <Activity className="w-5 h-5" />
+                                Your Performance
+                            </h3>
+                            <Card className="glass-card p-6 min-h-[200px] flex items-center justify-center relative overflow-hidden">
+                                <div className="absolute inset-0 opacity-20">
+                                    <svg className="w-full h-full" viewBox="0 0 1000 200" preserveAspectRatio="none">
+                                        <path d="M0,150 Q250,50 500,100 T1000,20" fill="none" stroke="#3D7DCA" strokeWidth="4" />
+                                        <path d="M0,150 Q250,50 500,100 T1000,20 V200 H0 Z" fill="url(#gradient)" opacity="0.3" />
+                                        <defs>
+                                            <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#3D7DCA" />
+                                                <stop offset="100%" stopColor="transparent" />
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                </div>
+                                <div className="relative z-10 flex flex-col items-center gap-4">
+                                    <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                        <TrendingUp className="w-8 h-8 text-blue-400" />
+                                    </div>
+                                    <p className="text-muted-foreground text-sm max-w-md text-center">
+                                        Theo dõi hiệu suất danh mục đầu tư, biến động giá thị trường và xếp hạng bộ sưu tập của bạn theo thời gian thực.
+                                    </p>
+                                </div>
+                            </Card>
+                        </div>
+
+                    </>
                 )}
 
                 {/* ===== Tab: Feedback ===== */}
@@ -974,126 +974,150 @@ export const Profile: React.FC = () => {
 
             </div>
 
-            {/* Edit Profile Modal */}
             {showEditProfileModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-                    <div className="bg-[#1a0a2e] rounded-lg p-6 max-w-md w-full border border-white/10 my-8">
-                        <h3 className="text-xl font-bold mb-4 text-white">Chỉnh sửa profile</h3>
-                        <div className="space-y-4">
-                            {/* Avatar */}
-                            <div className="flex flex-col items-center gap-2">
-                                <div className="w-24 h-24 rounded-full border-4 border-white/10 overflow-hidden bg-white/5 flex items-center justify-center">
-                                    {avatarPreview ? (
-                                        <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
-                                    ) : profile?.avatarUrl ? (
-                                        <img src={profile.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <span className="text-2xl font-bold text-primary-400">
-                                            {editForm.name?.charAt(0).toUpperCase() || 'U'}
-                                        </span>
-                                    )}
+                <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+                    {/* Wrapper */}
+                    <div className="flex min-h-full items-start justify-center p-4">
+
+                        {/* Modal */}
+                        <div className="bg-[#1a0a2e] rounded-xl p-6 max-w-md w-full border border-white/10 mt-10 mb-6 max-h-[90vh] overflow-y-auto shadow-2xl">
+
+                            {/* Header */}
+                            <h3 className="text-xl font-bold mb-4 text-white text-center">
+                                Chỉnh sửa profile
+                            </h3>
+
+                            <div className="space-y-4">
+
+                                {/* Avatar */}
+                                <div className="flex flex-col items-center gap-2">
+                                    <div className="w-24 h-24 rounded-full border-4 border-white/10 overflow-hidden bg-white/5 flex items-center justify-center">
+                                        {avatarPreview ? (
+                                            <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                                        ) : profile?.avatarUrl ? (
+                                            <img src={profile.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <span className="text-2xl font-bold text-primary-400">
+                                                {editForm.name?.charAt(0).toUpperCase() || 'U'}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <label className="text-sm text-primary-400 cursor-pointer hover:underline">
+                                        Đổi ảnh đại diện
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handleAvatarChange}
+                                        />
+                                    </label>
                                 </div>
-                                <label className="text-sm text-primary-400 cursor-pointer hover:underline">
-                                    Đổi ảnh đại diện
+
+                                {/* Name */}
+                                <div>
+                                    <label className="block text-sm text-muted-foreground mb-1">Tên hiển thị</label>
                                     <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleAvatarChange}
+                                        type="text"
+                                        value={editForm.name}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
                                     />
-                                </label>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-muted-foreground mb-1">Tên hiển thị</label>
-                                <input
-                                    type="text"
-                                    value={editForm.name}
-                                    onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                                    placeholder="Tên của bạn"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-muted-foreground mb-1">Email</label>
-                                <input
-                                    type="email"
-                                    value={editForm.email}
-                                    onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
-                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                                    placeholder="email@example.com"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-muted-foreground mb-1">Số điện thoại</label>
-                                <input
-                                    type="tel"
-                                    value={editForm.phone ?? ''}
-                                    onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
-                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                                    placeholder="0912345678"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-muted-foreground mb-1">Địa chỉ</label>
-                                <AddressSelect
-                                    value={editForm.address}
-                                    onChange={(address) => setEditForm((f) => ({ ...f, address }))}
-                                    showDetailInput={true}
+                                </div>
+
+                                {/* Email */}
+                                <div>
+                                    <label className="block text-sm text-muted-foreground mb-1">Email</label>
+                                    <input
+                                        type="email"
+                                        value={editForm.email}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                                    />
+                                </div>
+
+                                {/* Phone */}
+                                <div>
+                                    <label className="block text-sm text-muted-foreground mb-1">Số điện thoại</label>
+                                    <input
+                                        type="tel"
+                                        value={editForm.phone ?? ''}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                                    />
+                                </div>
+
+                                {/* Address */}
+                                <div>
+                                    <label className="block text-sm text-muted-foreground mb-1">Địa chỉ</label>
+                                    <AddressSelect
+                                        value={editForm.address}
+                                        onChange={(address) => setEditForm((f) => ({ ...f, address }))}
+                                        showDetailInput={true}
                                         onCodesChange={({ districtId, wardCode }) =>
-                                        setEditForm((f) => ({
-                                            ...f,
-                                            // Lưu districtId/wardId dạng string để gửi lên BE
-                                            districtId: districtId ? String(districtId) : f.districtId,
-                                            wardId: wardCode ?? f.wardId,
-                                        }))
-                                    }
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-muted-foreground mb-1">Giới tính</label>
-                                <select
-                                    value={editForm.gender ?? ''}
-                                    onChange={(e) => setEditForm((f) => ({ ...f, gender: (e.target.value || undefined) as 'MALE' | 'FEMALE' | undefined }))}
-                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                                >
-                                    <option value="">-- Chọn --</option>
-                                    <option value="MALE">Nam</option>
-                                    <option value="FEMALE">Nữ</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-muted-foreground mb-1">Mật khẩu mới (để trống nếu không đổi)</label>
-                                <input
-                                    type="password"
-                                    value={editForm.password ?? ''}
-                                    onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))}
-                                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                                    placeholder="••••••••"
-                                    autoComplete="new-password"
-                                />
-                            </div>
-                            <div className="flex gap-3 pt-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="flex-1"
-                                    onClick={() => setShowEditProfileModal(false)}
-                                    disabled={isSavingProfile}
-                                >
-                                    Hủy
-                                </Button>
-                                <Button
-                                    type="button"
-                                    className="flex-1 bg-primary-600 hover:bg-primary-700"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleSaveProfile();
-                                    }}
-                                    disabled={isSavingProfile}
-                                >
-                                    {isSavingProfile ? 'Đang lưu...' : 'Lưu'}
-                                </Button>
+                                            setEditForm((f) => ({
+                                                ...f,
+                                                districtId: districtId ? String(districtId) : f.districtId,
+                                                wardId: wardCode ?? f.wardId,
+                                            }))
+                                        }
+                                    />
+                                </div>
+
+                                {/* Gender */}
+                                <div>
+                                    <label className="block text-sm text-muted-foreground mb-1">Giới tính</label>
+                                    <select
+                                        value={editForm.gender ?? ''}
+                                        onChange={(e) =>
+                                            setEditForm((f) => ({
+                                                ...f,
+                                                gender: (e.target.value || undefined),
+                                            }))
+                                        }
+                                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
+                                    >
+                                        <option value="">-- Chọn --</option>
+                                        <option value="MALE">Nam</option>
+                                        <option value="FEMALE">Nữ</option>
+                                    </select>
+                                </div>
+
+                                {/* Password */}
+                                <div>
+                                    <label className="block text-sm text-muted-foreground mb-1">
+                                        Mật khẩu mới (để trống nếu không đổi)
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={editForm.password ?? ''}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))}
+                                        className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
+                                    />
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex gap-3 pt-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="flex-1"
+                                        onClick={() => setShowEditProfileModal(false)}
+                                        disabled={isSavingProfile}
+                                    >
+                                        Hủy
+                                    </Button>
+
+                                    <Button
+                                        type="button"
+                                        className="flex-1 bg-primary-600 hover:bg-primary-700"
+                                        onClick={handleSaveProfile}
+                                        disabled={isSavingProfile}
+                                    >
+                                        {isSavingProfile ? 'Đang lưu...' : 'Lưu'}
+                                    </Button>
+                                </div>
+
                             </div>
                         </div>
                     </div>

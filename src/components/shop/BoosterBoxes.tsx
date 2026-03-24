@@ -3,7 +3,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Package, Sparkles, Heart } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
-import { useWishlist } from '@/hooks/useWishlist';
 
 const boosterBoxes = [
     {
@@ -42,7 +41,6 @@ const boosterBoxes = [
 
 export const BoosterBoxes: React.FC = () => {
     const { addItem: addToCart } = useCart();
-    const { addItem: addToWishlist, isInWishlist } = useWishlist();
 
     return (
         <div className="py-8">
@@ -90,10 +88,10 @@ export const BoosterBoxes: React.FC = () => {
                                     </div>
                                 )}
                                 <button
-                                    onClick={() => addToWishlist({ id: box.id, name: box.name, price: box.price, image: box.image })}
+                                    type="button"
                                     className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20 "
                                 >
-                                    <Heart className={`h-4 w-4 ${isInWishlist(box.id) ? 'fill-red-500 text-red-500' : ''}`} />
+                                    <Heart className="h-4 w-4" />
                                 </button>
                             </div>
 
