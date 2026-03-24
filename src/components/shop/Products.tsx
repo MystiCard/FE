@@ -3,7 +3,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Star, Search, Heart } from 'lucide-react';
 import { useCart } from '@/hooks/useCart';
-import { useWishlist } from '@/hooks/useWishlist';
 
 const allProducts = [
     {
@@ -181,7 +180,6 @@ export const Products: React.FC = () => {
     const [sortBy, setSortBy] = useState<string>('featured');
     const [currentPage, setCurrentPage] = useState(1);
     const { addItem: addToCart } = useCart();
-    const { addItem: addToWishlist, isInWishlist } = useWishlist();
 
     // Filter and sort products
     const filteredAndSortedProducts = useMemo(() => {
@@ -321,10 +319,10 @@ export const Products: React.FC = () => {
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => addToWishlist({ id: product.id, name: product.name, price: product.price, image: product.image, rarity: product.rarity })}
+                                    type="button"
                                     className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20 "
                                 >
-                                    <Heart className={`h-4 w-4 ${isInWishlist(product.id) ? 'fill-red-500 text-red-500' : ''}`} />
+                                    <Heart className="h-4 w-4" />
                                 </button>
                             </div>
 

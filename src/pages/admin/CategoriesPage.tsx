@@ -5,7 +5,6 @@ import {
     Plus,
     Search,
     Edit,
-    Trash2,
     Folder,
     Image as ImageIcon,
     Calendar,
@@ -230,25 +229,6 @@ export const AdminCategoriesPage: React.FC = () => {
         }
     };
 
-    const handleDeleteCategory = async (categoryId: string) => {
-        const ok = await confirm(
-            'Xóa danh mục này? Các thẻ thuộc danh mục có thể bị ảnh hưởng.'
-        );
-        if (!ok) return;
-
-        try {
-            await categoryApi.deleteCategory(categoryId);
-            await loadCategories();
-            toast({ title: 'Đã xóa danh mục', variant: 'success' });
-        } catch (err) {
-            toast({
-                title: 'Xóa danh mục thất bại',
-                description: err instanceof Error ? err.message : undefined,
-                variant: 'error',
-            });
-        }
-    };
-
     const handleImportCategories = async () => {
         if (!importFile) {
             toast({ title: 'Chưa chọn file', description: 'Vui lòng chọn file để nhập.', variant: 'warning' });
@@ -431,17 +411,10 @@ export const AdminCategoriesPage: React.FC = () => {
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => openEditModal(category)}
-                                            className="flex-1 px-3 py-2 bg-primary-500/20 hover:bg-primary-500/30 rounded-md text-primary-400 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                                            className="w-full px-3 py-2 bg-primary-500/20 hover:bg-primary-500/30 rounded-md text-primary-400 text-sm font-medium transition-colors flex items-center justify-center gap-2"
                                         >
                                             <Edit className="h-4 w-4" />
                                             Edit
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteCategory(category.categoryId)}
-                                            className="flex-1 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-md text-red-400 text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                            Delete
                                         </button>
                                     </div>
                                 </div>

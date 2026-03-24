@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Star, Heart, Plus } from 'lucide-react';
-import { useWishlist } from '@/hooks/useWishlist';
 import { Link, useNavigate } from 'react-router-dom';
-import { listSellerApi, ListingItem } from '@/utils/api';
+import { cardApi, listSellerApi, ListingItem } from '@/utils/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
 
@@ -42,13 +42,52 @@ const getRarityClasses = (rarity: string) => {
 };
 
 export const NewArrivals: React.FC = () => {
-    const { addItem: addToWishlist, isInWishlist } = useWishlist();
+    const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const [listings, setListings] = useState<ListingItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
+    const [wishlistCardIds, setWishlistCardIds] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setWishlistCardIds(new Set());
+            return;
+        }
+        const loadWishlist = async () => {
+            try {
+                const res = await cardApi.getUserWishlist(0, 500);
+                const ids = new Set((res.content ?? []).map((w) => w.cardId ?? w.cardResponse?.cardId).filter(Boolean) as string[]);
+                setWishlistCardIds(ids);
+            } catch {
+                setWishlistCardIds(new Set());
+            }
+        };
+        loadWishlist();
+    }, [isAuthenticated]);
+
+    const toggleWishlist = async (item: ListingItem) => {
+        const cardId = item.cardId;
+        const inWishlist = wishlistCardIds.has(cardId);
+        try {
+            if (inWishlist) {
+                await cardApi.removeFromWishlistByCardId(cardId);
+                setWishlistCardIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(cardId);
+                    return next;
+                });
+            } else {
+                await cardApi.addToWishlist(cardId, Number(item.price ?? 0));
+                setWishlistCardIds((prev) => new Set(prev).add(cardId));
+            }
+            window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+        } catch {
+            // ignore
+        }
+    };
 
     useEffect(() => {
         const load = async () => {
@@ -133,18 +172,12 @@ export const NewArrivals: React.FC = () => {
                                     <button
                                         onClick={(e) => {
                                             e.preventDefault();
-                                            addToWishlist({
-                                                id: item.cardId,
-                                                name: item.cardName,
-                                                price: item.price,
-                                                image: item.imageUrl || '',
-                                                rarity: item.rarity,
-                                            });
+                                            toggleWishlist(item);
                                         }}
                                         className="absolute top-2 left-2 p-2 glass-card-strong rounded-full hover:bg-white/20"
                                     >
                                         <Heart
-                                            className={`h-4 w-4 ${isInWishlist(item.cardId) ? 'fill-red-500 text-red-500' : ''}`}
+                                            className={`h-4 w-4 ${wishlistCardIds.has(item.cardId) ? 'fill-red-500 text-red-500' : ''}`}
                                         />
                                     </button>
                                 </div>

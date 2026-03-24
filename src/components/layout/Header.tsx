@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, ShoppingCart, Bell, User, ChevronDown, Menu, Heart, LogOut, Wallet, Package, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useWishlist } from '@/hooks/useWishlist';
 import { useMarketplaceCart } from '@/contexts/MarketplaceCartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { MobileMenu } from '@/components/shared/MobileMenu';
@@ -24,17 +23,17 @@ export const Header: React.FC = () => {
     const [notificationPage, setNotificationPage] = React.useState(0); // 0-based
     const [notificationTotalPages, setNotificationTotalPages] = React.useState(0);
     const [selectedNotification, setSelectedNotification] = React.useState<NotificationItem | null>(null);
-    const { itemCount: marketplaceCartCount } = useMarketplaceCart();
-    const { itemCount: wishlistLocalCount } = useWishlist();
     const { user, isAuthenticated, logout } = useAuth();
     const [walletBalance, setWalletBalance] = useState<number>(0);
     const [apiWishlistCount, setApiWishlistCount] = useState<number>(0);
-    const [carts,setCarts] = useState([]);
+    const [carts, setCarts] = useState([]);
+    const [myuser, setMyUser] = useState({});
 
     // Khi đã đăng nhập: số wishlist lấy từ API (DB)
-    const wishlistCount = isAuthenticated ? apiWishlistCount : wishlistLocalCount;
+    const [wishlistCount,setWiilistCount] = useState([]);
 
     const fetchWishlistCount = async () => {
+
         try {
             const res = await cardApi.getUserWishlist(0, 1);
             setApiWishlistCount(res.totalElements ?? 0);
@@ -42,21 +41,39 @@ export const Header: React.FC = () => {
             setApiWishlistCount(0);
         }
     };
-  const fetchCarts = async () => {
+    const fetchMyInfor = async () => {
+        const response = await userApi.getMyProfile();
+        setMyUser(response);
+    }
+    const fetchCarts = async () => {
+        if (!isAuthenticated) {
+            setCarts([]);
+            return;
+        }
         try {
-            const res = await cartApi.getAllCarts(1,1000)
+            const res = await cartApi.getAllCarts(1, 1000)
             setCarts(res.data.content)
         } catch {
-           
+            setCarts([]);
         }
     };
     useEffect(() => {
-        if (!isAuthenticated) return;
+        if (!isAuthenticated) {
+            setApiWishlistCount(0);
+            setCarts([]);
+            return;
+        }
+        fetchMyInfor();
         fetchWishlistCount();
         fetchCarts();
         const onUpdated = () => fetchWishlistCount();
+        const onCartUpdated = () => fetchCarts();
         window.addEventListener('wishlist-api-updated', onUpdated);
-        return () => window.removeEventListener('wishlist-api-updated', onUpdated);
+        window.addEventListener('cart-updated', onCartUpdated);
+        return () => {
+            window.removeEventListener('wishlist-api-updated', onUpdated);
+            window.removeEventListener('cart-updated', onCartUpdated);
+        };
     }, [isAuthenticated]);
 
     const sortNotifications = (list: NotificationItem[]) => {
@@ -153,7 +170,7 @@ export const Header: React.FC = () => {
 
     return (
         <header className="pokemon-header glass-card-strong sticky top-0 z-50 w-full border-b border-white/10 ">
-            <div className="container mx-auto px-4">
+            <div className="flex h-16 items-center justify-between gap-4">
                 <div className="flex h-16 items-center justify-between gap-6 lg:gap-8">
                     {/* Logo */}
                     <div className="flex items-center gap-3 shrink-0">
@@ -199,11 +216,10 @@ export const Header: React.FC = () => {
                             onMouseLeave={() => setIsMarketplaceOpen(false)}
                         >
                             <button
-                                className={`flex items-center gap-1 text-sm font-medium hover:text-primary-400 transition-colors ${
-                                    ['/marketplace', '/post-listing'].some((p) => pathname === p || pathname.startsWith(p + '/'))
+                                className={`flex items-center gap-1 text-sm font-medium hover:text-primary-400 transition-colors ${['/marketplace', '/post-listing'].some((p) => pathname === p || pathname.startsWith(p + '/'))
                                         ? 'text-primary-400'
                                         : ''
-                                }`}
+                                    }`}
                             >
                                 <span>Sàn giao dịch</span>
                                 <ChevronDown className="h-4 w-4" />
@@ -232,32 +248,19 @@ export const Header: React.FC = () => {
                         {/* Portfolio Dropdown */}
                         <div
                             className="relative"
-                            onMouseEnter={() => setIsPortfolioOpen(true)}
-                            onMouseLeave={() => setIsPortfolioOpen(false)}
+
                         >
                             <button
-                                className={`flex items-center gap-1 text-sm font-medium hover:text-primary-400 transition-colors ${
-                                    ['/portfolio', '/trends'].some((p) => pathname === p || pathname.startsWith(p + '/'))
+                                className={`flex items-center gap-1 text-sm font-medium hover:text-primary-400 transition-colors ${['/portfolio', '/trends'].some((p) => pathname === p || pathname.startsWith(p + '/'))
                                         ? 'text-primary-400'
                                         : ''
-                                }`}
+                                    }`}
                             >
-                                <span>Bộ sưu tập</span>
-                                <ChevronDown className="h-4 w-4" />
-                            </button>
+                                <Link to="/trends" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
+                                    Xu hướng thị trường
+                                </Link>
 
-                            {isPortfolioOpen && (
-                                <div className="absolute top-full left-0 pt-2 w-48">
-                                    <div className="p-2 space-y-1 glass-card-strong rounded-lg shadow-xl">
-                                        <Link to="/portfolio" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Bộ sưu tập của tôi
-                                        </Link>
-                                        <Link to="/trends" className="block px-4 py-2 text-sm hover:bg-white/10 rounded-md">
-                                            Xu hướng thị trường
-                                        </Link>
-                                    </div>
-                                </div>
-                            )}
+                            </button>
                         </div>
                     </nav>
 
@@ -297,14 +300,14 @@ export const Header: React.FC = () => {
                                 className="relative"
                             >
                                 <Heart className="h-5 w-5" />
-                                {wishlistCount > 0 && (
+                                {apiWishlistCount > 0 && (
                                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary-500 rounded-full text-xs font-bold flex items-center justify-center text-white">
-                                        {wishlistCount}
+                                        {apiWishlistCount}
                                     </span>
                                 )}
                             </Button>
                         </Link>
-                       
+
                         <Button
                             variant="ghost"
                             size="icon"
@@ -314,11 +317,11 @@ export const Header: React.FC = () => {
                             <ShoppingCart className="h-5 w-5" />
                             {carts.length > 0 && (
                                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent-500 rounded-full text-xs font-bold flex items-center justify-center text-black">
-                                    {carts.length }
+                                    {carts.length}
                                 </span>
                             )}
-                       
-                        {/* </Link> */}
+
+                            {/* </Link> */}
                         </Button>
                         <div
                             className="relative"
@@ -346,8 +349,8 @@ export const Header: React.FC = () => {
                                                         {selectedNotification.notiType === 'wishList'
                                                             ? 'Wishlist'
                                                             : selectedNotification.notiType === 'shipment'
-                                                            ? 'Giao hàng'
-                                                            : 'Ví tiền'}
+                                                                ? 'Giao hàng'
+                                                                : 'Ví tiền'}
                                                     </span>
                                                     <span className="text-[10px] text-muted-foreground">
                                                         {new Date(selectedNotification.createdAt).toLocaleString('vi-VN')}
@@ -364,87 +367,86 @@ export const Header: React.FC = () => {
                                             </p>
                                         ) : (
                                             <>
-                                            {notifications.map((n) => {
-                                                const typeLabel =
-                                                    n.notiType === 'wishList'
-                                                        ? 'Wishlist'
-                                                        : n.notiType === 'shipment'
-                                                        ? 'Giao hàng'
-                                                        : 'Ví tiền';
+                                                {notifications.map((n) => {
+                                                    const typeLabel =
+                                                        n.notiType === 'wishList'
+                                                            ? 'Wishlist'
+                                                            : n.notiType === 'shipment'
+                                                                ? 'Giao hàng'
+                                                                : 'Ví tiền';
 
-                                                const handleClick = async () => {
-                                                    setSelectedNotification(n);
-                                                    if (!n.isRead) {
-                                                        try {
-                                                            await notificationApi.markAsRead(n.notificationId);
-                                                            setNotifications((prev) =>
-                                                                sortNotifications(
-                                                                    prev.map((item) =>
-                                                                        item.notificationId === n.notificationId
-                                                                            ? { ...item, isRead: true }
-                                                                            : item
+                                                    const handleClick = async () => {
+                                                        setSelectedNotification(n);
+                                                        if (!n.isRead) {
+                                                            try {
+                                                                await notificationApi.markAsRead(n.notificationId);
+                                                                setNotifications((prev) =>
+                                                                    sortNotifications(
+                                                                        prev.map((item) =>
+                                                                            item.notificationId === n.notificationId
+                                                                                ? { ...item, isRead: true }
+                                                                                : item
+                                                                        )
                                                                     )
-                                                                )
-                                                            );
-                                                        } catch {
-                                                            // ignore error, giữ nguyên UI
+                                                                );
+                                                            } catch {
+                                                                // ignore error, giữ nguyên UI
+                                                            }
                                                         }
-                                                    }
-                                                };
+                                                    };
 
-                                                return (
-                                                    <button
-                                                        key={n.notificationId}
-                                                        type="button"
-                                                        onClick={handleClick}
-                                                        className={`w-full text-left px-3 py-2 text-sm hover:bg-white/10 rounded-md border-l-2 ${
-                                                            n.isRead
-                                                                ? 'border-transparent opacity-50'
-                                                                : 'border-amber-500/60 bg-amber-500/10'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <div className="flex items-center gap-2">
-                                                                {!n.isRead && (
-                                                                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
-                                                                )}
-                                                                <span className="text-xs text-amber-300 font-semibold">
-                                                                    {typeLabel}
+                                                    return (
+                                                        <button
+                                                            key={n.notificationId}
+                                                            type="button"
+                                                            onClick={handleClick}
+                                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-white/10 rounded-md border-l-2 ${n.isRead
+                                                                    ? 'border-transparent opacity-50'
+                                                                    : 'border-amber-500/60 bg-amber-500/10'
+                                                                }`}
+                                                        >
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    {!n.isRead && (
+                                                                        <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
+                                                                    )}
+                                                                    <span className="text-xs text-amber-300 font-semibold">
+                                                                        {typeLabel}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="text-[10px] text-muted-foreground">
+                                                                    {new Date(n.createdAt).toLocaleString('vi-VN')}
                                                                 </span>
                                                             </div>
-                                                            <span className="text-[10px] text-muted-foreground">
-                                                                {new Date(n.createdAt).toLocaleString('vi-VN')}
-                                                            </span>
-                                                        </div>
-                                                        <p className={`text-xs mt-1 whitespace-pre-line ${n.isRead ? 'text-muted-foreground' : 'text-white'}`}>
-                                                            {n.message}
-                                                        </p>
-                                                    </button>
-                                                );
-                                            })}
-                                            {notificationTotalPages > 1 && (
-                                                <div className="flex items-center justify-center gap-2 pt-2 border-t border-white/10 mt-2 px-2 pb-1">
-                                                    <button
-                                                        type="button"
-                                                        disabled={notificationPage <= 0}
-                                                        onClick={() => fetchNotifications(Math.max(0, notificationPage - 1))}
-                                                        className="px-2 h-7 rounded-full text-[10px] border border-white/30 text-white/80 disabled:opacity-40 hover:bg-white/10"
-                                                    >
-                                                        ‹
-                                                    </button>
-                                                    <span className="text-[10px] text-muted-foreground">
-                                                        Trang {notificationPage + 1}/{notificationTotalPages}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        disabled={notificationPage >= notificationTotalPages - 1}
-                                                        onClick={() => fetchNotifications(Math.min(notificationTotalPages - 1, notificationPage + 1))}
-                                                        className="px-2 h-7 rounded-full text-[10px] border border-white/30 text-white/80 disabled:opacity-40 hover:bg-white/10"
-                                                    >
-                                                        ›
-                                                    </button>
-                                                </div>
-                                            )}
+                                                            <p className={`text-xs mt-1 whitespace-pre-line ${n.isRead ? 'text-muted-foreground' : 'text-white'}`}>
+                                                                {n.message}
+                                                            </p>
+                                                        </button>
+                                                    );
+                                                })}
+                                                {notificationTotalPages > 1 && (
+                                                    <div className="flex items-center justify-center gap-2 pt-2 border-t border-white/10 mt-2 px-2 pb-1">
+                                                        <button
+                                                            type="button"
+                                                            disabled={notificationPage <= 0}
+                                                            onClick={() => fetchNotifications(Math.max(0, notificationPage - 1))}
+                                                            className="px-2 h-7 rounded-full text-[10px] border border-white/30 text-white/80 disabled:opacity-40 hover:bg-white/10"
+                                                        >
+                                                            ‹
+                                                        </button>
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            Trang {notificationPage + 1}/{notificationTotalPages}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            disabled={notificationPage >= notificationTotalPages - 1}
+                                                            onClick={() => fetchNotifications(Math.min(notificationTotalPages - 1, notificationPage + 1))}
+                                                            className="px-2 h-7 rounded-full text-[10px] border border-white/30 text-white/80 disabled:opacity-40 hover:bg-white/10"
+                                                        >
+                                                            ›
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </>
                                         )}
                                     </div>
@@ -460,19 +462,19 @@ export const Header: React.FC = () => {
                                 onMouseLeave={() => setIsUserMenuOpen(false)}
                             >
                                 <button className="flex items-center gap-2">
-                                    {user.picture || user.avatarUrl ? (
+                                    {myuser.avatarUrl ? (
                                         <img
-                                            src={user.picture || user.avatarUrl}
-                                            alt={user.name || user.email || 'User'}
+                                            src={myuser.avatarUrl}
+                                            alt={myuser.name || 'User'}
                                             className="h-8 w-8 rounded-full object-cover border-2 border-primary-500"
                                         />
                                     ) : (
                                         <div className="h-8 w-8 rounded-full bg-primary-500 flex items-center justify-center text-white font-bold">
-                                            {(user.name || user.email || 'U')[0].toUpperCase()}
+                                            {(myuser.name || myuser.email || 'U')[0].toUpperCase()}
                                         </div>
                                     )}
                                     <span className="hidden md:block text-sm font-medium">
-                                        {user.name || user.email?.split('@')[0]}
+                                        {myuser.name || myuser.email?.split('@')[0]}
                                     </span>
                                     <ChevronDown className="h-4 w-4 hidden md:block" />
                                 </button>

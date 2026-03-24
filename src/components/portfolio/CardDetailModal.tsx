@@ -4,7 +4,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DollarSign, Layers, Heart, Loader2 } from 'lucide-react';
 import { Card as CardType, Category, cardApi, getCardImageUrl } from '@/utils/api';
-import { useWishlist } from '@/hooks/useWishlist';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PLACEHOLDER_IMG = 'https://images.unsplash.com/photo-1606503153255-59d8b8b82176?w=400&q=80';
@@ -18,28 +17,23 @@ interface CardDetailModalProps {
 
 export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category, isOpen, onClose }) => {
     const { isAuthenticated } = useAuth();
-    const { addItem: addToWishlistLocal, removeItem: removeFromWishlistLocal, isInWishlist } = useWishlist();
     const [inWishlist, setInWishlist] = useState(false);
     const [wishlistLoading, setWishlistLoading] = useState(false);
     const [expectPriceInput, setExpectPriceInput] = useState<string>('');
 
     useEffect(() => {
         if (!card?.cardId || !isOpen) return;
-        if (!isAuthenticated) {
-            setInWishlist(isInWishlist(card.cardId));
-            return;
-        }
         const check = async () => {
             try {
                 const res = await cardApi.getUserWishlist(0, 100);
-                const found = (res.content ?? []).some((w) => w.cardId === card.cardId);
+                const found = (res.content ?? []).some((w) => (w.cardId ?? w.cardResponse?.cardId) === card.cardId);
                 setInWishlist(found);
             } catch {
-                setInWishlist(isInWishlist(card.cardId));
+                setInWishlist(false);
             }
         };
         check();
-    }, [card?.cardId, isOpen, isAuthenticated, isInWishlist]);
+    }, [card?.cardId, isOpen, isAuthenticated]);
 
     if (!card) return null;
 
@@ -56,23 +50,12 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
         const finalExpectPrice =
             parsed != null ? parsed : Number(card.basePrice ?? 0);
 
-        addToWishlistLocal({
-            id: card.cardId,
-            name: card.name,
-            price: card.basePrice,
-            image: getCardImageUrl(card) || PLACEHOLDER_IMG,
-            rarity: card.rarity,
-        });
-        setInWishlist(true);
-
-        if (isAuthenticated) {
-            try {
-                await cardApi.addToWishlist(card.cardId, finalExpectPrice);
-                window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
-            } catch {
-                setInWishlist(false);
-                removeFromWishlistLocal(card.cardId);
-            }
+        try {
+            await cardApi.addToWishlist(card.cardId, finalExpectPrice);
+            setInWishlist(true);
+            window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+        } catch {
+            setInWishlist(false);
         }
         setWishlistLoading(false);
         onClose();
@@ -83,15 +66,12 @@ export const CardDetailModal: React.FC<CardDetailModalProps> = ({ card, category
         // Nếu đã trong wishlist -> xoá
         if (inWishlist) {
             setWishlistLoading(true);
-            removeFromWishlistLocal(card.cardId);
-            setInWishlist(false);
-            if (isAuthenticated) {
-                try {
-                    await cardApi.removeFromWishlistByCardId(card.cardId);
-                    window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
-                } catch {
-                    // Đã bỏ khỏi wishlist trên máy
-                }
+            try {
+                await cardApi.removeFromWishlistByCardId(card.cardId);
+                setInWishlist(false);
+                window.dispatchEvent(new CustomEvent('wishlist-api-updated'));
+            } catch {
+                // ignore
             }
             setWishlistLoading(false);
         } else {

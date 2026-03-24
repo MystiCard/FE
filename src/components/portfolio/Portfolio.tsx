@@ -6,7 +6,6 @@ import { getCategoryImage } from '@/utils/categoryImages';
 import { SetDetail } from './SetDetail';
 import { CardDetailModal } from './CardDetailModal';
 import { useAuth } from '@/contexts/AuthContext';
-import { useWishlist } from '@/hooks/useWishlist';
 
 type ViewState = 'CATEGORIES' | 'CARDS';
 
@@ -20,7 +19,6 @@ function getSetAbbrev(name: string): string {
 
 export const Portfolio: React.FC = () => {
     const { isAuthenticated } = useAuth();
-    const { items: wishlistItems } = useWishlist();
     const [view, setView] = useState<ViewState>('CATEGORIES');
     const [isLoading, setIsLoading] = useState(false);
     const [categories, setCategories] = useState<Category[]>([]);
@@ -31,20 +29,21 @@ export const Portfolio: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedCard, setSelectedCard] = useState<CardType | null>(null);
 
-    const wishlistCardIds = isAuthenticated
-        ? apiWishlistIds
-        : new Set(wishlistItems.map((i) => String(i.id)));
+    const wishlistCardIds = apiWishlistIds;
 
     useEffect(() => {
         loadCategories();
     }, []);
 
     useEffect(() => {
-        if (!isAuthenticated) return;
+        if (!isAuthenticated) {
+            setApiWishlistIds(new Set());
+            return;
+        }
         const load = async () => {
             try {
                 const res = await cardApi.getUserWishlist(0, 500);
-                setApiWishlistIds(new Set((res.content ?? []).map((w) => w.cardId)));
+                setApiWishlistIds(new Set((res.content ?? []).map((w) => w.cardId ?? w.cardResponse?.cardId).filter(Boolean) as string[]));
             } catch {
                 setApiWishlistIds(new Set());
             }
